@@ -1,9 +1,11 @@
 /** Accessible tab strip (role=tablist, arrow-key navigation, optional unread badges). */
 import { h } from '../dom';
+import { icon } from '../icons';
 
 export interface TabDef {
   id: string;
   label: string;
+  /** Icon name (see ui/icons.ts). */
   glyph?: string;
   badge?: number;
   disabled?: boolean;
@@ -46,7 +48,7 @@ export function tabs(defs: TabDef[], onSelect: (id: string) => void, opts: { ini
         disabled: d.disabled,
         onclick: () => select(d.id),
       },
-      d.glyph ? h('span', { class: 'tab-glyph', 'aria-hidden': 'true' }, d.glyph) : null,
+      d.glyph ? h('span', { class: 'tab-glyph', 'aria-hidden': 'true' }, icon(d.glyph)) : null,
       h('span', { class: 'tab-label' }, d.label),
       badge,
     );

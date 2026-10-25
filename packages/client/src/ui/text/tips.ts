@@ -28,6 +28,7 @@ import {
 } from '@murim/shared';
 import { t } from '../../i18n';
 import { fmtInt, fmtNum, titleCase } from '../format';
+import { itemIconName, skillIconName } from '../glyphMap';
 
 export type Tone = 'good' | 'bad' | 'warn' | 'dim' | 'affix' | 'gold' | 'info';
 
@@ -37,6 +38,7 @@ export interface TipLine {
 }
 
 export interface TipModel {
+  /** Icon name (see ui/icons.ts). */
   glyph: string;
   glyphColor: string;
   title: string;
@@ -106,7 +108,7 @@ export interface ItemTipOptions {
 export function itemTipModel(stack: ItemStack, opts: ItemTipOptions = {}): TipModel {
   const def = getItem(stack.id);
   if (!def) {
-    return { glyph: '?', glyphColor: NEUTRAL, title: stack.id, titleColor: NEUTRAL, subtitle: t('tip.unknownItem'), lines: [], footer: [] };
+    return { glyph: 'unknown', glyphColor: NEUTRAL, title: stack.id, titleColor: NEUTRAL, subtitle: t('tip.unknownItem'), lines: [], footer: [] };
   }
   const equip = isEquipment(def);
   const r = stack.r ?? 0;
@@ -156,7 +158,7 @@ export function itemTipModel(stack: ItemStack, opts: ItemTipOptions = {}): TipMo
     if (opts.sellMult !== undefined) footer.push({ text: t('tip.sellsFor', { n: fmtInt(sellPrice(stack, opts.sellMult)) }), tone: 'gold' });
   }
   return {
-    glyph: def.glyph,
+    glyph: itemIconName(def),
     glyphColor: def.color,
     title: def.name,
     titleColor: equip ? RARITY_COLORS[r] : NEUTRAL,
@@ -226,7 +228,7 @@ export function passiveLines(p: PassiveBonus): TipLine[] {
 
 export function skillTipModel(id: string, level?: number, opts: { showReq?: boolean } = {}): TipModel {
   const def = getSkill(id);
-  if (!def) return { glyph: '?', glyphColor: NEUTRAL, title: id, titleColor: NEUTRAL, subtitle: t('tip.unknownSkill'), lines: [], footer: [] };
+  if (!def) return { glyph: 'unknown', glyphColor: NEUTRAL, title: id, titleColor: NEUTRAL, subtitle: t('tip.unknownSkill'), lines: [], footer: [] };
   const lv = Math.max(1, level ?? 1);
   const lines: TipLine[] = [];
   const subtitle = t('tip.skillSubtitle', { school: t(`school.${def.school}`), kind: t(`skillKind.${def.kind}`), tier: def.tier });
@@ -250,12 +252,12 @@ export function skillTipModel(id: string, level?: number, opts: { showReq?: bool
     footer.push(...requirementLines(def));
     footer.push({ text: t('tip.tuition', { n: fmtInt(def.req.gold) }), tone: 'dim' });
   }
-  return { glyph: def.glyph, glyphColor: '#d9b867', title: def.name, titleColor: '#e9d9a8', subtitle, lines, desc: def.desc, footer };
+  return { glyph: skillIconName(def), glyphColor: '#d9b867', title: def.name, titleColor: '#e9d9a8', subtitle, lines, desc: def.desc, footer };
 }
 
 export function talentTipModel(id: string): TipModel {
   const def = TALENTS[id];
-  if (!def) return { glyph: '?', glyphColor: NEUTRAL, title: titleCase(id), titleColor: NEUTRAL, subtitle: '', lines: [], footer: [] };
+  if (!def) return { glyph: 'unknown', glyphColor: NEUTRAL, title: titleCase(id), titleColor: NEUTRAL, subtitle: '', lines: [], footer: [] };
   const lines: TipLine[] = [];
   for (const k of STAT_KEYS) {
     const v = def.mods[k];
@@ -264,7 +266,7 @@ export function talentTipModel(id: string): TipModel {
   if (def.passive) lines.push(...passiveLines(def.passive));
   const color = def.positive ? '#7ec26b' : '#e8574a';
   return {
-    glyph: def.positive ? '吉' : '凶',
+    glyph: def.positive ? 'sparkle' : 'warn',
     glyphColor: color,
     title: def.name,
     titleColor: color,

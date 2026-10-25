@@ -58,7 +58,7 @@ export function groupByDay(entries: readonly ChronicleEntry[]): { day: number; e
   return out;
 }
 
-export const KIND_GLYPH: Record<ChronicleKind, string> = { blight: '蝕', faction: '旗', settlement: '城', npc: '人', weather: '天', economy: '貨', player: '俠', legend: '傳', season: '季' };
+export const KIND_ICON: Record<ChronicleKind, string> = { blight: 'core', faction: 'flag', settlement: 'city', npc: 'character', weather: 'cloud', economy: 'coin', player: 'master', legend: 'sparkle', season: 'sun' };
 
 export function factionColor(id: string | null | undefined, fallback = '#8a8f99'): string {
   return (id && FACTION_BY_ID[id]?.color) || fallback;

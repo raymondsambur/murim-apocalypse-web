@@ -4,6 +4,7 @@
  */
 import type { ItemStack } from '@murim/shared';
 import { h } from '../dom';
+import { icon } from '../icons';
 import { itemTipModel, skillTipModel, talentTipModel, type ItemTipOptions, type TipLine, type TipModel } from '../text/tips';
 
 export type TipContent = Node | string | null | undefined;
@@ -31,7 +32,7 @@ export function renderTip(m: TipModel): HTMLElement {
     h(
       'div',
       { class: 'tip-head' },
-      h('span', { class: 'tip-glyph', style: { color: m.glyphColor, '--rc': m.titleColor }, 'aria-hidden': 'true' }, m.glyph),
+      h('span', { class: 'tip-glyph', style: { color: m.glyphColor, '--rc': m.titleColor }, 'aria-hidden': 'true' }, icon(m.glyph)),
       h('div', { class: 'tip-titles' }, h('div', { class: 'tip-title', style: { color: m.titleColor } }, m.title), m.subtitle ? h('div', { class: 'tip-sub' }, m.subtitle) : null),
     ),
     m.lines.length ? h('div', { class: 'tip-lines' }, m.lines.map(lineEl)) : null,

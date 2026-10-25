@@ -3,7 +3,8 @@ import { t } from '../../i18n';
 import type { Invite } from '../../state/store';
 import type { UiContext } from '../context';
 import { h } from '../dom';
-import { INVITE_GLYPH, INVITE_TTL_MS, inviteReplies, isExpired } from '../logic/invites';
+import { INVITE_ICON, INVITE_TTL_MS, inviteReplies, isExpired } from '../logic/invites';
+import { icon } from '../icons';
 
 export function mountInvites(host: HTMLElement, ui: UiContext): { destroy(): void } {
   const { state } = ui;
@@ -16,7 +17,7 @@ export function mountInvites(host: HTMLElement, ui: UiContext): { destroy(): voi
     return h(
       'div',
       { class: 'invite glass', dataset: { kind: inv.kind } },
-      h('span', { class: 'seal', 'aria-hidden': 'true' }, INVITE_GLYPH[inv.kind]),
+      h('span', { class: 'seal', 'aria-hidden': 'true' }, icon(INVITE_ICON[inv.kind])),
       h('div', { class: 'invite-text' }, t(`invite.${inv.kind}`, { name: inv.from })),
       h(
         'div',

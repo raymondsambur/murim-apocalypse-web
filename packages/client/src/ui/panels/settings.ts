@@ -47,7 +47,7 @@ function build(root: HTMLElement, ui: UiContext): void {
         class: 'btn btn-danger btn-block',
         type: 'button',
         onclick: async () => {
-          if (await ui.confirm({ title: t('set.logoutTitle'), text: t('set.logoutText'), ok: t('set.logout'), danger: true, glyph: '離' })) ui.logout();
+          if (await ui.confirm({ title: t('set.logoutTitle'), text: t('set.logoutText'), ok: t('set.logout'), danger: true, glyph: 'run' })) ui.logout();
         },
       },
       t('set.logout'),
@@ -59,7 +59,7 @@ function build(root: HTMLElement, ui: UiContext): void {
 registerPanel({
   id: 'settings',
   title: 'panel.settings',
-  glyph: '設',
+  glyph: 'settings',
   order: 90,
   width: 380,
   // Static form: never re-render while a slider is being dragged.

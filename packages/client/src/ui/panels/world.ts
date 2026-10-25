@@ -7,13 +7,13 @@ import { FACTION_BY_ID, type ChronicleEntry, type ChronicleKind, type Settlement
 import '../../styles/panels/world.css';
 import { addStrings, t } from '../../i18n';
 import type { UiContext } from '../context';
-import { h, isNarrow, mount } from '../dom';
+import { glyph, h, isNarrow, mount } from '../dom';
 import { queryErrorMessage } from '../errors';
 import { fmtInt, fmtNum, seasonName } from '../format';
 import {
   CHRONICLE_KINDS,
   CHRONICLE_PAGE,
-  KIND_GLYPH,
+  KIND_ICON,
   NO_FILTER,
   STATUS_COLOR,
   STATUS_TONE,
@@ -36,6 +36,7 @@ import { bar } from '../widgets/bar';
 import { tabs } from '../widgets/tabs';
 import { attachTooltip } from '../widgets/tooltip';
 import { registerPanel } from './registry';
+import { icon, factionIconName } from '../icons';
 
 addStrings({
   'world.title': 'World',
@@ -291,7 +292,7 @@ function chronicleTab(ui: UiContext): HTMLElement[] {
           ui.panels.refresh('world');
         },
       },
-      h('span', { class: 'glyph', 'aria-hidden': 'true' }, KIND_GLYPH[k]),
+      glyph(KIND_ICON[k]),
       t(`world.chron.kind.${k}`),
     );
   });
@@ -327,7 +328,7 @@ function chronicleTab(ui: UiContext): HTMLElement[] {
         h(
           'article',
           { class: ['world-entry', `imp-${e.importance}`], dataset: { kind: e.kind } },
-          h('span', { class: 'world-entry-glyph', 'aria-hidden': 'true' }, KIND_GLYPH[e.kind]),
+          h('span', { class: 'world-entry-glyph', 'aria-hidden': 'true' }, icon(KIND_ICON[e.kind])),
           h('div', { class: 'world-entry-body' }, h('div', { class: 'world-entry-text' }, e.text), h('div', { class: 'jobs-fine' }, stamp.hour, ' · ', t(`world.chron.kind.${e.kind}`), s ? [' · ', h('button', { class: 'world-link', type: 'button', title: t('world.chron.go', { name: s.name }), onclick: () => lookAt(ui, s) }, s.name)] : null)),
         ),
       );
@@ -365,7 +366,7 @@ function factionsTab(ui: UiContext): HTMLElement[] {
       h(
         'header',
         { class: 'world-fac-head' },
-        h('span', { class: 'seal world-fac-seal', 'aria-hidden': 'true', style: { background: color } }, (def?.short ?? f.id).slice(0, 1)),
+        h('span', { class: 'seal world-fac-seal', 'aria-hidden': 'true', style: { background: color } }, icon(factionIconName(f.id))),
         h('div', { class: 'world-fac-title' }, h('strong', {}, def?.name ?? f.id), def ? h('span', { class: 'chip' }, t(`world.fac.ideology.${def.ideology}`)) : null),
       ),
       def ? h('p', { class: 'jobs-desc' }, def.desc) : null,
@@ -434,7 +435,7 @@ function settlementsTab(ui: UiContext): HTMLElement[] {
         { class: 'world-set-head' },
         h('strong', {}, def.name),
         h('span', { class: `chip chip-${STATUS_TONE[view.status] === 'dim' ? '' : STATUS_TONE[view.status]}`.trim() }, t(`world.set.status.${view.status}`)),
-        view.siege ? h('span', { class: 'chip chip-bad world-siege' }, '⚔ ', t('world.set.siege')) : null,
+        view.siege ? h('span', { class: 'chip chip-bad world-siege' }, icon('swords'), ' ', t('world.set.siege')) : null,
         here ? h('span', { class: 'chip chip-gold' }, t('world.set.here')) : null,
       ),
       h('div', { class: 'world-set-sub' }, h('span', { class: 'world-ctrl' }, h('i', { class: 'lg lg-fac', style: { background: factionColor(view.controller, '#6b6b70') } }), ctrl), h('span', { class: 'jobs-fine' }, t('world.set.pop', { n: fmtInt(view.population) }))),
@@ -451,7 +452,7 @@ function settlementsTab(ui: UiContext): HTMLElement[] {
 registerPanel({
   id: 'world',
   title: 'world.title',
-  glyph: '世',
+  glyph: 'world',
   hotkey: 'o',
   order: 60,
   width: 480,
@@ -477,10 +478,10 @@ registerPanel({
   render(root, ui) {
     const tb = tabs(
       [
-        { id: 'map', label: t('world.tab.map'), glyph: '圖' },
-        { id: 'chronicle', label: t('world.tab.chronicle'), glyph: '史' },
-        { id: 'factions', label: t('world.tab.factions'), glyph: '旗' },
-        { id: 'settlements', label: t('world.tab.settlements'), glyph: '城' },
+        { id: 'map', label: t('world.tab.map'), glyph: 'map' },
+        { id: 'chronicle', label: t('world.tab.chronicle'), glyph: 'book' },
+        { id: 'factions', label: t('world.tab.factions'), glyph: 'flag' },
+        { id: 'settlements', label: t('world.tab.settlements'), glyph: 'city' },
       ],
       (id) => {
         tab = id as TabId;

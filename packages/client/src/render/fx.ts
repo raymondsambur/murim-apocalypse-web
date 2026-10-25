@@ -296,23 +296,23 @@ export class Fx {
       const py = Math.round(o.y);
       switch (e.kind) {
         case 'slash':
-          this.drawSlash(s, px, py - 14, e, t);
+          this.drawSlash(s, px, py - 9, e, t);
           break;
         case 'thrust':
-          this.drawThrust(s, px, py - 14, e, t);
+          this.drawThrust(s, px, py - 9, e, t);
           break;
         case 'impact':
-          this.drawImpact(s, px, py - 14, e, t);
+          this.drawImpact(s, px, py - 9, e, t);
           break;
         case 'poisoncloud':
-          this.drawPuffs(s, px, py - 12, e, t, 'rgba(120,230,90,', 6, 10);
+          this.drawPuffs(s, px, py - 8, e, t, 'rgba(120,230,90,', 6, 8);
           break;
         case 'qiburst':
-          ring(s, px, py - 10, 4 + t * 16, (4 + t * 16) / 2, e.color, 1 - t);
-          ring(s, px, py - 10, 2 + t * 9, (2 + t * 9) / 2, '#ffffff', 1 - t);
+          ring(s, px, py - 7, 3 + t * 12, (3 + t * 12) / 2, e.color, 1 - t);
+          ring(s, px, py - 7, 2 + t * 7, (2 + t * 7) / 2, '#ffffff', 1 - t);
           break;
         case 'spark':
-          this.drawSpark(s, px, py - 14, e, t);
+          this.drawSpark(s, px, py - 9, e, t);
           break;
         case 'levelup':
           this.drawLevelUp(s, px, py, e, t);
@@ -344,7 +344,7 @@ export class Fx {
 
   private drawSlash(s: CanvasRenderingContext2D, x: number, y: number, e: Effect, t: number): void {
     const a0 = Math.atan2(e.diry, e.dirx);
-    const r = 11 + t * 3;
+    const r = 8 + t * 2;
     const alpha = Math.min(1, (1 - t) * 1.6);
     s.fillStyle = e.color;
     s.globalAlpha = alpha;
@@ -364,8 +364,8 @@ export class Fx {
   private drawThrust(s: CanvasRenderingContext2D, x: number, y: number, e: Effect, t: number): void {
     s.globalAlpha = (1 - t) * 1.4 > 1 ? 1 : (1 - t) * 1.4;
     s.fillStyle = e.color;
-    const len = 16 * Math.min(1, t * 4);
-    for (let i = 0; i < len; i++) s.fillRect((x - e.dirx * (18 - i)) | 0, (y - e.diry * (18 - i) * 0.6) | 0, 2, 1);
+    const len = 11 * Math.min(1, t * 4);
+    for (let i = 0; i < len; i++) s.fillRect((x - e.dirx * (12 - i)) | 0, (y - e.diry * (12 - i) * 0.6) | 0, 2, 1);
     s.globalAlpha = 1;
   }
 
@@ -410,7 +410,7 @@ export class Fx {
     const fade = t < 0.65 ? 1 : 1 - (t - 0.65) / 0.35;
     s.globalCompositeOperation = 'lighter';
     s.globalAlpha = fade * 0.9;
-    const h = 96 * grow;
+    const h = 66 * grow;
     s.drawImage(this.pillar, 0, 0, 24, 128, x - 12 + (1 - grow) * 6, y - h, 24 - (1 - grow) * 12, h + 2);
     s.globalAlpha = fade * 0.55;
     s.drawImage(this.halo, x - 22, y - 12, 44, 22);
@@ -425,7 +425,7 @@ export class Fx {
     for (let i = 0; i < 18; i++) {
       const ph = (t * 1.3 + i * 0.137) % 1;
       const px = x + Math.sin(i * 12.97) * (6 + ph * 8);
-      const py = y - ph * 80;
+      const py = y - ph * 56;
       s.globalAlpha = (1 - ph) * fade;
       s.fillRect(px | 0, py | 0, 1, ph < 0.5 ? 2 : 1);
     }
@@ -448,7 +448,7 @@ export class Fx {
         const steps = 14;
         for (let i = 0; i < steps; i++) {
           const nx = x + (bx - x) * 0.55 * (1 - i / steps) + (hash(seed + b * 31 + i) - 0.5) * 12;
-          const ny = by + (y - 14 - by) / steps;
+          const ny = by + (y - 9 - by) / steps;
           s.fillRect(Math.min(bx, nx) | 0, by | 0, Math.max(1, Math.abs(nx - bx)) | 0, Math.ceil(ny - by) + 1);
           bx = nx;
           by = ny;
@@ -476,7 +476,7 @@ export class Fx {
       const baseX = x + (w - 1) * 7;
       for (let i = 0; i < 9; i++) {
         const u = i / 9;
-        const yy = y - 6 - ph * 60 - u * 12;
+        const yy = y - 4 - ph * 42 - u * 9;
         const xx = baseX + Math.sin(ph * 5 + u * 3 + w * 2) * 5;
         s.globalAlpha = Math.max(0, (1 - ph) * (1 - u) * 0.9);
         s.fillStyle = u < 0.3 ? '#ffffff' : '#bfe0ff';
@@ -490,7 +490,7 @@ export class Fx {
     for (let i = 0; i < 6; i++) {
       const life = (t * 1.6 + i * 0.17) % 1;
       const px = x + (hash(e.seed + i * 7) - 0.5) * 24;
-      const py = y - 4 - hash(e.seed + i * 11) * 14 - life * 6;
+      const py = y - 3 - hash(e.seed + i * 11) * 9 - life * 5;
       const sz = Math.sin(life * Math.PI);
       if (sz < 0.1) continue;
       s.globalAlpha = sz;
@@ -506,7 +506,7 @@ export class Fx {
     for (let i = 0; i < 8; i++) {
       const ph = (t * 1.2 + i * 0.13) % 1;
       const px = x + (hash(e.seed + i * 5) - 0.5) * 22;
-      const py = y - 4 - ph * 34;
+      const py = y - 3 - ph * 24;
       s.globalAlpha = (1 - ph) * (1 - t * 0.4);
       s.fillStyle = i % 2 ? '#9affb8' : '#5fdc86';
       s.fillRect(px | 0, (py - 1) | 0, 1, 3);
@@ -517,7 +517,7 @@ export class Fx {
 
   private drawLearn(s: CanvasRenderingContext2D, x: number, y: number, e: Effect, t: number): void {
     const fade = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-    const cy = y - 44 - t * 8;
+    const cy = y - 31 - t * 6;
     s.globalCompositeOperation = 'lighter';
     s.globalAlpha = 0.7 * fade;
     s.drawImage(this.halo, x - 22, cy - 22, 44, 44);

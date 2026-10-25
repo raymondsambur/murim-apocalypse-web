@@ -30,6 +30,9 @@ import type { DecodedWorld } from './render/api';
 import { FRAME_COUNTS, type CharState } from './art/anim';
 import { ACT_STATE } from './render/life';
 import { createGameView, drawLookPreview } from './render/index';
+import { referenceItems, type RefItem } from './art/scaleRef';
+import { pbToCanvas } from './art/canvas';
+import { PERSON_PX } from './art/scale';
 import type { GameView } from './render/view';
 
 function encode(bytes: Uint8Array): string {
@@ -403,7 +406,7 @@ const lab = {
   dir: Number(params.get('dir') ?? 0),
 };
 const STATES: (CharState | 'auto')[] = ['auto', 'idle', 'walk', 'run', 'draw', 'fight', 'attack', 'hit', 'block', 'dodge', 'die', 'dead', 'meditate', 'work', 'craft', 'cheer', 'loot', 'stretch', 'sweep', 'chat', 'fan', 'wipe', 'form', 'eat', 'pray', 'rest', 'trade', 'shelter', 'mourn'];
-const ACTS = ['none', 'work', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate'] as const;
+const ACTS = ['none', 'farm', 'forge', 'brew', 'gather', 'mine', 'guard', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate'] as const;
 let labAct: (typeof ACTS)[number] = 'none';
 function labGear(): GearLook | undefined {
   const g: GearLook = {};
@@ -471,6 +474,8 @@ mk(labRow, 'reroll look', () => {
 });
 mk(labRow, 'gallery', () => toggleGallery());
 mk(labRow, 'crowd', () => toggleCrowd());
+mk(labRow, 'scale reference', () => toggleScaleRef());
+mk(labRow, 'npc behind house', () => npcBehindHouse());
 mk(labRow, 'max gear', () => {
   Object.assign(lab, { oT: 5, oR: 4, wT: 5, wR: 4, aK: 'spirit', aT: 5, aR: 4 });
   const vals = [5, 4, lab.wType, 5, 4, 'spirit', 5, 4];
@@ -545,10 +550,126 @@ function toggleCrowd(): void {
     crowdIds.push(e.id);
   }
 }
-(window as unknown as { lab: unknown }).lab = { lab, apply: labApply, gallery: toggleGallery, crowd: toggleCrowd, ents };
+
+// scale reference: a person next to everything that has a target height (art/scale.ts), 1-tile grid and ruler lines
+let refOn = false;
+let refCv: HTMLCanvasElement | null = null;
+function drawScaleRef(cv: HTMLCanvasElement): void {
+  const items = referenceItems();
+  const person = items[0];
+  const rows: RefItem[][] = [[], [], []];
+  for (const it of items) rows[it.row].push(it);
+  const GAP = 14;
+  const rowW = (r: RefItem[]): number => r.reduce((a, it) => a + it.w + GAP + (it.withPerson ? person.w + 6 : 0), GAP);
+  const maxW = Math.max(rowW(rows[0]), rowW(rows[1]));
+  const rowH = (r: RefItem[]): number => Math.max(...r.map((it) => it.h)) + 56;
+  const hs = rows.map(rowH);
+  const S = Math.max(1, Math.min(3, Math.floor(Math.min(innerWidth / maxW, innerHeight / (hs.reduce((a, b) => a + b + 14, 0) + 8)) * 4) / 4));
+  cv.width = innerWidth;
+  cv.height = innerHeight;
+  const g = cv.getContext('2d')!;
+  g.imageSmoothingEnabled = false;
+  g.fillStyle = '#26402c';
+  g.fillRect(0, 0, cv.width, cv.height);
+  g.font = `${11}px ui-monospace, Consolas, monospace`;
+  const total = hs.reduce((a, b) => a + b + 14, 0) * S;
+  let top = Math.max(8, Math.round((innerHeight - total) / 2));
+  const drawRow = (r: RefItem[], h: number): void => {
+    const base = top + (h - 46) * S;
+    // ruler lines every person height
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let k = 1; k * PERSON_PX < h - 10; k++) {
+      const y = base - k * PERSON_PX * S;
+      for (let x = 0; x < cv.width; x += 8) g.fillRect(x, y, 4, 1);
+      g.fillStyle = '#fff';
+      g.fillText(`${k} person${k > 1 ? 's' : ''} (${k * PERSON_PX}px)`, 4, y - 2);
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+    }
+    g.fillStyle = 'rgba(0,0,0,0.5)';
+    g.fillRect(0, base, cv.width, 1);
+    let x = GAP * S;
+    const place = (it: RefItem, cx: number, label: number): void => {
+      // 1-tile diamond under the item
+      g.strokeStyle = 'rgba(255,255,255,0.45)';
+      g.beginPath();
+      g.moveTo(cx - 16 * S, base);
+      g.lineTo(cx, base - 8 * S);
+      g.lineTo(cx + 16 * S, base);
+      g.lineTo(cx, base + 8 * S);
+      g.closePath();
+      g.stroke();
+      for (const p of it.parts) g.drawImage(pbToCanvas(p.pb), cx + (p.dx - p.ax) * S, base + (p.dy - p.ay) * S, p.pb.w * S, p.pb.h * S);
+      if (label >= 0) {
+        g.fillStyle = '#fff';
+        const t1 = it.name;
+        const t = `${it.h}px ${(it.h / PERSON_PX).toFixed(1)}P`;
+        g.fillText(t1, cx - g.measureText(t1).width / 2, base + 22 + label * 24);
+        g.fillText(t, cx - g.measureText(t).width / 2, base + 34 + label * 24);
+        if (it.door) {
+          const t2 = `door ${Math.round(it.door)} eave ${Math.round(it.eave ?? 0)}`;
+          g.fillText(t2, cx - g.measureText(t2).width / 2, base + 46 + label * 24);
+        }
+      }
+    };
+    let li = 0;
+    for (const it of r) {
+      li++;
+      const half = (it.w / 2) * S;
+      place(it, x + half, li % 2);
+      x += it.w * S + 4 * S;
+      if (it.withPerson) {
+        place(person, x + (person.w / 2) * S, -1);
+        x += (person.w + 6) * S;
+      }
+      x += GAP * S;
+    }
+    top += (h + 14) * S;
+  };
+  rows.forEach((r, i) => drawRow(r, hs[i]));
+}
+function toggleScaleRef(): void {
+  refOn = !refOn;
+  if (!refCv) {
+    refCv = document.createElement('canvas');
+    refCv.style.cssText = 'position:fixed;inset:0;z-index:15;width:100%;height:100%;image-rendering:pixelated;cursor:pointer';
+    refCv.onclick = () => toggleScaleRef();
+    document.body.appendChild(refCv);
+  }
+  refCv.style.display = refOn ? 'block' : 'none';
+  if (refOn) drawScaleRef(refCv);
+}
+
+
+// occlusion test case: an NPC standing behind the nearest house (its plate and bubble must hide), and you walking behind it
+// (your plate stays, an x-ray ghost shows through)
+function npcBehindHouse(): void {
+  const houses = wd.buildings.filter((b) => b.kind === 'house' || b.kind === 'inn').sort((a, b) => Math.hypot(a.x - spawn.x, a.y - spawn.y) - Math.hypot(b.x - spawn.x, b.y - spawn.y));
+  const b = houses[0];
+  if (!b) return;
+  let tx = b.x + Math.floor(b.w / 2);
+  let ty = b.y - 1;
+  for (let k = 1; k <= 4; k++) {
+    if (isPassable(wd, tx, b.y - k) && wd.objects[(b.y - k) * wd.w + tx] === 0) {
+      ty = b.y - k;
+      break;
+    }
+  }
+  const e = spawnEnt({ kind: 'npc', name: 'Han Haejun', x: tx, y: ty, face: 0, state: 'idle', look: randLook(), role: 'villager', lv: 12 }, { wander: false });
+  view.say(e.id, 'Nobody can see me behind the house!');
+  const me = ents.get(SELF)!;
+  me.x = tx + 2;
+  me.y = ty - 1;
+  view.applyEntities({ upd: [{ id: SELF, x: me.x, y: me.y, state: 'idle' }] });
+  view.centerOn(tx, ty + 1, true);
+  say('NPC behind the house: plate hidden. You at the right side behind the house: plate stays, ghost shows.');
+}
+
+(window as unknown as { lab: unknown }).lab = { lab, apply: labApply, gallery: toggleGallery, crowd: toggleCrowd, scaleRef: toggleScaleRef, behindHouse: npcBehindHouse, ents };
 if (lab.oT || lab.wT || lab.aK !== 'none' || lab.state !== 'auto') labApply();
 if (params.get('crowd') === '1') toggleCrowd();
 if (params.get('gallery') === '1') toggleGallery();
+if (params.get('scale') === '1') toggleScaleRef();
+if (params.get('occl') === '1') setTimeout(npcBehindHouse, 300);
 
 if (params.get('panel') === '0') panel.style.display = 'none';
 if (innerWidth < 640) el('body').style.display = 'none';

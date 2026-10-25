@@ -18,6 +18,12 @@ export function hash01(a: number, b = 0): number {
   return hash32(a, b) / 4294967296;
 }
 
+export function strHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619) >>> 0;
+  return h;
+}
+
 export function surname(npc: NpcState): string {
   return npc.name.split(' ')[0] ?? npc.name;
 }
@@ -104,11 +110,14 @@ export function chooseWork(sp: SettlementPlaces, npc: NpcState, rank: number): W
     case 'wanderer':
       return { work: sp.plaza, posts: [] };
     default: {
-      // Villagers: mostly farm patches, every third one at the herb hut, otherwise the plaza stalls.
+      // Villagers: whole families farm (by surname), some gather herbs or mine; the rest keep house (no workplace).
       const herb = sp.byKind('herb');
-      if (sp.farms.length && !(herb.length && rank % 3 === 2)) return { work: sp.farms[rank % sp.farms.length], posts: [] };
-      if (herb.length) return { work: herb[rank % herb.length], posts: [] };
-      return { work: sp.plaza, posts: [] };
+      const mines = sp.byKind('mine');
+      const sn = strHash(surname(npc));
+      if (sp.farms.length && (hash01(sn, 41) < 0.6 || rank === 0)) return { work: sp.farms[sn % sp.farms.length], posts: [] };
+      if (herb.length && hash01(npc.id, 42) < 0.5) return { work: herb[rank % herb.length], posts: [] };
+      if (mines.length && hash01(npc.id, 43) < 0.25) return { work: mines[rank % mines.length], posts: [] };
+      return { work: null, posts: [] };
     }
   }
 }

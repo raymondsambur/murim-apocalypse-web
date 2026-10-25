@@ -3,7 +3,7 @@ import { isBreakthroughLevel, levelLabel } from '@murim/shared';
 import { t } from '../../i18n';
 import type { UiContext } from '../context';
 import { fmtDuration, fmtInt, rankColor } from '../format';
-import { h } from '../dom';
+import { glyph, h } from '../dom';
 import { drawLook } from '../portrait';
 import { bar } from '../widgets/bar';
 import { attachTooltip } from '../widgets/tooltip';
@@ -18,7 +18,7 @@ export function mountPlayerCard(host: HTMLElement, ui: UiContext): { destroy(): 
   const xp = bar('xp', { label: t('hud.xp'), tag: 'XP', size: 'sm' });
   const gold = h('span', { class: 'chip chip-gold pcard-gold' });
   const injury = h('span', { class: 'chip chip-bad', hidden: true });
-  const fighting = h('span', { class: 'chip chip-warn', hidden: true }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '戰'), t('hud.inCombat'));
+  const fighting = h('span', { class: 'chip chip-warn', hidden: true }, glyph('swords'), t('hud.inCombat'));
   const points = h('button', { class: 'chip chip-good pcard-points', type: 'button', hidden: true, onclick: () => ui.panels.show('character') });
   attachTooltip(gold, () => t('hud.goldTip'));
   attachTooltip(injury, () => t('hud.injuryTip'));
@@ -47,7 +47,7 @@ export function mountPlayerCard(host: HTMLElement, ui: UiContext): { destroy(): 
     const full = c.xp >= me.xpNext;
     xp.set(c.xp, me.xpNext, isBreakthroughLevel(c.level) && full ? t('hud.readyBreak') : undefined);
     gold.textContent = '';
-    gold.append(h('span', { class: 'glyph', 'aria-hidden': 'true' }, '金'), fmtInt(c.gold));
+    gold.append(glyph('coin'), fmtInt(c.gold));
     const left = c.injuryUntil - state.serverNow();
     injury.hidden = left <= 0;
     if (left > 0) injury.textContent = t('hud.injured', { n: c.injuryStacks, time: fmtDuration(left) });

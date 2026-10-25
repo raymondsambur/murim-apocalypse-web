@@ -2,8 +2,9 @@
 import type { NoteLevel } from '@murim/shared';
 import { t } from '../../i18n';
 import { h } from '../dom';
+import { icon } from '../icons';
 
-const LEVEL_GLYPH: Record<NoteLevel, string> = { info: '訊', good: '吉', warn: '警', bad: '凶' };
+const LEVEL_GLYPH: Record<NoteLevel, string> = { info: 'info', good: 'good', warn: 'warn', bad: 'bad' };
 const MAX = 5;
 
 let host: HTMLElement | null = null;
@@ -18,6 +19,7 @@ export function initToasts(container?: HTMLElement): HTMLElement {
 export interface ToastOptions {
   /** Milliseconds before auto-dismiss (default scales with length). */
   ttl?: number;
+  /** Icon name (see ui/icons.ts). */
   glyph?: string;
   action?: { label: string; run: () => void };
 }
@@ -36,7 +38,7 @@ export function toast(text: string, level: NoteLevel = 'info', opts: ToastOption
   const el = h(
     'div',
     { class: ['toast', `toast-${level}`], dataset: { text, level, count: 1 } },
-    h('span', { class: 'toast-glyph', 'aria-hidden': 'true' }, opts.glyph ?? LEVEL_GLYPH[level]),
+    h('span', { class: 'toast-glyph', 'aria-hidden': 'true' }, icon(opts.glyph ?? LEVEL_GLYPH[level])),
     h('span', { class: 'toast-text' }, text),
     h('span', { class: 'toast-count', 'aria-hidden': 'true' }),
     opts.action
@@ -53,7 +55,7 @@ export function toast(text: string, level: NoteLevel = 'info', opts: ToastOption
           opts.action.label,
         )
       : null,
-    h('button', { class: 'toast-x', type: 'button', 'aria-label': t('common.dismiss'), onclick: () => dismiss(el) }, '✕'),
+    h('button', { class: 'toast-x', type: 'button', 'aria-label': t('common.dismiss'), onclick: () => dismiss(el) }, icon('close')),
   );
   root.appendChild(el);
   const live = [...root.children].filter((c) => !c.classList.contains('leaving')) as HTMLElement[];

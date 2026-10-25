@@ -4,7 +4,7 @@
  */
 import { INVENTORY_SLOTS, type EquipSlot, type ItemStack } from '@murim/shared';
 import { t } from '../../i18n';
-import { h, loadJson, saveJson } from '../dom';
+import { glyph, h, loadJson, saveJson } from '../dom';
 import { fmtInt } from '../format';
 import { freeSlots, nextSortMode, reconcileSelection, sortOrder, stackActions, type SortMode } from '../logic/inventory';
 import { itemTipModel, stackTitle } from '../text/tips';
@@ -17,9 +17,9 @@ type Selection = { kind: 'inv'; idx: number; id: string } | { kind: 'eq'; slot: 
 
 const PREF_KEY = 'murim.inventory.v1';
 const SLOTS: { slot: EquipSlot; glyph: string }[] = [
-  { slot: 'weapon', glyph: '劍' },
-  { slot: 'outfit', glyph: '衣' },
-  { slot: 'accessory', glyph: '環' },
+  { slot: 'weapon', glyph: 'sword' },
+  { slot: 'outfit', glyph: 'outfit' },
+  { slot: 'accessory', glyph: 'ring' },
 ];
 
 let selection: Selection = null;
@@ -30,7 +30,7 @@ let lastClick = { idx: -1, at: 0 };
 registerPanel({
   id: 'inventory',
   title: 'panel.inventory',
-  glyph: '袋',
+  glyph: 'bag',
   hotkey: 'i',
   order: 20,
   width: 440,
@@ -61,20 +61,20 @@ registerPanel({
     const eqRow = h(
       'div',
       { class: 'inv-equip' },
-      ...SLOTS.map(({ slot, glyph }) => {
+      ...SLOTS.map(({ slot, glyph: slotIcon }) => {
         const st = c.equipment[slot];
         const sel = selection?.kind === 'eq' && selection.slot === slot;
         return h(
           'div',
           { class: 'inv-eq-cell' },
-          itemSlot(st, { size: 'lg', emptyGlyph: glyph, emptyLabel: t(`inv.slot.${slot}`), selected: sel, tipOptions: { equipped: true }, onClick: () => st && select(sel ? null : { kind: 'eq', slot }) }),
+          itemSlot(st, { size: 'lg', emptyGlyph: slotIcon, emptyLabel: t(`inv.slot.${slot}`), selected: sel, tipOptions: { equipped: true }, onClick: () => st && select(sel ? null : { kind: 'eq', slot }) }),
           h('span', { class: 'inv-eq-label' }, t(`inv.slot.${slot}`)),
         );
       }),
       h(
         'div',
         { class: 'inv-meta' },
-        h('span', { class: 'chip chip-gold inv-gold' }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '金'), fmtInt(c.gold)),
+        h('span', { class: 'chip chip-gold inv-gold' }, glyph('coin'), fmtInt(c.gold)),
         h('span', { class: ['chip', freeSlots(inv.length, INVENTORY_SLOTS) === 0 ? 'chip-bad' : ''] }, t('inv.slots', { used: inv.length, total: INVENTORY_SLOTS })),
         h(
           'button',
@@ -88,7 +88,7 @@ registerPanel({
               ui.panels.refresh('inventory');
             },
           },
-          h('span', { class: 'glyph', 'aria-hidden': 'true' }, '序'),
+          glyph('sort'),
           t('inv.sort', { mode: t(`inv.sort.${sortMode}`) }),
         ),
       ),

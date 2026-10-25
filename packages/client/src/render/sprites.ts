@@ -128,7 +128,7 @@ export class SpriteBank {
     if (!g || !g.visible) s = null;
     else {
       const pb = flip ? g.pb.flipped() : g.pb;
-      s = makeSprite(pb, flip ? g.pb.w - 1 - g.ax : g.ax, g.ay);
+      s = makeSprite(pb, flip ? g.pb.w - 1 - g.ax : g.ax, g.ay, null, g.pb.h >= 40);
     }
     this.objects.set(key, s);
     this.built.objects++;
@@ -151,7 +151,7 @@ export class SpriteBank {
     let s = this.mountains.get(key);
     if (!s) {
       const m = genMountainTile(this.rock, x, y, this.season);
-      s = makeSprite(m.pb, m.ax, m.ay);
+      s = makeSprite(m.pb, m.ax, m.ay, null, true);
       this.mountains.set(key, s);
       this.built.mountains++;
     }
@@ -163,7 +163,7 @@ export class SpriteBank {
     let s = this.walls.get(key);
     if (!s) {
       const t = genWallTile(mask, this.season, fallen);
-      s = makeSprite(t.pb, t.ax, t.ay);
+      s = makeSprite(t.pb, t.ax, t.ay, null, true);
       this.walls.set(key, s);
     }
     return s;
@@ -199,7 +199,7 @@ export class SpriteBank {
         fallen,
       };
       const art: BuildingArt = genBuilding(spec);
-      const spr = makeSprite(art.pb, art.ox, art.oy, art.glow);
+      const spr = makeSprite(art.pb, art.ox, art.oy, art.glow, true);
       s = { spr, ox: art.ox, oy: art.oy, lights: art.lights, smoke: art.smoke };
       this.buildings.set(key, s);
       this.built.buildings++;

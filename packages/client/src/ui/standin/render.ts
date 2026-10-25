@@ -207,7 +207,7 @@ function createGameView(canvas: HTMLCanvasElement): GameViewApi {
       if (v.state === 'meditate' || v.state === 'work') {
         ctx.fillStyle = '#8fd7e8';
         ctx.font = `${12 * zoom}px serif`;
-        ctx.fillText(v.state === 'work' ? '工' : '氣', s.x + 16 * zoom, s.y - bodyH);
+        ctx.fillText(v.state === 'work' ? '+' : '~', s.x + 16 * zoom, s.y - bodyH);
       }
       if (v.kind !== 'node' || v.id === selected) {
         const ny = s.y - bodyH - (v.look ? 18 : 6) * zoom;

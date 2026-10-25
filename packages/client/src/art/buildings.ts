@@ -7,6 +7,7 @@ import { addLight, addSmoke, doorPlacement, windowsFor, type BuildingArt, type B
 import { hex, mix, rgba, scale, type Col } from './color';
 import { hf } from './draw';
 import { AHW } from '../render/iso';
+import { BUILDING_ZK } from './scale';
 import { Scene3D } from './mesh';
 import {
   GLOW_FIRE,
@@ -74,17 +75,22 @@ const MAX_Z: Record<BuildingKind, number> = {
   teahouse: 76,
 };
 
+/** Vertical stretch per kind (default `BUILDING_ZK`). */
+const ZK_KIND: Partial<Record<BuildingKind, number>> = { market: 1.5, mineEntrance: 2.2, tower: 1.5, hall: 1.5, inn: 1.6 };
+
 const WALL_TONES = ['#e6dcc6', '#ddd2b8', '#e9e0cd', '#d8cbb0'];
 
 export function genBuilding(spec: BuildingSpec): BuildingArt {
   const { w, d } = spec;
   const marginX = 14;
-  const maxZ = MAX_Z[spec.kind] ?? 80;
-  const oy = maxZ + 14;
+  const zk = ZK_KIND[spec.kind] ?? BUILDING_ZK;
+  const maxZ = (MAX_Z[spec.kind] ?? 80) * zk;
+  const oy = Math.ceil(maxZ) + 14;
   const ox = d * AHW + marginX;
   const W = (w + d) * AHW + marginX * 2;
   const H = (w + d) * 8 + oy + 10;
   const sc = new Scene3D(W, H, ox, oy);
+  sc.zk = zk;
   const seed = spec.id * 7919 + 13;
   const fallen = spec.fallen || spec.kind === 'ruinedHouse';
   const wallBase = hex(WALL_TONES[Math.abs(seed) % WALL_TONES.length]);
@@ -101,6 +107,7 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
     fallen,
     seed,
     soot: hex('#2a2226'),
+    zk,
   };
   const ctx: Ctx = {
     sc,
@@ -113,6 +120,7 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
     lights: [],
     smoke: [],
     rnd: (k) => hf(seed, k, 5),
+    metrics: { door: 0, eave: 0 },
   };
   switch (spec.kind) {
     case 'house':
@@ -179,7 +187,7 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
   }
   // Soft outline around the whole building.
   sc.pb.outline(undefined, 0.3);
-  return { pb: sc.pb, glow: sc.glow, ox, oy, lights: ctx.lights, smoke: ctx.smoke };
+  return { pb: sc.pb, glow: sc.glow, ox, oy, lights: ctx.lights, smoke: ctx.smoke, metrics: ctx.metrics };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +222,8 @@ export function basic(c: Ctx, o: BasicOpts): { u0: number; u1: number; v0: numbe
   const ph = o.plinthH ?? 3;
   plinth(sc, st, u0 - 0.06, v0 - 0.06, u1 + 0.06, v1 + 0.06, ph);
   const z1 = ph + o.H;
+  c.metrics.eave = z1 * sc.zk;
+  c.metrics.door = (o.doorH ?? 17) * sc.zk;
   const stt: Style = o.timber ? { ...st, timber: o.timber } : st;
   walls(sc, stt, u0, v0, u1, v1, ph, z1, {
     kind: o.wallKind ?? 'plaster',
@@ -224,7 +234,7 @@ export function basic(c: Ctx, o: BasicOpts): { u0: number; u1: number; v0: numbe
   });
   const dp = doorPlacement(c.spec);
   const at = dp.face === 'left' ? v1 : u1;
-  door(sc, stt, dp.face, at, dp.center, o.doorW ?? 0.52, ph, o.doorH ?? 17, o.doorColor);
+  door(sc, stt, dp.face, at, dp.center, o.doorW ?? 0.8, ph, o.doorH ?? 17, o.doorColor);
   if (o.windows !== false) windowsFor(c, u0, u1, v0, v1, ph + (o.H > 20 ? 9 : 7), o.windowH ?? 7, o.glow ?? GLOW_WARM);
   const ro = roof(sc, st, u0, v0, u1, v1, {
     zEave: z1,
@@ -259,7 +269,7 @@ function chimney(c: Ctx, u: number, v: number, h: (u: number, v: number) => numb
 // ---------------------------------------------------------------------------
 
 function house(c: Ctx): void {
-  const b = basic(c, { H: 30, post: 11, doorH: 20, roof: { rise: 15, over: 0.4, up: 5 } });
+  const b = basic(c, { H: 30, post: 11, doorH: 20, roof: { rise: 12, over: 0.4, up: 4 } });
   if (c.rnd(1) < 0.55) chimney(c, b.u1 - 0.6, b.v0 + 0.6, b.r.h, 12);
   if (c.rnd(2) < 0.5) {
     // lantern next to the door
@@ -283,7 +293,9 @@ function inn(c: Ctx): void {
   plinth(sc, st, u0 - 0.06, v0 - 0.06, u1 + 0.06, v1 + 0.06, 3);
   walls(sc, st, u0, v0, u1, v1, 3, 25, { kind: 'plaster', base: st.wall, post: 12, ruin: st.fallen ? 9 : 0 });
   const dp = doorPlacement(c.spec);
-  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.72, 3, 19);
+  c.metrics.door = 19 * sc.zk;
+  c.metrics.eave = 46 * sc.zk;
+  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.95, 3, 19);
   windowsFor(c, u0, u1, v0, v1, 12, 7);
   // lower pent roof
   const lower = roof(sc, st, u0, v0, u1, v1, { zEave: 24, rise: 5, over: 0.42, up: 5, color: c.roofColor, holes: st.fallen ? 0.3 : 0, curve: 1 });
@@ -414,7 +426,7 @@ function farmhouse(c: Ctx): void {
 
 function herbHut(c: Ctx): void {
   const { sc, st } = c;
-  const b = basic(c, { inset: 0.36, H: 17, wallKind: 'plank', wallBase: hex('#8a6a48'), post: 0, doorH: 13, doorW: 0.46, roof: { rise: 11, over: 0.34, up: 3, thatch: true, color: hex('#a88f50'), curve: 1.05 }, windowH: 5, glow: GLOW_GREEN });
+  const b = basic(c, { inset: 0.36, H: 22, wallKind: 'plank', wallBase: hex('#8a6a48'), post: 0, doorH: 19, doorW: 0.7, roof: { rise: 11, over: 0.34, up: 3, thatch: true, color: hex('#a88f50'), curve: 1.05 }, windowH: 5, glow: GLOW_GREEN });
   if (!st.fallen) {
     const r = P.herbRack();
     sc.sprite(r.pb, r.ax, r.ay, b.u1 + 0.3, b.v1 + 0.15, 0, 4);
@@ -484,7 +496,7 @@ function teahouse(c: Ctx): void {
   plinth(sc, st, u0 - 0.06, v0 - 0.06, u1 + 0.06, v1 + 0.06, 3);
   walls(sc, st, u0, v0, u1, v1, 3, 22, { kind: 'plaster', base: st.wall, post: 10, ruin: st.fallen ? 8 : 0, timber: hex('#7a2e2a') });
   const dp = doorPlacement(c.spec);
-  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.62, 3, 17, hex('#7a3a2a'));
+  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.85, 3, 17, hex('#7a3a2a'));
   windowsFor(c, u0, u1, v0, v1, 10, 7, GLOW_WARM, { round: true });
   const lower = roof(sc, st, u0, v0, u1, v1, { zEave: 22, rise: 5, over: 0.4, up: 5, color: c.roofColor, curve: 1, holes: st.fallen ? 0.3 : 0 });
   const iu0 = u0 + 0.45;

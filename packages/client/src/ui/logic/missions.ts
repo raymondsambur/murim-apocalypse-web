@@ -1,7 +1,7 @@
 /** Missions panel rules: progress wording, time left, where to hand in, the nearest board. Pure. */
 import type { ActiveMission, MissionOffer, MissionType, SettlementDef } from '@murim/shared';
 
-export const MISSION_GLYPH: Record<MissionType, string> = { hunt: '獵', gather: '採', deliver: '送', purify: '淨', defend: '守', bounty: '賞', investigate: '查', sect: '門' };
+export const MISSION_ICON: Record<MissionType, string> = { hunt: 'target', gather: 'herb', deliver: 'parcel', purify: 'lotus', defend: 'shield', bounty: 'purse', investigate: 'search', sect: 'sect' };
 
 /** Server range for the board query is radius + 6 tiles from the settlement centre. */
 export const BOARD_QUERY_MARGIN = 6;

@@ -6,7 +6,7 @@ import { ITEMS, LOOK_RANGES, SKILLS, STAT_INFO, STAT_KEYS, TALENTS, getItem, get
 import { ApiFailure, api } from '../../net/api';
 import { t } from '../../i18n';
 import type { LookPreviewOptions, RenderModule } from '../../render/api';
-import { h, mount, prefersReducedMotion } from '../dom';
+import { glyph, h, mount, prefersReducedMotion } from '../dom';
 import { textField } from '../forms';
 import { drawLook, swatchesFor } from '../portrait';
 import { normalizeCharName, validateCharName } from '../validation';
@@ -15,6 +15,8 @@ import { attachTooltip, skillTooltip, talentTooltip } from '../widgets/tooltip';
 import { mountInkBackdrop } from './inkBackdrop';
 import { brandBlock } from './auth';
 import type { Screen } from './screen';
+import { icon } from '../icons';
+import { skillIconName } from '../glyphMap';
 
 /** Bar scale for rolled stats (a typical roll lands between 5 and 25). */
 export const STAT_BAR_MAX = 24;
@@ -175,7 +177,7 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
     dir = ((dir + d + 4) % 4) as 0 | 1 | 2 | 3;
     redraw();
   };
-  const randomise = h('button', { class: 'btn btn-sm', type: 'button', onclick: () => setLook(randomLookUi()) }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '變'), t('create.randomise'));
+  const randomise = h('button', { class: 'btn btn-sm', type: 'button', onclick: () => setLook(randomLookUi()) }, glyph('shuffle'), t('create.randomise'));
 
   const left = h(
     'section',
@@ -215,7 +217,7 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
   const originHost = h('div', { class: 'origin-card card' });
   const rollInfo = h('span', { class: 'roll-info', 'aria-live': 'polite' });
   const rollError = h('div', { class: 'form-error', role: 'alert' });
-  const rerollBtn = h('button', { class: 'btn', type: 'button', onclick: () => void roll(true) }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '骰'), h('span', { class: 'reroll-label' }, t('create.reroll')));
+  const rerollBtn = h('button', { class: 'btn', type: 'button', onclick: () => void roll(true) }, glyph('dice'), h('span', { class: 'reroll-label' }, t('create.reroll')));
 
   let tumble = 0;
   function showStats(next: Stats, animate: boolean): void {
@@ -256,7 +258,7 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
       talentsHost,
       p.talents.length
         ? p.talents.map((tl) => {
-            const chip = h('button', { class: ['chip', tl.positive ? 'chip-good' : 'chip-bad'], type: 'button', 'aria-label': `${tl.name}. ${tl.desc}` }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, tl.positive ? '吉' : '凶'), tl.name);
+            const chip = h('button', { class: ['chip', tl.positive ? 'chip-good' : 'chip-bad'], type: 'button', 'aria-label': `${tl.name}. ${tl.desc}` }, glyph(tl.positive ? 'sparkle' : 'warn'), tl.name);
             attachTooltip(chip, () => (TALENTS[tl.id] ? talentTooltip(tl.id) : `${tl.name}: ${tl.desc}`));
             return chip;
           })
@@ -265,12 +267,12 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
     const o2 = p.origin;
     mount(
       originHost,
-      h('div', { class: 'origin-head' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, '出'), h('div', {}, h('div', { class: 'origin-name' }, o2.name), h('div', { class: 'origin-sub' }, t('create.origin')))),
+      h('div', { class: 'origin-head' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, icon('flag')), h('div', {}, h('div', { class: 'origin-name' }, o2.name), h('div', { class: 'origin-sub' }, t('create.origin')))),
       h('p', { class: 'origin-desc' }, o2.desc),
       h(
         'div',
         { class: 'origin-loot' },
-        h('span', { class: 'chip chip-gold' }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '金'), t('create.startGold', { n: o2.gold })),
+        h('span', { class: 'chip chip-gold' }, glyph('coin'), t('create.startGold', { n: o2.gold })),
         ...o2.items.map((label) => {
           const it = resolveOriginItem(label);
           return it ? itemSlot({ id: it.id, qty: it.qty }, { size: 'sm' }) : h('span', { class: 'chip' }, label);
@@ -283,7 +285,7 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
             ...o2.skills.map((label) => {
               const id = resolveSkillId(label);
               const def = id ? getSkill(id) : undefined;
-              const chip = h('button', { class: 'chip chip-info', type: 'button', 'aria-label': def?.name ?? label }, def ? h('span', { class: 'glyph', 'aria-hidden': 'true' }, def.glyph) : null, def?.name ?? label);
+              const chip = h('button', { class: 'chip chip-info', type: 'button', 'aria-label': def?.name ?? label }, def ? glyph(skillIconName(def)) : null, def?.name ?? label);
               if (def && id) attachTooltip(chip, () => skillTooltip(id, 1, { showReq: false }));
               return chip;
             }),
@@ -349,7 +351,7 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
     showValid: true,
   });
   const createError = h('div', { class: 'form-error', role: 'alert' });
-  const createBtn = h('button', { class: 'btn btn-primary btn-lg', type: 'submit' }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '開'), t('create.submit'));
+  const createBtn = h('button', { class: 'btn btn-primary btn-lg', type: 'submit' }, glyph('play'), t('create.submit'));
 
   const footer = h(
     'form',
@@ -376,7 +378,7 @@ export function createCreateScreen(o: CreateScreenOptions): Screen {
         } finally {
           busy = false;
           if (!destroyed) {
-            createBtn.replaceChildren(h('span', { class: 'glyph', 'aria-hidden': 'true' }, '開'), t('create.submit'));
+            createBtn.replaceChildren(glyph('play'), t('create.submit'));
             updateRollControls();
           }
         }

@@ -1,4 +1,5 @@
 /** Minimal DOM builder. `h('button', { class: 'btn', onclick }, 'Label')`. */
+import { icon } from './icons';
 
 export type Child = Node | string | number | null | undefined | false | Child[];
 
@@ -69,14 +70,14 @@ export function mount(el: Element, ...children: Child[]): void {
   append(el, children);
 }
 
-/** Decorative CJK glyph icon (hidden from screen readers). */
-export function glyph(ch: string, cls = '', color?: string): HTMLSpanElement {
-  return h('span', { class: ['glyph', cls], 'aria-hidden': 'true', style: color ? { color } : undefined }, ch);
+/** Decorative icon (hidden from screen readers). `name` is an icon name from `ui/icons.ts`. */
+export function glyph(name: string, cls = '', color?: string): HTMLSpanElement {
+  return icon(name, { cls: ['glyph', cls].filter(Boolean).join(' '), color });
 }
 
-/** Cinnabar seal-stamp glyph. */
-export function seal(ch: string, cls = ''): HTMLSpanElement {
-  return h('span', { class: ['seal', cls], 'aria-hidden': 'true' }, ch);
+/** Cinnabar seal-stamp holding an icon. */
+export function seal(name: string, cls = ''): HTMLSpanElement {
+  return h('span', { class: ['seal', cls], 'aria-hidden': 'true' }, icon(name));
 }
 
 export function isTypingTarget(el: EventTarget | null): boolean {

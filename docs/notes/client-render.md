@@ -70,9 +70,11 @@ drag = pan (detaches the camera; it re-attaches when you move or call `centerOn(
 ## Characters v2 (gear, detail, life)
 
 ### Sprite format
-People are painted into a 64x80 canvas (feet anchor 32,70; the figure is about 1.3x the old 28x44 one: head top near y=26, feet
-y=69) and **cropped to their painted bounds** (the anchor `ax, ay` and `top` follow the crop). Nothing is resampled except elites
-(nearest, x1.12 / x1.3 / x1.5). Parts are painted with `art/figure.ts`' `Shaper` (union of capsules / ellipses / polygons shaded
+People are painted into a 64x80 canvas at the detailed *design* size (feet anchor 32,70, figure about 48 px tall), then **reduced to the in-world size
+(`CHAR_K` = 30/48, a person is 30 px, see Scale and proportions)** and **cropped to their painted bounds** (the anchor `ax, ay` and `top` follow the crop). The reduction (and the elite / boss enlargement) uses `resizePixels` (art/figure.ts): one source pixel is picked per destination pixel (never blended),
+weighted by overlap and by contrast against the block average so thin bright details survive; the glow layer takes the strongest pixel; the eyes are
+repainted at the final size as a 1x2 pair; the selective outline is applied after the reduction (1 px). `CharSpec.full` keeps the design size
+(portraits: `drawLookPreview`, the gallery). Parts are painted with `art/figure.ts`' `Shaper` (union of capsules / ellipses / polygons shaded
 as one piece: 3-4 tones, light from the upper left, rim light on the lit edge, ao toward the bottom, ordered dither), two-bone IK
 for arms and legs, then a **selective outline** (soft dark neighbour colour on the lit side, ink on the shadow side). Ramps now
 have a fifth tone `hl` (specular). West facings are cached mirrors (`flipSprite`) of the east ones, so only dirs 0 and 3 are
@@ -205,3 +207,45 @@ Ambient grading (`lighting.ts`): dawn warm pink, noon white, dusk orange, night 
 - Beasts are side profiles; north-facing views only raise the head.
 - Wall tiles connect orthogonally only (no diagonal corner pieces); gates are generated only if the world contains `gate` buildings.
 - Water glints are sparse dashes; swell/reflections are not drawn. Night has no moon shadows.
+
+
+## Scale and proportions
+One standing adult (`PERSON_PX` = 30 scene px, hair or hat included) is the unit; everything else is sized from the single table in
+`art/scale.ts` (`TARGETS`: want / min / max as a multiple of a person, `SIZE_MULT`, `CHAR_K`, `BUILDING_ZK`). `art/scale.test.ts` measures the real
+generated sprites (via `art/scaleRef.ts`, which also feeds the sandbox overlay) against that table, so a change to any generator that breaks a ratio fails.
+
+| Thing | Before (px) | After (px) | Persons (target) |
+|---|---|---|---|
+| person (no hat / hat) | 48 / 50 | 31 / 32 | 1 |
+| elite / elite+ / brute / bandit boss / blight lord | 53 / 61 / 57 / 61 / 75 | 36 / 38 / 38 / 46 / 57 | 1.2 / 1.25 / 1.3 / 1.5 / 1.8 |
+| house door / eave (wall top) | 20 / 33 (person was 1.45 x the eave) | 36 / 59 | 1.25 / 2 |
+| inn ridge, hall, pagoda (3-5 tiers), tower | 78, 87, 97+, 93 | 109, 116, 171-229, 128 | 3.4, 3.9, 5.7-7.6, 4.3 |
+| fort wall (tile incl. merlons) | 45 | 80 | 2.7 |
+| pine / oak / bamboo | 55-64 / 53-56 / 60-72 | 97-111 / 90-106 / 91-106 | 3-4 |
+| bush / boulder / reeds | 16 / 16-23 / 29-33 | 16 / 16-23 / 20-22 | 0.5 / 0.5-0.8 / 0.7 |
+| boar / wolf / bear / tiger / snake | 28 / 27 / 42 / 30 / 20 | 19 / 17 / 26 / 25 / 11 | 0.6 / 0.6 / 0.9 / 0.8 / 0.4 |
+
+Where it lives: people = `CHAR_K * SIZE_MULT[...]` in `art/character.ts` (`charScale`, `sizeMult`); beasts = `scale` per entry of `DEFS` in `art/beasts.ts` (they paint
+at final size, `k` scales every dimension) and the snake factor in `beastScale`; buildings = `Scene3D.zk` (vertical stretch of the whole model, `BUILDING_ZK` 1.8,
+`ZK_KIND` in `buildings.ts` overrides: market 1.5, inn 1.6, hall and tower 1.5, mine entrance 2.2; `Style.zk` lets the wall / door / window shaders keep their texture
+density) plus wider doors (`door` width 0.7-0.95 tile); fort wall = `WALL_H` / `MERLON_H` in `art/walls.ts`; trees = the generators in `art/flora.ts` (taller trunks, more
+tiers, anisotropic oak crown). `BuildingArt.metrics` returns door / eave height for the test. Render keyed values that scaled with the person: shadows, selection ring,
+auras, heal / meditation discs, chat / rest icons, footfall / spark / steam / confetti offsets (`scene.ts`), world effect anchors and sizes (`fx.ts`), plates / HP bars /
+bubbles / floating text / picking all follow `topPx` (head top of the current sprite).
+Trade-offs: the reduction is done on the painted figure (the paint code has absolute coordinates), so very small details (accessory trinkets, 1 px lace) are reduced to
+1-2 px, tier trim colours and rarity piping stay visible but are less intricate; non-integer enlargement (bosses) is nearest neighbour as before.
+Tall trees and houses hide more of the ground than before; that is what the plate occlusion below is for.
+
+### Plate occlusion (render/occlusion.ts)
+The sorted pass records every tall drawable (buildings, wall tiles, tall vegetation, mountains) as an `Occluder` (screen rect, painter's depth key, per-row opaque spans
+computed once per sprite). After the pass each drawn entity is sampled (3 x 5 points of its body box plus the head point) against the occluders drawn after it
+(`depth > e.dkey`); covered head or more than 60 % of the box sets a target, `Ent.occ` follows it with a ~140 ms ramp. The overlay fades plate, HP bar and bubble by
+`plateAlpha(occ, floor)` (floor 0.4 selected / hovered, 0.35 monsters in a fight, 0.1 otherwise; your own plate never fades). While you are covered a ghost of your sprite
+(50 % copy + 30 % white silhouette) is drawn over the scenery. Sandbox: `?occl=1` or the `npc behind house` button.
+
+### Sandbox scale reference
+`?scale=1` or the `scale reference` button (gear lab row) draws a person next to a house, an inn, a fort wall, a tower, a hall, a pagoda, pine / oak / bamboo, and the beasts,
+blight lord, elites, bush, boulder, reeds and lantern, with a 1-tile diamond under each and ruler lines every person height; labels show measured px and persons.
+
+### Performance after the rescale (sandbox crowd = 114 entities on screen, front tab, `view.frame()` loop)
+Zoom 1: 2.3-3.0 ms per frame (scene 1.5 ms, overlay 0.2 ms incl. occlusion); zoom 0.5: 28 ms, of which 21-22 ms is chunk compositing (unchanged, software pane), scene 3-5 ms.

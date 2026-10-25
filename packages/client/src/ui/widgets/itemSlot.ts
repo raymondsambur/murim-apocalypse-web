@@ -1,14 +1,16 @@
-/** Item slots and grids: rarity border, CJK glyph, quantity badge, rich tooltip. */
+/** Item slots and grids: rarity border, item icon, quantity badge, rich tooltip. */
 import { getItem, type ItemStack } from '@murim/shared';
 import { t } from '../../i18n';
 import { h } from '../dom';
+import { icon } from '../icons';
+import { itemIconName } from '../glyphMap';
 import { stackColor, stackTitle, type ItemTipOptions } from '../text/tips';
 import { attachTooltip, itemTooltip } from './tooltip';
 
 export interface SlotOptions {
   size?: 'sm' | 'md' | 'lg';
   onClick?: (ev: MouseEvent) => void;
-  /** Glyph shown faintly when empty (e.g. 劍 for the weapon slot). */
+  /** Icon name shown faintly when empty (e.g. 'sword' for the weapon slot). */
   emptyGlyph?: string;
   /** Accessible label when empty. */
   emptyLabel?: string;
@@ -35,9 +37,9 @@ export function itemSlot(stack: ItemStack | null, opts: SlotOptions = {}): HTMLB
       onclick: opts.onClick,
     },
     stack
-      ? h('span', { class: 'slot-glyph', style: { color: def?.color ?? '#ccc' }, 'aria-hidden': 'true' }, def?.glyph ?? '?')
+      ? h('span', { class: 'slot-glyph', style: { color: def?.color ?? '#ccc' }, 'aria-hidden': 'true' }, icon(itemIconName(def)))
       : opts.emptyGlyph
-        ? h('span', { class: 'slot-glyph slot-ghost', 'aria-hidden': 'true' }, opts.emptyGlyph)
+        ? h('span', { class: 'slot-glyph slot-ghost', 'aria-hidden': 'true' }, icon(opts.emptyGlyph))
         : null,
     stack && stack.qty > 1 ? h('span', { class: 'slot-qty', 'aria-hidden': 'true' }, stack.qty > 999 ? '999+' : String(stack.qty)) : null,
   );

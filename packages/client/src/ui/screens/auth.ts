@@ -8,6 +8,7 @@ import { passwordStrength, validatePassword, validatePasswordConfirm, validateUs
 import { tabs } from '../widgets/tabs';
 import { mountInkBackdrop } from './inkBackdrop';
 import type { Screen } from './screen';
+import { icon } from '../icons';
 
 export interface AuthScreenOptions {
   onAuthed(me: MeResponse): void;
@@ -20,7 +21,7 @@ export function brandBlock(): HTMLElement {
   return h(
     'header',
     { class: 'brand' },
-    h('span', { class: 'seal seal-lg', 'aria-hidden': 'true' }, '武'),
+    h('span', { class: 'seal seal-lg', 'aria-hidden': 'true' }, icon('logo')),
     h('h1', { class: 'brand-title' }, t('app.title')),
     h('p', { class: 'brand-tag' }, t('app.tagline')),
   );
@@ -71,8 +72,8 @@ export function createAuthScreen(o: AuthScreenOptions): Screen {
 
   const tabBar = tabs(
     [
-      { id: 'login', label: t('auth.tab.login'), glyph: '入' },
-      { id: 'register', label: t('auth.tab.register'), glyph: '新' },
+      { id: 'login', label: t('auth.tab.login'), glyph: 'login' },
+      { id: 'register', label: t('auth.tab.register'), glyph: 'recruit' },
     ],
     (id) => applyMode(id as 'login' | 'register'),
     { initial: o.initialTab ?? 'login', label: t('auth.tabs'), cls: 'auth-tabs' },

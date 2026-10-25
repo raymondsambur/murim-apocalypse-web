@@ -8,13 +8,14 @@ import type { UiContext } from '../context';
 import { h } from '../dom';
 import { queryErrorMessage } from '../errors';
 import { fmtInt, rankColorOfRank, worldClock } from '../format';
-import { MISSION_GLYPH, boardSettlement, daysLeft, hintTo, nearestSettlement, objectiveKey, progressFraction, progressText, sortActive, turnInSettlementId, urgency } from '../logic/missions';
+import { MISSION_ICON, boardSettlement, daysLeft, hintTo, nearestSettlement, objectiveKey, progressFraction, progressText, sortActive, turnInSettlementId, urgency } from '../logic/missions';
 import { offerGate } from '../logic/npc';
 import { bar } from '../widgets/bar';
 import { itemSlot } from '../widgets/itemSlot';
 import { tabs } from '../widgets/tabs';
 import { registerPanel } from './registry';
 import '../../styles/panels/missions.css';
+import { icon } from '../icons';
 
 addStrings({
   'ms.tab.active': 'Active',
@@ -150,7 +151,7 @@ function activeTab(me: MeView, ui: UiContext, today: number): HTMLElement {
       h(
         'li',
         { class: ['ms-card', 'card', m.done && 'is-ready'] },
-        h('span', { class: 'seal ms-seal', 'aria-hidden': 'true' }, MISSION_GLYPH[m.type] ?? '令'),
+        h('span', { class: 'seal ms-seal', 'aria-hidden': 'true' }, icon(MISSION_ICON[m.type] ?? 'missions')),
         h(
           'div',
           { class: 'ms-main' },
@@ -254,7 +255,7 @@ function boardTab(me: MeView, ui: UiContext, today: number): HTMLElement {
       h(
         'li',
         { class: ['ms-card', 'card', !gate.ok && !gate.accepted && 'is-off'] },
-        h('span', { class: 'seal ms-seal', 'aria-hidden': 'true' }, MISSION_GLYPH[o.type] ?? '令'),
+        h('span', { class: 'seal ms-seal', 'aria-hidden': 'true' }, icon(MISSION_ICON[o.type] ?? 'missions')),
         h(
           'div',
           { class: 'ms-main' },
@@ -276,7 +277,7 @@ function boardTab(me: MeView, ui: UiContext, today: number): HTMLElement {
 registerPanel({
   id: 'missions',
   title: 'panel.missions',
-  glyph: '令',
+  glyph: 'missions',
   hotkey: 'm',
   order: 40,
   width: 460,
@@ -295,8 +296,8 @@ registerPanel({
     const ready = me.c.missions.filter((m) => m.done).length;
     const tb = tabs(
       [
-        { id: 'active', label: t('ms.tab.active'), glyph: '行', badge: ready },
-        { id: 'board', label: t('ms.tab.board'), glyph: '榜' },
+        { id: 'active', label: t('ms.tab.active'), glyph: 'play', badge: ready },
+        { id: 'board', label: t('ms.tab.board'), glyph: 'board' },
       ],
       (id) => {
         tab = id as Tab;

@@ -27,6 +27,7 @@ export type PlaceKind =
   | 'gate'
   | 'post'
   | 'herb'
+  | 'mine'
   | 'farm'
   | 'plaza';
 
@@ -84,10 +85,11 @@ const BUILDING_PLACE: Partial<Record<BuildingKind, PlaceKind>> = {
   tower: 'tower',
   gate: 'gate',
   herbHut: 'herb',
+  mineEntrance: 'mine',
 };
 
 /** Kinds that are not entered (open-air posts or towers guards stand beside). */
-const NO_ENTER: ReadonlySet<PlaceKind> = new Set(['tower', 'gate', 'herb']);
+const NO_ENTER: ReadonlySet<PlaceKind> = new Set(['tower', 'gate', 'herb', 'mine']);
 
 const cache = new WeakMap<WorldData, WorldPlaces>();
 
@@ -166,6 +168,23 @@ function spotsNear(world: WorldData, comp: Uint16Array, label: number, cx: numbe
   return out;
 }
 
+/** Walkable, reachable Farm-terrain tiles within Chebyshev radius `r` of (cx, cy). */
+function farmTiles(world: WorldData, comp: Uint16Array, label: number, cx: number, cy: number, r: number): Point[] {
+  const out: Point[] = [];
+  for (let y = cy - r; y <= cy + r; y++) {
+    for (let x = cx - r; x <= cx + r; x++) {
+      if (x < 0 || y < 0 || x >= world.w || y >= world.h) continue;
+      const i = y * world.w + x;
+      if (world.terrain[i] === T.Farm && isPassable(world, x, y) && comp[i] === label) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+export function isFarmTile(world: WorldData, x: number, y: number): boolean {
+  return x >= 0 && y >= 0 && x < world.w && y < world.h && world.terrain[y * world.w + x] === T.Farm;
+}
+
 function reachableTile(world: WorldData, grid: PathGrid, comp: Uint16Array, label: number, x: number, y: number, radius = 5): Point | null {
   x = Math.round(x);
   y = Math.round(y);
@@ -225,16 +244,23 @@ function buildSettlement(world: WorldData, grid: PathGrid, comp: Uint16Array, la
   const plaza = openPlace(`plaza${s.id}`, 'plaza', s.id, sp, plazaSpots);
   add(plaza);
 
-  // Farm patches and herb huts from the settlement's work sites.
+  // Farm patches: only real Farm-terrain tiles count (a farm "site" on grass or dirt is not a field).
   const farms: Place[] = [];
-  s.sites.forEach((site, i) => {
-    if (site.kind !== 'farm') return;
-    const spots = spotsNear(world, comp, label, site.x, site.y, 0, 3, NPCLIFE_TUNING.spotsPerPlace);
-    if (spots.length === 0) return;
-    const p = openPlace(`farm${s.id}_${i}`, 'farm', s.id, { x: site.x, y: site.y }, spots, { x: site.x, y: site.y });
+  const usedField = new Set<number>();
+  const addField = (id: string, cx: number, cy: number, radius: number): void => {
+    const tiles = farmTiles(world, comp, label, cx, cy, radius).filter((t) => !usedField.has(t.y * world.w + t.x));
+    if (tiles.length < 4) return;
+    tiles.sort((a, b) => (a.x - cx) ** 2 + (a.y - cy) ** 2 - ((b.x - cx) ** 2 + (b.y - cy) ** 2) || a.y - b.y || a.x - b.x);
+    const spots = tiles.slice(0, 14);
+    for (const t of spots) usedField.add(t.y * world.w + t.x);
+    const p = openPlace(id, 'farm', s.id, spots[0], spots, { x: cx, y: cy });
     farms.push(p);
     add(p);
+  };
+  s.sites.forEach((site, i) => {
+    if (site.kind === 'farm') addField(`farm${s.id}_${i}`, site.x, site.y, 7);
   });
+  if (farms.length === 0) addField(`farm${s.id}_area`, s.x, s.y, s.radius + 10);
 
   // Gates: where each road leaves the settlement (or the four compass points if it has none).
   const gates: Place[] = [];

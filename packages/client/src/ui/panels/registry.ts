@@ -9,7 +9,7 @@ export interface PanelDef {
   id: string;
   /** i18n key (or literal text) for the window title. */
   title: string;
-  /** CJK glyph shown in the title seal and on the action bar. */
+  /** Icon name (see ui/icons.ts) shown in the title seal and on the action bar. */
   glyph: string;
   /** Single-letter hotkey (case-insensitive), e.g. 'c'. */
   hotkey?: string;

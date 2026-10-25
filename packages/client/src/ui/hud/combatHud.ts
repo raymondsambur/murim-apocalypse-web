@@ -6,20 +6,21 @@ import type { FighterView } from '@murim/shared';
 import { t } from '../../i18n';
 import type { CombatLogEntry } from '../../state/store';
 import type { UiContext } from '../context';
-import { h, mount } from '../dom';
+import { glyph, h, mount } from '../dom';
 import { fmtInt } from '../format';
 import { bannerSeconds, hasReward, mergeRewardItems, resultTone, splitSides } from '../logic/combatView';
-import { STATUS_GLYPH, describeCombatEvent, statusName } from '../text/combat';
+import { STATUS_ICON, describeCombatEvent, statusName } from '../text/combat';
 import { bar } from '../widgets/bar';
 import { itemSlot } from '../widgets/itemSlot';
 import { attachTooltip } from '../widgets/tooltip';
+import { icon } from '../icons';
 
 export function mountCombatHud(host: HTMLElement, ui: UiContext): { destroy(): void } {
   const { state } = ui;
   const el = h('section', { class: 'combat glass', hidden: true, role: 'region', 'aria-label': t('combat.title') });
   host.appendChild(el);
 
-  const title = h('h2', { class: 'combat-title' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, '戰'), h('span', { class: 'combat-title-text' }, t('combat.title')));
+  const title = h('h2', { class: 'combat-title' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, icon('swords')), h('span', { class: 'combat-title-text' }, t('combat.title')));
   const beat = h('span', { class: 'combat-beat chip' });
   const flee = h(
     'button',
@@ -33,7 +34,7 @@ export function mountCombatHud(host: HTMLElement, ui: UiContext): { destroy(): v
         }
       },
     },
-    h('span', { class: 'glyph', 'aria-hidden': 'true' }, '逃'),
+    glyph('run'),
     t('combat.flee'),
   );
   const head = h('header', { class: 'combat-head' }, title, beat, flee);
@@ -69,7 +70,7 @@ export function mountCombatHud(host: HTMLElement, ui: UiContext): { destroy(): v
     c.status.replaceChildren(
       ...(f.fled ? [h('span', { class: 'chip chip-warn' }, t('combat.fled'))] : !f.alive ? [h('span', { class: 'chip chip-bad' }, t('combat.down'))] : []),
       ...f.status.map((st) => {
-        const chip = h('span', { class: 'status-chip', tabindex: '0', 'aria-label': statusName(st) }, STATUS_GLYPH[st]);
+        const chip = h('span', { class: 'status-chip', tabindex: '0', 'aria-label': statusName(st) }, icon(STATUS_ICON[st]));
         attachTooltip(chip, () => statusName(st));
         return chip;
       }),

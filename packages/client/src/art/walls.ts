@@ -16,7 +16,9 @@ export interface TileSprite {
   ay: number;
 }
 
-const WALL_H = 34;
+/** Fort wall: about 2.7 persons tall (see scale.ts), merlons included. */
+const WALL_H = 66;
+const MERLON_H = 8;
 
 function wallStyle(season: number, fallen: boolean, seed: number): Style {
   return { roof: hex('#4e5a68'), accent: LACQUER, wall: hex('#d6cdb8'), timber: hex('#5a3a26'), stone: hex('#8d8a84'), season, fallen, seed, soot: hex('#2a2226') };
@@ -35,13 +37,13 @@ export function genWallTile(mask: number, season: number, fallen: boolean, varia
   if (mask & W_SW) boxes.push([T, 0.5, U, 1]);
   if (mask & W_NW) boxes.push([0, T, 0.5, U]);
   if (mask === 0) boxes.push([0.1, 0.1, 0.9, 0.9]);
-  const ruin = fallen ? 12 : 0;
+  const ruin = fallen ? 24 : 0;
   const side = (off: number): Shader => {
     const base = wallShader(st, { kind: 'stone', base: st.stone, H: WALL_H, eave: 0, off });
     return (s, t, lit, x, y) => {
       if (ruin && t > WALL_H - ruin * (0.3 + 0.7 * hf((s + off) | 0, 2, st.seed))) return 0;
       let c = base(s, t, lit, x, y);
-      if (season !== 3 && t < 7 && hf(x >> 1, y >> 1, 5) < 0.25 && season !== 2) c = mix(c, hex('#4d6a3c'), 0.5); // moss at the foot
+      if (season !== 3 && t < 10 && hf(x >> 1, y >> 1, 5) < 0.25 && season !== 2) c = mix(c, hex('#4d6a3c'), 0.5); // moss at the foot
       if (season === 1 && t > WALL_H - 3 && hf(x, y, 9) < 0.3) c = scale(c, 1.1);
       return c;
     };
@@ -56,7 +58,7 @@ export function genWallTile(mask: number, season: number, fallen: boolean, varia
   }
   // merlons along the visible outer edges
   const merlon = (off: number): Shader => {
-    const b = wallShader(st, { kind: 'stone', base: scale(st.stone, 1.06), H: 6, eave: 0, off });
+    const b = wallShader(st, { kind: 'stone', base: scale(st.stone, 1.06), H: MERLON_H, eave: 0, off });
     return (s, t, lit, x, y) => {
       if (fallen && hf(x >> 2, 1, st.seed) < 0.4) return 0;
       const c = b(s, t, lit, x, y);
@@ -72,14 +74,14 @@ export function genWallTile(mask: number, season: number, fallen: boolean, varia
       for (let i = 0; i < n; i += 2) {
         const a = u0 + ((u1 - u0) * i) / n;
         const b = u0 + ((u1 - u0) * (i + 1)) / n;
-        sc.box(a, v1 - 0.1, WALL_H, b, v1, WALL_H + 6, mtop, merlon(i), merlon(i + 3));
+        sc.box(a, v1 - 0.1, WALL_H, b, v1, WALL_H + MERLON_H, mtop, merlon(i), merlon(i + 3));
       }
     } else {
       const n = Math.max(1, Math.round((v1 - v0) / 0.25));
       for (let i = 0; i < n; i += 2) {
         const a = v0 + ((v1 - v0) * i) / n;
         const b = v0 + ((v1 - v0) * (i + 1)) / n;
-        sc.box(u1 - 0.1, a, WALL_H, u1, b, WALL_H + 6, mtop, merlon(i), merlon(i + 3));
+        sc.box(u1 - 0.1, a, WALL_H, u1, b, WALL_H + MERLON_H, mtop, merlon(i), merlon(i + 3));
       }
     }
   }

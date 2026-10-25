@@ -5,7 +5,7 @@
 import { FACTION_BY_ID, MAX_ACTIVE_MISSIONS, RANKS, getItem, getSkill, type MeView, type MissionOffer, type MissionType, type NpcMenu, type ShopEntry, type TeachEntry } from '@murim/shared';
 import { t } from '../../i18n';
 import type { UiContext } from '../context';
-import { h } from '../dom';
+import { glyph, h } from '../dom';
 import { queryErrorMessage } from '../errors';
 import { fmtInt, rankColor } from '../format';
 import { buyList, maxBuy, menuSignature, npcTabs, offerGate, restNeeded, sellList, turnInMissions, type NpcTab } from '../logic/npc';
@@ -15,9 +15,11 @@ import { itemSlot } from '../widgets/itemSlot';
 import { stepper } from '../widgets/stepper';
 import { tabs } from '../widgets/tabs';
 import { attachTooltip, skillTooltip } from '../widgets/tooltip';
+import { icon } from '../icons';
+import { skillIconName } from '../glyphMap';
+import { MISSION_ICON } from '../logic/missions';
 
-const MISSION_GLYPH: Record<MissionType, string> = { hunt: '獵', gather: '採', deliver: '送', purify: '淨', defend: '守', bounty: '賞', investigate: '查', sect: '門' };
-const TAB_GLYPH: Record<NpcTab, string> = { shop: '市', teach: '學', missions: '榜', rest: '宿', disciple: '徒', talk: '談' };
+const TAB_ICON: Record<NpcTab, string> = { shop: 'shop', teach: 'teach', missions: 'board', rest: 'rest', disciple: 'recruit', talk: 'chat' };
 
 type Board = { offers: MissionOffer[]; settlement: number };
 type TalkEntry = { q: string; lines: string[]; pending: boolean; failed: boolean };
@@ -216,13 +218,13 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
       if (e.gold >= 100 && !(await ui.confirm({ title: t('npc.teach.confirmTitle'), text: t('npc.teach.confirm', { skill: name, gold: fmtInt(e.gold) }), ok: t('npc.teach.learnShort') }))) return;
       ui.net.send({ t: 'learn', npc: menu.id, skill: e.skill });
     });
-    const glyph = h('button', { class: 'skill-glyph', type: 'button', 'aria-label': name }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, def?.glyph ?? '?'));
-    if (def) attachTooltip(glyph, () => skillTooltip(e.skill, undefined, { showReq: true }));
+    const badge = h('button', { class: 'skill-glyph', type: 'button', 'aria-label': name }, icon(skillIconName(def)));
+    if (def) attachTooltip(badge, () => skillTooltip(e.skill, undefined, { showReq: true }));
     const reqs = def ? requirementLines(def)[0]?.text : '';
     return h(
       'div',
       { class: ['npc-row', (e.learned || !e.ok) && 'is-off'] },
-      glyph,
+      badge,
       h('div', { class: 'npc-row-main' }, h('div', { class: 'npc-row-name' }, name), h('div', { class: ['npc-row-sub', !e.ok && !e.learned && 'tone-warn'] }, e.learned ? t('npc.teach.learned') : !e.ok ? (e.reason ?? reqs ?? '') : reqs)),
       h('div', { class: 'npc-row-act' }, btn),
     );
@@ -254,7 +256,7 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
           h(
             'div',
             { class: 'npc-row mission-row' },
-            h('span', { class: 'seal', 'aria-hidden': 'true' }, MISSION_GLYPH[m.type] ?? '令'),
+            h('span', { class: 'seal', 'aria-hidden': 'true' }, icon(MISSION_ICON[m.type] ?? 'missions')),
             h('div', { class: 'npc-row-main' }, h('div', { class: 'npc-row-name' }, m.title), h('div', { class: 'npc-row-sub' }, m.done ? t('npc.mission.done') : t('npc.mission.progress', { a: m.progress, b: m.target.count })), rewardChips(m)),
             h('div', { class: 'npc-row-act' }, h('button', { class: 'btn btn-sm btn-gold', type: 'button', disabled: !m.done, onclick: () => ui.net.send({ t: 'mturnin', id: m.id, npc: menu.id }) }, t('npc.mission.turnInBtn'))),
           ),
@@ -287,7 +289,7 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
           h(
             'div',
             { class: ['npc-row', 'mission-row', !gate.ok && !gate.accepted && 'is-off'] },
-            h('span', { class: 'seal', 'aria-hidden': 'true' }, MISSION_GLYPH[o.type] ?? '令'),
+            h('span', { class: 'seal', 'aria-hidden': 'true' }, icon(MISSION_ICON[o.type] ?? 'missions')),
             h(
               'div',
               { class: 'npc-row-main' },
@@ -377,7 +379,7 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
         menu.talk?.mood ? h('div', { class: 'npc-mood', title: t('npc.mood') }, menu.talk.mood) : null,
         h('div', { class: 'chip-row' }, h('span', { class: 'chip chip-gold', style: { color: rankColor(menu.level) } }, t('ctx.level', { n: menu.level })), h('span', { class: 'chip' }, t(`role.${menu.role}`)), faction ? h('span', { class: 'chip', style: { color: faction.color, borderColor: faction.color } }, faction.short) : null, menu.standing && menu.standing !== 'unknown' ? h('span', { class: ['chip', 'chip-standing', `standing-${menu.standing}`], title: t('npc.standing.tip') }, t(`npc.standing.${menu.standing}`)) : null),
       ),
-      h('button', { class: 'btn-icon btn-close', type: 'button', 'aria-label': t('npc.close'), onclick: close }, '✕'),
+      h('button', { class: 'btn-icon btn-close', type: 'button', 'aria-label': t('npc.close'), onclick: close }, icon('close')),
     );
     const greeting = h('div', { class: 'scroll npc-greeting' }, `“${menu.greeting}”`);
 
@@ -391,9 +393,9 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
     else if (tab === 'disciple') content = discipleBody(menu);
     else if (tab === 'talk') content = talkBody(menu);
 
-    const tabBar = available.length > 1 ? tabs(available.map((id) => ({ id, label: t(`npc.tab.${id}`), glyph: TAB_GLYPH[id] })), (id) => ((tab = id as NpcTab), paint()), { initial: tab ?? undefined, label: t('npc.tabs') }) : null;
+    const tabBar = available.length > 1 ? tabs(available.map((id) => ({ id, label: t(`npc.tab.${id}`), glyph: TAB_ICON[id] })), (id) => ((tab = id as NpcTab), paint()), { initial: tab ?? undefined, label: t('npc.tabs') }) : null;
 
-    const foot = h('footer', { class: 'npc-foot' }, h('span', { class: 'chip chip-gold' }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '金'), t('npc.gold', { n: fmtInt(me.c.gold) })), available.length === 0 ? h('span', { class: 'tone-dim' }, t('npc.nothing')) : null);
+    const foot = h('footer', { class: 'npc-foot' }, h('span', { class: 'chip chip-gold' }, glyph('coin'), t('npc.gold', { n: fmtInt(me.c.gold) })), available.length === 0 ? h('span', { class: 'tone-dim' }, t('npc.nothing')) : null);
 
     const card = h('section', { class: 'npc parchment', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'npc-title', tabindex: '-1' }, head, greeting, tabBar?.el ?? null, h('div', { class: 'npc-body', 'data-scroll-key': 'npc' }, content), foot);
     const wasHidden = backdrop.hidden;

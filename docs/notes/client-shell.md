@@ -97,7 +97,23 @@ textField({ id, label, validate?, ... }) -> { el, input, get(), validate(show?),
 drawLook(render, canvas, look, cssW, cssH, scale, opts?)                              // crisp for the device pixel ratio; falls back to the stand-in preview if the real one paints nothing
 ```
 
-Formatting and rules helpers: `ui/format.ts` (`fmtInt`, `fmtCompact`, `fmtDuration`, `rankColor`, `worldClock`, `seasonName`...), `ui/text/combat.ts` (`describeCombatEvent`, `describeTactic`, `skillName`, `statusName`, `STATUS_GLYPH`), `ui/text/tips.ts` (`itemTipModel`, `skillTipModel`, `requirementLines`, `passiveLines`, `sellPrice`), `ui/logic/*` (`breakthroughStatus(me)`, `sortOrder`, `npcTabs`, `contextActions`, ...). All DOM-free and covered by tests.
+Formatting and rules helpers: `ui/format.ts` (`fmtInt`, `fmtCompact`, `fmtDuration`, `rankColor`, `worldClock`, `seasonName`...), `ui/text/combat.ts` (`describeCombatEvent`, `describeTactic`, `skillName`, `statusName`, `STATUS_ICON`), `ui/text/tips.ts` (`itemTipModel`, `skillTipModel`, `requirementLines`, `passiveLines`, `sellPrice`), `ui/logic/*` (`breakthroughStatus(me)`, `sortOrder`, `npcTabs`, `contextActions`, ...). All DOM-free and covered by tests.
+
+### Icons (no CJK in the interface)
+
+The UI shows no CJK characters. Everything that used a character as an icon uses an inline-SVG icon from `ui/icons.ts` (24x24 grid, rounded 1.7 stroke, `currentColor`, soft tinted fill). Every `glyph` / `emptyGlyph` / `TabDef.glyph` / `PanelDef.glyph` field now holds an **icon name**, not a character.
+
+```ts
+icon('sword', { size?, cls?, color?, title? }) -> <span class="ico">   // DOM; sized by font-size (1em) unless size is given
+glyph('coin', cls?)   seal('logo', cls?)                               // ui/dom.ts: decorative icon / cinnabar stamp holding an icon
+iconSvg(name, opts) -> '<svg ...>'                                      // pure string (tests, favicon)
+factionIconName(id)  rankIconName(rank)  emblemSvg()  emblemDataUri()  // faction emblem, rank medal, logo, favicon
+itemIconName(def)  skillIconName(def)  monsterIconName(def)  jobIconName(def)   // ui/glyphMap.ts: shared-data glyph/id/kind -> icon
+```
+
+**Adding an icon:** add an entry to `ART` in `ui/icons.ts` (array of 24x24 shapes: `'M..'` stroke, `'~M..'` tinted, `'*M..'` solid; helpers `o(cx,cy,r)`, `dot(x,y)`), then use the name. **Mapping a new shared-data glyph:** add the character to the matching table in `ui/glyphMap.ts` (the only client file allowed to hold CJK characters, because they are table keys that are never rendered). Unknown glyphs fall back to the item kind, skill school, monster family or the generic `unknown` icon. Time/weather: `PHASE_ICON`/`WEATHER_ICON` (`ui/format.ts`); combat statuses: `STATUS_ICON` (`ui/text/combat.ts`); chronicle/mission/invite kinds: `KIND_ICON`, `MISSION_ICON`, `INVITE_ICON` (`ui/logic`). The action bar shows icon + short English label + hotkey (`bar.short.<panel id>` strings, falling back to the title); between 761 and 980px it is icon-only with a tooltip, under 760px it is the menu sheet with labels.
+
+Guards: `ui/noCjk.test.ts` scans `ui`, `i18n`, `net`, `styles`, `index.html` and the entry files (comments and `glyphMap.ts` excluded; percent-encoded text and unicode escapes are decoded first) and fails on any CJK; `ui/icons.test.ts` checks that every icon name referenced by the UI tables and by the `icon()` / `glyph()` / `seal()` / `glyph:` call sites exists, and that every `glyph` in the shared item, skill, monster and job data has a mapping.
 
 ### i18n
 

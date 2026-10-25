@@ -1,4 +1,4 @@
-import { findPath, type NpcRole, type SimEvent } from '@murim/shared';
+import { T, findPath, type NpcRole, type SimEvent } from '@murim/shared';
 import { describe, expect, it } from 'vitest';
 import { NPC_DATA } from '../ctx';
 import { faceFor } from '../game/movement';
@@ -45,9 +45,10 @@ describe('places and assignment', () => {
     const homes = new Map<string, number>();
     for (const st of h.life.states.values()) {
       expect(st.home, `npc ${st.npcId} home`).not.toBeNull();
-      expect(st.work, `npc ${st.npcId} work`).not.toBeNull();
+      // Villagers without a field, herb hut or mine keep house instead of having a workplace.
+      if (st.role !== 'villager') expect(st.work, `npc ${st.npcId} work`).not.toBeNull();
       const label = wp.compOf(st.sid);
-      for (const place of [st.home!, st.work!]) {
+      for (const place of [st.home!, ...(st.work ? [st.work] : [])]) {
         for (const t of [place.door, ...place.spots]) {
           expect(wp.comp[t.y * h.ctx.world.w + t.x]).toBe(label);
         }
@@ -345,14 +346,123 @@ describe('reactions of the settlement', () => {
   });
 });
 
+describe('work cues match the place and the person', () => {
+  const FARMISH = new Set(['farm', 'forge', 'brew', 'gather', 'mine']);
+  const SLEEPY = new Set(['rest']);
+
+  it('farm / forge / brew / gather / mine cues only at the right workplace; guards, masters and legends never get them', () => {
+    const h = makeLifeHarness({ real: true, hourMs: 60000 });
+    const w = h.ctx.world;
+    // Players in the two biggest places so that walking and snapping are both exercised.
+    for (const sid of [0, 2]) h.join(`Hero${sid}`, { x: w.settlements[sid].spawn.x, y: w.settlements[sid].spawn.y });
+    h.setHour(5);
+    h.life.syncRoster();
+    const seen = new Map<string, number>();
+    let badState = 0;
+    for (let t = 0; t < 14400; t++) {
+      h.tick(1);
+      if (t % 600 === 599) h.game.advanceHour(h.clock.t);
+      if (t % 5) continue;
+      for (const st of h.life.states.values()) {
+        const e = ent(h, st);
+        if (e.state === 'work' && e.act === undefined) badState++;
+        if (!e.act) continue;
+        seen.set(e.act, (seen.get(e.act) ?? 0) + 1);
+        expect(e.act).not.toBe('work');
+        if (FARMISH.has(e.act)) {
+          expect(['guard', 'master', 'legend', 'wanderer', 'elder', 'merchant', 'innkeeper']).not.toContain(st.role);
+          expect(st.place).not.toBeNull();
+        }
+        if (e.act === 'farm') {
+          expect(st.role).toBe('villager');
+          expect(st.place!.kind).toBe('farm');
+          expect(w.terrain[e.y * w.w + e.x]).toBe(T.Farm);
+        }
+        if (e.act === 'forge') {
+          expect(st.role).toBe('smith');
+          expect(st.place!.kind).toBe('smithy');
+          expect(Math.max(Math.abs(e.x - st.place!.door.x), Math.abs(e.y - st.place!.door.y))).toBeLessThanOrEqual(3);
+        }
+        if (e.act === 'brew') expect(['alchemist', 'physician']).toContain(st.role);
+      }
+    }
+    expect(badState).toBe(0);
+    expect(seen.get('farm') ?? 0).toBeGreaterThan(0);
+    expect(seen.get('forge') ?? 0).toBeGreaterThan(0);
+    expect(seen.get('brew') ?? 0).toBeGreaterThan(0);
+    h.close();
+  });
+
+  it('only some villagers are farmers; the others keep house and never farm', () => {
+    const h = makeLifeHarness({ real: true });
+    const villagers = [...h.life.states.values()].filter((s) => s.role === 'villager');
+    const farmers = villagers.filter((s) => s.work?.kind === 'farm');
+    expect(farmers.length).toBeGreaterThan(0);
+    expect(farmers.length).toBeLessThan(villagers.length);
+    for (const s of farmers) for (const sp of s.work!.spots) expect(h.ctx.world.terrain[sp.y * h.ctx.world.w + sp.x]).toBe(T.Farm);
+    // Non-farmers get household chores in the daytime, not a farm cue.
+    const idle = villagers.filter((s) => !s.work);
+    expect(idle.length).toBeGreaterThan(0);
+    h.close();
+  });
+
+  it('nobody is ever visible with a sleeping pose outdoors at night, and every sleeper is indoors', () => {
+    const h = makeLifeHarness({ real: true, hourMs: 30000 });
+    setupAt(h, 0, 20);
+    h.join('Hero2', { x: h.ctx.world.settlements[2].spawn.x, y: h.ctx.world.settlements[2].spawn.y });
+    let checked = 0;
+    for (let hr = 0; hr < 9; hr++) {
+      for (let k = 0; k < 20; k++) {
+        h.run(1500);
+        const hour = h.ctx.sim.clock().hour;
+        for (const st of h.life.states.values()) {
+          const e = ent(h, st);
+          if (st.ph === 'doing' && st.act === 'sleep') {
+            expect(e.hidden, `npc ${st.npcId} sleeps outdoors`).toBe(true);
+            expect(e.act).toBeUndefined();
+          }
+          if (!e.hidden && (hour >= 23 || hour < 5) && e.act) {
+            expect(SLEEPY.has(e.act), `visible ${e.act} at ${hour}h npc${st.npcId} ${st.role} act=${st.act} ph=${st.ph} startedAt=${Math.round((st.startedAt - h.clock.t) / 1000)}s hours=${st.hours.toFixed(2)} place=${st.place?.kind}`).toBe(false);
+            checked++;
+          }
+        }
+      }
+      h.game.advanceHour(h.clock.t);
+    }
+    expect(checked).toBeGreaterThanOrEqual(0);
+    h.close();
+  });
+
+  it('an NPC that cannot reach its home does not sleep visibly outdoors', () => {
+    const h = makeLifeHarness({ real: true, hourMs: 60000 });
+    setupAt(h, 0, 23);
+    const st = [...h.life.states.values()].find((s) => s.sid === 0 && s.role === 'villager')!;
+    // Mark the home as unreachable, then make it re-decide.
+    st.avoid.set(st.home!.id, h.clock.t + 3_600_000);
+    const e = ent(h, st);
+    h.life.endDoingForTest(st);
+    h.run(120_000);
+    if (st.act === 'sleep') {
+      expect(st.place!.id).not.toBe(st.home!.id);
+      expect(st.place!.enter).toBe(true);
+      if (st.ph === 'doing') expect(e.hidden).toBe(true);
+    } else {
+      expect(e.act).not.toBe('rest');
+    }
+    h.close();
+  });
+});
+
 describe('conversations', () => {
   it('pairs stand close, face each other and emit npcChat', () => {
     const h = makeLifeHarness({ real: true, hourMs: 60000 });
     setupAt(h, 0, 12);
     const chats: { a: number; b: number; settlementId: number }[] = [];
+    const links: [number | null | undefined, number | null | undefined][] = [];
     const checks: { dist: number; faceA: number; faceB: number; wantA: number; wantB: number; actA: unknown; actB: unknown }[] = [];
     h.ctx.events.on('npcChat', (ev) => {
       chats.push(ev);
+      links.push([h.api.activityOf(ev.a)?.chatWith, h.api.activityOf(ev.b)?.chatWith]);
       const a = h.ctx.npcEntity(ev.a)!;
       const b = h.ctx.npcEntity(ev.b)!;
       checks.push({ dist: Math.hypot(a.x - b.x, a.y - b.y), faceA: a.face, faceB: b.face, wantA: faceFor(b.x - a.x, b.y - a.y, a.face), wantB: faceFor(a.x - b.x, a.y - b.y, b.face), actA: a.act, actB: b.act });
@@ -370,8 +480,7 @@ describe('conversations', () => {
       expect(c.actB).toBe('chat');
     }
     const c0 = chats[0];
-    expect(h.api.activityOf(c0.a)?.chatWith).toBe(c0.b);
-    expect(h.api.activityOf(c0.b)?.chatWith).toBe(c0.a);
+    expect(links[0]).toEqual([c0.b, c0.a]);
     expect(c0.settlementId).toBe(0);
     h.close();
   });
@@ -386,12 +495,12 @@ describe('level of detail', () => {
     expect(h.game.movement.movingCount).toBe(0);
     expect(h.life.stats.travels).toBe(0);
     expect(h.life.stats.snaps).toBeGreaterThan(50);
-    const workers = states(h, 0).filter((s) => s.act === 'work' || s.act === 'trade');
+    const workers = states(h, 0).filter((s) => (s.act === 'work' || s.act === 'trade') && ent(h, s).act !== undefined);
     expect(workers.length).toBeGreaterThan(3);
     for (const s of workers) {
       const e = ent(h, s);
       expect([e.x, e.y]).toEqual([s.spot.x, s.spot.y]);
-      expect(e.act).toBe(s.act === 'trade' ? 'trade' : 'work');
+      expect(['farm', 'forge', 'brew', 'gather', 'mine', 'trade']).toContain(e.act);
       expect(e.state).toBe('work');
     }
     const before = new Map(workers.map((s) => [s.npcId, [ent(h, s).x, ent(h, s).y]]));
@@ -400,6 +509,7 @@ describe('level of detail', () => {
     h.run(2_000);
     for (const s of workers) {
       if (s.act !== 'work' && s.act !== 'trade') continue;
+      if (!before.has(s.npcId)) continue;
       expect([ent(h, s).x, ent(h, s).y]).toEqual(before.get(s.npcId));
     }
     h.close();
@@ -504,15 +614,16 @@ describe('integration with the core', () => {
     setupAt(h, 0, 9);
     h.run(120_000);
     const p = h.ctx.players.online()[0];
-    const worker = states(h, 0).find((s) => s.act === 'work' && s.ph === 'doing' && ent(h, s).act === 'work')!;
+    const worker = states(h, 0).find((s) => s.ph === 'doing' && (s.act === 'work' || s.act === 'trade') && ent(h, s).act !== undefined)!;
     expect(worker).toBeDefined();
     const e = ent(h, worker);
+    const cue = e.act;
     h.game.npcs.attend(e, p);
     h.run(3_000);
     expect(e.act).toBeUndefined();
     expect(e.state).toBe('idle');
     h.run(12_000);
-    expect(worker.act === 'work' ? e.act : 'work').toBe('work');
+    expect(worker.act === 'work' || worker.act === 'trade' ? e.act : cue).toBe(cue);
     h.close();
   });
 });

@@ -2,12 +2,13 @@
 import { FACTION_BY_ID, type EntityView } from '@murim/shared';
 import { t } from '../../i18n';
 import type { UiContext } from '../context';
-import { h, mount } from '../dom';
+import { glyph, h, mount } from '../dom';
 import { rankColorOfRank } from '../format';
-import { contextActions, entityGlyph, entityKindKey, tileDistance } from '../logic/interact';
+import { contextActions, entityIcon, entityKindKey, tileDistance } from '../logic/interact';
 import { drawLook } from '../portrait';
 import { bar } from '../widgets/bar';
 import { actionContext, runAction } from './actions';
+import { icon } from '../icons';
 
 /** Fields that change what the card shows. Position is deliberately excluded so walking does not rebuild it. */
 export function cardSignature(e: EntityView, extra: string): string {
@@ -46,7 +47,7 @@ export function mountContextCard(host: HTMLElement, ui: UiContext): { destroy():
       const c = h('canvas', { class: 'ctx-portrait', width: 48, height: 64, 'aria-hidden': 'true' });
       drawLook(ui.render, c, e.look, 48, 64, 1.6, { dir: 0, backdrop: false, weapon: e.weapon });
       portrait = c;
-    } else portrait = h('span', { class: ['seal', e.kind === 'monster' && 'seal-monster', !!e.elite && 'seal-elite'] }, entityGlyph(e));
+    } else portrait = h('span', { class: ['seal', e.kind === 'monster' && 'seal-monster', !!e.elite && 'seal-elite'] }, icon(entityIcon(e)));
 
     const nameColor = e.kind === 'player' && e.rank ? rankColorOfRank(e.rank) : e.kind === 'monster' ? (e.elite ? 'var(--warn)' : '#e8a090') : e.kind === 'npc' ? '#bfe8d5' : 'var(--text)';
     const faction = e.faction ? FACTION_BY_ID[e.faction] : undefined;
@@ -75,7 +76,7 @@ export function mountContextCard(host: HTMLElement, ui: UiContext): { destroy():
           title: a.disabled ? t(a.disabled) : undefined,
           onclick: () => runAction(ui, a.id, e),
         },
-        h('span', { class: 'glyph', 'aria-hidden': 'true' }, a.glyph),
+        glyph(a.glyph),
         t(a.label),
       ),
     );
@@ -87,7 +88,7 @@ export function mountContextCard(host: HTMLElement, ui: UiContext): { destroy():
         { class: 'ctx-head' },
         portrait,
         h('div', { class: 'ctx-id' }, h('div', { class: 'ctx-name', style: { color: nameColor } }, e.name), h('div', { class: 'ctx-sub' }, t(entityKindKey(e)), ' · ', distEl)),
-        h('button', { class: 'btn-icon btn-sm btn-close', type: 'button', 'aria-label': t('ctx.close'), onclick: () => ui.select(null) }, '✕'),
+        h('button', { class: 'btn-icon btn-sm btn-close', type: 'button', 'aria-label': t('ctx.close'), onclick: () => ui.select(null) }, icon('close')),
       ),
       chips.length ? h('div', { class: 'chip-row' }, chips) : null,
       hpBar,

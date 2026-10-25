@@ -10,7 +10,7 @@
  * finds the town already in the right state. NPCs are visited about once a second in a rotating slice, so the
  * per-tick cost is O(roster / 10) plus at most `maxDecisionsPerTick` decisions.
  */
-import { AOI_RADIUS, type Dir, type NpcState, type Point, type SimEvent } from '@murim/shared';
+import { AOI_RADIUS, type Dir, type NpcAct, type NpcRole, type NpcState, type Point, type SimEvent } from '@murim/shared';
 import { NPC_DATA, type Entity, type GameContext } from '../ctx';
 import {
   ACTIVITIES,
@@ -27,7 +27,7 @@ import {
   type ScheduleKey,
 } from './activities';
 import { chooseHome, chooseWork, hash01, hash32, surname, type HomeBook } from './assign';
-import { worldPlaces, type Place, type PlaceKind, type SettlementPlaces, type WorldPlaces } from './places';
+import { isFarmTile, worldPlaces, type Place, type PlaceKind, type SettlementPlaces, type WorldPlaces } from './places';
 import { NPCLIFE_TUNING as TUNE } from './tuning';
 
 export type Phase = 'idle' | 'depart' | 'travel' | 'doing';
@@ -40,6 +40,8 @@ interface Plan {
   hours: number;
   partnerId: number | null;
   hurry: boolean;
+  /** Cue override: undefined = the activity's default, null = no cue. */
+  cue?: NpcAct | null;
 }
 
 export interface LifeState {
@@ -69,6 +71,8 @@ export interface LifeState {
   partnerId: number | null;
   hours: number;
   hurry: boolean;
+  /** The cue this plan shows while standing at the place. */
+  cue: NpcAct | undefined;
   startedAt: number;
   until: number;
   departAt: number;
@@ -106,6 +110,37 @@ function faceFor(dx: number, dy: number, prev: Dir): Dir {
   if (down) return right ? 0 : 1;
   return right ? 3 : 2;
 }
+
+/**
+ * Which work cue an NPC may show at a workplace. Only the matching role at the matching place gets a specific
+ * tool animation: guards, masters and legends never farm, forge, brew, gather or mine.
+ */
+export function workCue(role: NpcRole, kind: PlaceKind): NpcAct | undefined {
+  switch (kind) {
+    case 'farm':
+      return role === 'villager' ? 'farm' : undefined;
+    case 'smithy':
+      return role === 'smith' ? 'forge' : undefined;
+    case 'alchemy':
+      return role === 'alchemist' || role === 'physician' ? 'brew' : undefined;
+    case 'herb':
+      return role === 'villager' || role === 'alchemist' || role === 'physician' ? 'gather' : undefined;
+    case 'mine':
+      return role === 'villager' ? 'mine' : undefined;
+    case 'market':
+    case 'warehouse':
+      return role === 'merchant' ? 'trade' : undefined;
+    case 'inn':
+    case 'teahouse':
+      return role === 'innkeeper' ? 'trade' : undefined;
+    default:
+      return undefined;
+  }
+}
+
+const GUARD_ROLES: ReadonlySet<NpcRole> = new Set(['guard', 'master', 'legend']);
+/** Beds for people who cannot get home: buildings with a roof and a door. */
+const BED_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'house', 'farmhouse', 'hall', 'barracks', 'pagoda', 'dojo'];
 
 const ROUTINE: ReadonlySet<ActivityId> = new Set(['sleep', 'work', 'patrol', 'trade', 'hide', 'muster', 'mourn', 'celebrate', 'mope']);
 const SHELTER_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'market', 'shrine', 'hall', 'pagoda', 'house', 'farmhouse', 'alchemy', 'smithy', 'barracks', 'dojo'];
@@ -204,6 +239,7 @@ export class NpcLife {
       partnerId: null,
       hours: 0,
       hurry: false,
+      cue: undefined,
       startedAt: 0,
       until: 0,
       departAt: 0,
@@ -431,6 +467,12 @@ export class NpcLife {
     }
   }
 
+  /** Test hook: end the NPC's current activity so it decides again at the next visit. */
+  endDoingForTest(st: LifeState): void {
+    const e = this.ctx.npcEntity(st.npcId);
+    if (e) this.endDoing(st, e, this.ctx.now());
+  }
+
   // ---- a player is talking to the NPC ------------------------------------------------------------
 
   private hold(st: LifeState, e: Entity, holdUntil: number): void {
@@ -446,19 +488,44 @@ export class NpcLife {
   private unhold(st: LifeState, e: Entity): void {
     st.suppressed = false;
     if (st.ph !== 'doing' || st.inside || !st.act) return;
-    const def = ACTIVITIES[st.act];
-    const cue = this.cueFor(st, def.cue);
+    const cue = this.cueFor(st);
     if (cue !== e.act) {
       e.act = cue;
-      e.state = def.state;
+      e.state = cue ? ACTIVITIES[st.act].state : 'idle';
       this.ctx.entities.touch(e);
     }
   }
 
-  private cueFor(st: LifeState, cue: Entity['act']): Entity['act'] {
-    if (st.act === 'sleep') return 'rest';
+  /** The cue to show while standing: never a sleeping pose outdoors, work cues only at the matching workplace. */
+  private cueFor(st: LifeState): Entity['act'] {
+    if (st.act === 'sleep') return undefined;
     if (st.act === 'socialise') return st.chatWith !== null ? 'chat' : undefined;
-    return cue;
+    return st.cue;
+  }
+
+  /** A specific work cue is only valid on the right tile of the right place (a farm cue only on Farm terrain). */
+  private cueValid(st: LifeState, e: Entity, cue: NpcAct | undefined): boolean {
+    if (!cue) return true;
+    const kind = st.place?.kind;
+    switch (cue) {
+      case 'farm':
+        return kind === 'farm' && st.role === 'villager' && isFarmTile(this.ctx.world, e.x, e.y);
+      case 'forge':
+        return kind === 'smithy' && st.role === 'smith';
+      case 'brew':
+        return kind === 'alchemy' && (st.role === 'alchemist' || st.role === 'physician');
+      case 'gather':
+        return kind === 'herb' && !GUARD_ROLES.has(st.role);
+      case 'mine':
+        return kind === 'mine' && st.role === 'villager';
+      case 'guard':
+      case 'patrol':
+        return st.role === 'guard' || GUARD_ROLES.has(st.role);
+      case 'work':
+        return false;
+      default:
+        return true;
+    }
   }
 
   private idleLook(st: LifeState, e: Entity, now: number): void {
@@ -524,7 +591,7 @@ export class NpcLife {
     return h;
   }
 
-  private mk(act: ActivityId, place: Place, st: LifeState, opts: { inside?: boolean; stable?: boolean; hours?: number; hurry?: boolean; partnerId?: number | null; spot?: Point } = {}): Plan {
+  private mk(act: ActivityId, place: Place, st: LifeState, opts: { inside?: boolean; stable?: boolean; hours?: number; hurry?: boolean; partnerId?: number | null; spot?: Point; cue?: NpcAct | null } = {}): Plan {
     const inside = !!opts.inside && place.enter;
     return {
       act,
@@ -534,15 +601,16 @@ export class NpcLife {
       hours: opts.hours ?? this.hoursFor(act, st),
       partnerId: opts.partnerId ?? null,
       hurry: !!opts.hurry,
+      cue: opts.cue,
     };
   }
 
   /** Nearest enterable building to the NPC (for sheltering / hiding away from home). */
-  private nearestShelter(sp: SettlementPlaces, e: Entity, st: LifeState, now: number): Place | null {
+  private nearestShelter(sp: SettlementPlaces, e: Entity, st: LifeState, now: number, kinds: readonly PlaceKind[] = SHELTER_KINDS): Place | null {
     let best: Place | null = null;
     let bestD = 24 * 24;
     const cand: Place[] = st.home ? [st.home] : [];
-    for (const k of SHELTER_KINDS) cand.push(...sp.byKind(k));
+    for (const k of kinds) cand.push(...sp.byKind(k));
     for (const p of cand) {
       if (!p.enter || this.avoided(st, p, now)) continue;
       const d = (p.door.x - e.x) ** 2 + (p.door.y - e.y) ** 2 - (p === st.home ? 60 : 0);
@@ -554,19 +622,31 @@ export class NpcLife {
     return best;
   }
 
+  /** Household activity for people without a field or workshop: tidy the yard, loiter, sit on the doorstep. */
+  private chore(st: LifeState, sp: SettlementPlaces, home: Place | null): Plan | null {
+    const rng = this.ctx.rng;
+    const r = rng.next();
+    if (home && r < 0.55) return this.mk('sweep', home, st);
+    if (r < 0.8) return this.mk('wander', home && rng.chance(0.5) ? home : sp.plaza, st);
+    if (home) return this.mk('rest', home, st, { spot: home.spots[0] });
+    return this.mk('wander', sp.plaza, st);
+  }
+
   private resolve(act: ActivityId, st: LifeState, e: Entity, sp: SettlementPlaces, mood: Mood, hp: number, now: number): Plan | null {
     const rng = this.ctx.rng;
     const home = st.home && !this.avoided(st, st.home, now) ? st.home : null;
     const work = st.work && !this.avoided(st, st.work, now) ? st.work : null;
     switch (act) {
       case 'sleep': {
-        if (!home) return null;
+        // Real sleep happens indoors only: at home, else in any bed nearby, else the NPC stays awake.
+        const bed = home && home.enter ? home : this.nearestShelter(sp, e, st, now, BED_KINDS);
+        if (!bed) return null;
         const key = scheduleKey(st.role, st.shift);
         const wake = wakeHour(key, st.traits, st.old, 0);
         const d = (((wake - hp) % 24) + 24) % 24;
         // Past this NPC's wake-up time: only an exhausted one dozes off for a short nap.
-        if (d > 11) return st.needs.rest >= 0.75 ? this.mk('sleep', home, st, { inside: true, stable: true, hours: rng.float(0.8, 1.3) }) : null;
-        return this.mk('sleep', home, st, { inside: true, stable: true, hours: Math.min(10, Math.max(1, d)) });
+        if (d > 11) return st.needs.rest >= 0.75 ? this.mk('sleep', bed, st, { inside: true, stable: true, hours: rng.float(0.8, 1.3) }) : null;
+        return this.mk('sleep', bed, st, { inside: true, stable: true, hours: Math.min(10, Math.max(1, d)) });
       }
       case 'eat': {
         const inns = sp.byKind('inn').filter((p) => !this.avoided(st, p, now));
@@ -579,11 +659,22 @@ export class NpcLife {
         if (home) return this.mk('eat', home, st, { inside: true });
         return inns.length ? this.mk('eat', inns[0], st) : null;
       }
-      case 'work':
-        return work ? this.mk('work', work, st, { stable: true }) : null;
+      case 'work': {
+        if (st.role === 'guard' || st.role === 'legend' || st.role === 'wanderer') return null;
+        if (st.role === 'master') return this.resolve('train', st, e, sp, mood, hp, now);
+        const cue = work ? workCue(st.role, work.kind) : undefined;
+        // Elders hold court at the hall or plaza without a tool; everybody else works only at a proper workplace.
+        if (work && st.role === 'elder') return this.mk('work', work, st, { stable: true, cue: null });
+        if (work && cue) {
+          const plan = this.mk('work', work, st, { stable: true, cue });
+          if (cue !== 'farm' || isFarmTile(this.ctx.world, plan.spot.x, plan.spot.y)) return plan;
+        }
+        return this.chore(st, sp, home);
+      }
       case 'trade':
-        return work ? this.mk('trade', work, st, { stable: true }) : null;
+        return work && st.role === 'merchant' && workCue(st.role, work.kind) === 'trade' ? this.mk('trade', work, st, { stable: true, cue: 'trade' }) : null;
       case 'patrol': {
+        if (st.role !== 'guard') return null;
         const posts = st.posts.length ? st.posts : [sp.plaza];
         for (let k = 0; k < posts.length; k++) {
           const p = posts[st.postIdx++ % posts.length];
@@ -616,8 +707,11 @@ export class NpcLife {
         const useHome = home && rng.chance(0.4);
         return this.mk('wander', useHome ? home : sp.plaza, st);
       }
-      case 'rest':
-        return home ? this.mk('rest', home, st) : this.mk('rest', sp.plaza, st);
+      case 'rest': {
+        // A doorstep near home, or the edge of the plaza: never in the middle of a field or road.
+        if (home) return this.mk('rest', home, st, { spot: home.spots[this.ctx.rng.int(0, Math.min(1, home.spots.length - 1))] });
+        return this.mk('rest', sp.plaza, st, { spot: sp.plaza.spots[sp.plaza.spots.length - 1] });
+      }
       case 'socialise': {
         const mine = this.findWaiter(st, e, TUNE.chatSeekRadius);
         if (mine) {
@@ -667,6 +761,7 @@ export class NpcLife {
     st.partnerId = plan.partnerId;
     st.hours = plan.hours;
     st.hurry = plan.hurry;
+    st.cue = plan.cue === undefined ? ACTIVITIES[plan.act].cue : plan.cue ?? undefined;
     st.retries = 0;
     if (!near) {
       this.snap(st, e, now);
@@ -786,8 +881,11 @@ export class NpcLife {
       if (st.place && (e.x !== st.place.look.x || e.y !== st.place.look.y) && act !== 'celebrate' && act !== 'wander') {
         e.face = faceFor(st.place.look.x - e.x, st.place.look.y - e.y, e.face);
       }
-      e.act = this.cueFor(st, def.cue);
-      e.state = def.state;
+      let cue = st.act === 'sleep' && !st.inside ? undefined : this.cueFor(st);
+      if (!this.cueValid(st, e, cue)) cue = undefined;
+      e.act = cue;
+      // State 'work' only with a specific cue (clients guess a tool from the terrain otherwise).
+      e.state = cue ? def.state : 'idle';
     }
     this.ctx.entities.touch(e);
   }

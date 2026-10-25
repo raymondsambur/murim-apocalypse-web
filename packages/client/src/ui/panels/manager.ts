@@ -7,6 +7,7 @@ import { t } from '../../i18n';
 import type { StoreKey } from '../../state/store';
 import type { UiContext } from '../context';
 import { h, isNarrow, isTypingTarget, loadJson, saveJson } from '../dom';
+import { icon } from '../icons';
 import { hideTooltipIfDetached } from '../widgets/tooltip';
 import { getPanel, type PanelDef } from './registry';
 
@@ -88,11 +89,11 @@ export class PanelManager {
     }
     const titleId = `win-title-${def.id}`;
     const body = h('div', { class: 'win-body', 'data-scroll-key': 'body' });
-    const closeBtn = h('button', { class: 'btn-icon btn-close win-close', type: 'button', 'aria-label': t('common.closePanel', { name: t(def.title) }), onclick: () => this.close(id) }, '✕');
+    const closeBtn = h('button', { class: 'btn-icon btn-close win-close', type: 'button', 'aria-label': t('common.closePanel', { name: t(def.title) }), onclick: () => this.close(id) }, icon('close'));
     const head = h(
       'header',
       { class: 'win-head' },
-      h('span', { class: 'seal win-seal', 'aria-hidden': 'true' }, def.glyph),
+      h('span', { class: 'seal win-seal', 'aria-hidden': 'true' }, icon(def.glyph)),
       h('h2', { class: 'win-title', id: titleId }, t(def.title)),
       def.placeholder ? h('span', { class: 'chip chip-warn' }, t('panel.draft')) : null,
       def.hotkey ? h('kbd', { class: 'win-key', 'aria-hidden': 'true' }, def.hotkey.toUpperCase()) : null,

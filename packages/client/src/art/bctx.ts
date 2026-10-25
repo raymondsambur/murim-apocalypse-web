@@ -41,6 +41,8 @@ export interface BuildingArt {
   oy: number;
   lights: LightDef[];
   smoke: SmokeDef[];
+  /** Door height and main eave height in screen px (set by the kinds that define them; used by the scale test). */
+  metrics?: { door: number; eave: number };
 }
 
 /** Everything a kind-builder needs. */
@@ -56,6 +58,7 @@ export interface Ctx {
   smoke: SmokeDef[];
   /** Pseudo-random in [0,1) for this building. */
   rnd(k: number): number;
+  metrics: { door: number; eave: number };
 }
 
 export function doorPlacement(spec: BuildingSpec): { face: FaceId; center: number } {

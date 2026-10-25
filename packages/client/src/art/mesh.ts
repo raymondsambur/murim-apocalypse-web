@@ -60,11 +60,18 @@ export class Scene3D {
     return (u - v) * AHW + this.ox;
   }
 
+  /** Vertical stretch of the whole model (height in design units x zk = screen px; see scale.ts). */
+  zk = 1;
+
   sy(u: number, v: number, z: number): number {
-    return (u + v) * AHH - z + this.oy;
+    return (u + v) * AHH - z * this.zk + this.oy;
   }
 
   /** Depth key: larger = closer to the camera. */
+  depth(u: number, v: number, z: number): number {
+    return (u + v) * AHH + z * this.zk;
+  }
+
   static depth(u: number, v: number, z: number): number {
     return (u + v) * AHH + z;
   }
@@ -83,9 +90,9 @@ export class Scene3D {
     const area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
     if (Math.abs(area) < 1e-6) return;
     const inv = 1 / area;
-    const d0 = Scene3D.depth(a[0], a[1], a[2]) + bias;
-    const d1 = Scene3D.depth(b[0], b[1], b[2]) + bias;
-    const d2 = Scene3D.depth(c[0], c[1], c[2]) + bias;
+    const d0 = this.depth(a[0], a[1], a[2]) + bias;
+    const d1 = this.depth(b[0], b[1], b[2]) + bias;
+    const d2 = this.depth(c[0], c[1], c[2]) + bias;
     const minX = Math.max(0, Math.floor(Math.min(x0, x1, x2)));
     const maxX = Math.min(this.pb.w - 1, Math.ceil(Math.max(x0, x1, x2)));
     const minY = Math.max(0, Math.floor(Math.min(y0, y1, y2)));
@@ -130,12 +137,12 @@ export class Scene3D {
 
   /** Vertical face on the plane v = v1 (screen-left face). s = px along u (16 per tile), t = px above z0. */
   left(u0: number, u1: number, v1: number, z0: number, z1: number, lit: number, shader: Shader, emissive: Emit = false, bias = 0): void {
-    this.quad([u0, v1, z0], [u1, v1, z0], [u1, v1, z1], [u0, v1, z1], (u1 - u0) * AHW, z1 - z0, lit, shader, emissive, bias);
+    this.quad([u0, v1, z0], [u1, v1, z0], [u1, v1, z1], [u0, v1, z1], (u1 - u0) * AHW, (z1 - z0) * this.zk, lit, shader, emissive, bias);
   }
 
   /** Vertical face on the plane u = u1 (screen-right face). s = px along v (16 per tile), t = px above z0. */
   right(v0: number, v1: number, u1: number, z0: number, z1: number, lit: number, shader: Shader, emissive: Emit = false, bias = 0): void {
-    this.quad([u1, v0, z0], [u1, v1, z0], [u1, v1, z1], [u1, v0, z1], (v1 - v0) * AHW, z1 - z0, lit, shader, emissive, bias);
+    this.quad([u1, v0, z0], [u1, v1, z0], [u1, v1, z1], [u1, v0, z1], (v1 - v0) * AHW, (z1 - z0) * this.zk, lit, shader, emissive, bias);
   }
 
   /** Axis-aligned box: top + the two visible side faces. */
@@ -174,7 +181,7 @@ export class Scene3D {
     const y = Math.floor(this.sy(u, v, z));
     if (x < 0 || y < 0 || x >= this.pb.w || y >= this.pb.h) return;
     const i = y * this.pb.w + x;
-    const d = Scene3D.depth(u, v, z);
+    const d = this.depth(u, v, z);
     if (d < this.zb[i]) return;
     if (emissive === 'glow') {
       this.glow.px[i] = col;
@@ -189,7 +196,7 @@ export class Scene3D {
   blob(u: number, v: number, z: number, rx: number, ry: number, fn: (nx: number, ny: number, x: number, y: number) => Col, emissive: Emit = false): void {
     const cx = this.sx(u, v);
     const cy = this.sy(u, v, z);
-    const d = Scene3D.depth(u, v, z);
+    const d = this.depth(u, v, z);
     for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
       const ny = (y + 0.5 - cy) / ry;
       if (ny * ny > 1) continue;
@@ -216,7 +223,7 @@ export class Scene3D {
   sprite(src: PixelBuffer, ax: number, ay: number, u: number, v: number, z: number, bias = 0): void {
     const bx = Math.round(this.sx(u, v)) - ax;
     const by = Math.round(this.sy(u, v, z)) - ay;
-    const d = Scene3D.depth(u, v, z) + bias;
+    const d = this.depth(u, v, z) + bias;
     for (let y = 0; y < src.h; y++) {
       const py = by + y;
       if (py < 0 || py >= this.pb.h) continue;
@@ -238,10 +245,10 @@ export class Scene3D {
   triLit(a: V3, b: V3, c: V3, shader: Shader, emissive: Emit = false, bias = 0, litFn?: (nu: number, nv: number, nz: number, u: number, v: number) => number): void {
     const e1u = b[0] - a[0];
     const e1v = b[1] - a[1];
-    const e1z = (b[2] - a[2]) / Z_PER_TILE;
+    const e1z = ((b[2] - a[2]) * this.zk) / Z_PER_TILE;
     const e2u = c[0] - a[0];
     const e2v = c[1] - a[1];
-    const e2z = (c[2] - a[2]) / Z_PER_TILE;
+    const e2z = ((c[2] - a[2]) * this.zk) / Z_PER_TILE;
     let nu = e1v * e2z - e1z * e2v;
     let nv = e1z * e2u - e1u * e2z;
     let nz = e1u * e2v - e1v * e2u;

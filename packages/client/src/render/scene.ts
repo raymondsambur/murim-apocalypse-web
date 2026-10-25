@@ -5,7 +5,8 @@
  */
 import { O, T, FACTION_BY_ID, type Dir, type NodeKind } from '@murim/shared';
 import { BEAST_KEYS, type BeastKey } from '../art/beasts';
-import type { CharSpec, SpecialStyle } from '../art/character';
+import { sizeMult, type CharSpec, type SpecialStyle } from '../art/character';
+import { coverage, isHidden, stepOcc, type Coverage, type Occluder, type RowSpans } from './occlusion';
 import type { ToolKind } from '../art/anim';
 import { gearFor, rarityCol } from '../art/gear';
 import { newBeastPick, newPick, pickBeast, pickChar, reactionOffset, windLevel, motion, type AnimPick, type BeastPick, type PickEnv } from './life';
@@ -59,6 +60,12 @@ export class SceneRenderer {
   readonly glowLayers: { cv: HTMLCanvasElement; x: number; y: number }[] = [];
   /** Entities drawn this frame, back-to-front. */
   readonly drawnEnts: Ent[] = [];
+  /** Tall drawables of this frame (pool) used to decide which plates are hidden behind scenery. */
+  private occl: Occluder[] = [];
+  private nOcc = 0;
+  private cov: Coverage = { frac: 0, head: false };
+  /** Your own sprite of this frame, redrawn as an x-ray ghost when scenery covers it. */
+  private xray: { spr: FlashSprite; dx: number; dy: number } | null = null;
   moveTarget: { x: number; y: number } | null = null;
   moveTargetAt = 0;
   selectedId: number | null = null;
@@ -190,6 +197,8 @@ export class SceneRenderer {
     this.glowLayers.length = 0;
     this.drawnEnts.length = 0;
     this.emitters.length = 0;
+    this.nOcc = 0;
+    this.xray = null;
     // --- visible diagonal range -------------------------------------------------------------
     const padB = 100;
     const dmin = Math.max(0, Math.floor((ay0 - 24) / 8));
@@ -226,6 +235,7 @@ export class SceneRenderer {
       if (art < sx0 - 40 || art > sx1 + 40 || arty < -40 || arty > bh + 160) continue;
       const it = take();
       it.key = e.x + e.y + (e.v.kind === 'node' ? -0.05 : 0.0001 * (e.id % 97));
+      e.dkey = it.key;
       it.kind = 1;
       it.b = null;
       it.e = e;
@@ -274,6 +284,7 @@ export class SceneRenderer {
         if (t === T.Rock) {
           const m = this.bank.getMountain(x, y);
           s.drawImage(m.cv, cx - m.ax, cy - m.ay);
+          this.pushOcc(cx - m.ax, cy - m.ay, m.w, m.h, d, m.spans);
         } else if (t === T.Bridge) {
           const axis = this.bridgeAxis(x, y);
           const r = this.bank.getBridgeRail(axis);
@@ -284,6 +295,7 @@ export class SceneRenderer {
         if (o === O.Wall) {
           const spr = this.bank.getWall(w.wallMask(x, y), this.wallIsFallen(i, x, y));
           s.drawImage(spr.cv, cx - spr.ax, cy - spr.ay);
+          this.pushOcc(cx - spr.ax, cy - spr.ay, spr.w, spr.h, d, spr.spans);
           continue;
         }
         if (o >= 200) continue;
@@ -301,15 +313,54 @@ export class SceneRenderer {
             const cut = Math.floor(spr.h * 0.55);
             s.drawImage(spr.cv, 0, cut, spr.w, spr.h - cut, px, py + cut, spr.w, spr.h - cut);
             s.drawImage(spr.cv, 0, 0, spr.w, cut, px + sh, py, spr.w, cut);
+            if (spr.spans) this.pushOcc(px, py, spr.w, spr.h, d, spr.spans);
             continue;
           }
         }
         s.drawImage(spr.cv, px, py);
+        if (spr.spans) this.pushOcc(px, py, spr.w, spr.h, d, spr.spans);
       }
     }
     flush(1e9);
+    this.resolveOcclusion(s, dt);
     this.particles.drawAir(s, ax0, ay0);
     this.updateSmoke(s, ax0, ay0, now, dt);
+  }
+
+  private pushOcc(x: number, y: number, w: number, h: number, depth: number, spans: RowSpans | undefined): void {
+    if (this.nOcc >= this.occl.length) this.occl.push({ x: 0, y: 0, w: 0, h: 0, depth: 0, spans: null });
+    const o = this.occl[this.nOcc++];
+    o.x = x;
+    o.y = y;
+    o.w = w;
+    o.h = h;
+    o.depth = depth;
+    o.spans = spans ?? null;
+  }
+
+  /** Per entity: smoothed "hidden behind scenery" level for the overlay, and the x-ray ghost of your own character. */
+  private resolveOcclusion(s: CanvasRenderingContext2D, dt: number): void {
+    const list = this.drawnEnts;
+    const box = { x0: 0, y0: 0, x1: 0, y1: 0 };
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      box.x0 = e.sx - e.halfW;
+      box.x1 = e.sx + e.halfW;
+      box.y0 = e.sy - e.topPx;
+      box.y1 = e.sy;
+      e.occ = stepOcc(e.occ, isHidden(coverage(box, e.dkey, this.occl, this.nOcc, this.cov)), dt);
+    }
+    const x = this.xray;
+    if (x && this.selfId !== null) {
+      const me = this.ents.map.get(this.selfId);
+      if (me && me.occ > 0.04) {
+        s.globalAlpha = 0.5 * me.occ;
+        s.drawImage(x.spr.cv, x.dx, x.dy);
+        s.globalAlpha = 0.3 * me.occ;
+        s.drawImage(this.bank.flashOf(x.spr), x.dx, x.dy);
+        s.globalAlpha = 1;
+      }
+    }
   }
 
   private bridgeAxis(x: number, y: number): 0 | 1 {
@@ -348,6 +399,7 @@ export class SceneRenderer {
     const px = Math.round(vx - spr.ox);
     const py = Math.round(vy - spr.oy);
     s.drawImage(spr.spr.cv, px, py);
+    this.pushOcc(px, py, spr.spr.w, spr.spr.h, b.depth, spr.spr.spans);
     if (spr.spr.glow) this.glowLayers.push({ cv: spr.spr.glow, x: px, y: py });
     for (const l of spr.lights) this.lights.push({ x: px + l.x, y: py + l.y, r: l.r, c: l.c });
     const st = this.world.status.get(b.sid);
@@ -487,7 +539,7 @@ export class SceneRenderer {
       const bp = this.bpick;
       pickBeast(e, now, moving, key === 'wolf_blight', key === 'snake', bp);
       spr = this.bank.getBeast({ key, state: bp.state, dir, frame: bp.frame, elite: v.elite ?? 0, variant: bp.variant }, e.lastSpr);
-      shadowR = key === 'bear' ? 16 : key === 'tiger' ? 15 : key === 'snake' ? 10 : 12;
+      shadowR = (key === 'bear' ? 11 : key === 'tiger' ? 12 : key === 'snake' ? 6 : 8) * (v.elite === 2 ? 1.4 : v.elite === 1 ? 1.15 : 1);
       beast = true;
       const fk = bp.frame + 16 * (bp.state === 'walk' ? 1 : 0);
       if (fk !== e.lastFrame) {
@@ -531,7 +583,7 @@ export class SceneRenderer {
       spec.tilt = pk.tilt;
       spec.blink = false;
       spr = this.bank.getChar(spec, e.lastSpr);
-      shadowR = special === 'hollow_lord' ? 15 : special === 'hollow_brute' || special === 'bandit_boss' ? 11 : 7.5;
+      shadowR = Math.round(5 * sizeMult({ special, elite: v.elite ?? 0 }));
       if (pk.state === 'dead' || pk.state === 'die') shadowR += 2;
       // footfalls and event effects
       const fk = pk.frame + 16 * (pk.state === 'walk' ? 1 : pk.state === 'run' ? 2 : pk.state === 'work' ? 3 : 0);
@@ -540,7 +592,7 @@ export class SceneRenderer {
         if (pk.state === 'walk' && (pk.frame === 0 || pk.frame === 4)) this.footfall(e, wx, wy);
         else if (pk.state === 'run' && (pk.frame === 0 || pk.frame === 3)) this.footfall(e, wx, wy);
         else if (pk.state === 'work' && pk.frame === 3 && !motion.reduced && (pk.tool === 'hammer' || pk.tool === 'pick')) {
-          for (let i = 0; i < 4; i++) this.particles.spawn(PK.Spark, wx + (mirror ? -1 : 1) * (14 + i), wy - 7, (mirror ? -1 : 1) * (14 + i * 9), -38 - i * 6, 300, i & 1 ? PCOL.gold : PCOL.white);
+          for (let i = 0; i < 4; i++) this.particles.spawn(PK.Spark, wx + (mirror ? -1 : 1) * (9 + i * 0.7), wy - 5, (mirror ? -1 : 1) * (14 + i * 9), -38 - i * 6, 300, i & 1 ? PCOL.gold : PCOL.white);
         }
       }
     }
@@ -566,16 +618,16 @@ export class SceneRenderer {
     const oRar = spr.oRar ?? 0;
     const wRar = spr.wRar ?? 0;
     // faction / legend / rarity auras (cached soft discs, additive)
-    if (v.role === 'legend' || v.elite === 2) this.aura(s, ax, ay - (spr.ay >> 1), v.role === 'legend' ? 0xff8cdeff : v.sprite && v.sprite.startsWith('hollow') ? 0xffff5aaa : 0xff5a78ff, now, 26);
-    else if (oRar >= 4) this.aura(s, ax, ay - (spr.ay >> 1) - 2, rarityCol(oRar), now, 22);
-    else if (oRar === 3 && !motion.reduced) this.aura(s, ax, ay - (spr.ay >> 1) - 2, rarityCol(3), now, 15, 0.45);
+    if (v.role === 'legend' || v.elite === 2) this.aura(s, ax, ay - (spr.ay >> 1), v.role === 'legend' ? 0xff8cdeff : v.sprite && v.sprite.startsWith('hollow') ? 0xffff5aaa : 0xff5a78ff, now, Math.round(spr.h * 0.62));
+    else if (oRar >= 4) this.aura(s, ax, ay - (spr.ay >> 1) - 1, rarityCol(oRar), now, 15);
+    else if (oRar === 3 && !motion.reduced) this.aura(s, ax, ay - (spr.ay >> 1) - 1, rarityCol(3), now, 10, 0.45);
     if (pk.state === 'meditate' && human) this.meditateAura(s, e, ax, ay, spr, now, wx, wy);
     const hl = now - e.healAt;
     if (hl >= 0 && hl < 1100) {
       s.globalCompositeOperation = 'lighter';
       s.globalAlpha = (1 - hl / 1100) * 0.75;
-      const d = this.bank.glowDisc(0xff80f09a, 18);
-      s.drawImage(d, ax - 18, ay - (spr.ay >> 1) - 14, 36, 29);
+      const d = this.bank.glowDisc(0xff80f09a, 12);
+      s.drawImage(d, ax - 12, ay - (spr.ay >> 1) - 9, 24, 19);
       s.globalAlpha = 1;
       s.globalCompositeOperation = 'source-over';
     }
@@ -585,6 +637,7 @@ export class SceneRenderer {
     const dx = ax - spr.ax;
     const dy = ay - spr.ay;
     s.drawImage(spr.cv, dx, dy);
+    if (v.id === this.selfId) this.xray = { spr, dx, dy };
     if (human && pk.blink && spr.eyes) {
       // blink: close the eyes with a tiny overlay instead of regenerating the sprite
       for (const ey of spr.eyes) {
@@ -607,7 +660,7 @@ export class SceneRenderer {
       if (nodeSet.light !== null) this.lights.push({ x: ax, y: ay - 10, r: nodeSet.lightR, c: nodeSet.light });
       if (v.nodeKind === 'heart') this.heartSwirl(s, ax, ay, now);
     }
-    if (v.id === this.selfId) this.lights.push({ x: ax, y: ay - 14, r: 34, c: 0xff9fd8ff & 0xffffffff });
+    if (v.id === this.selfId) this.lights.push({ x: ax, y: ay - 9, r: 30, c: 0xff9fd8ff & 0xffffffff });
     // bookkeeping for overlays / picking
     e.drawn = true;
     e.sx = ax;
@@ -631,7 +684,7 @@ export class SceneRenderer {
       if (oRar >= 3 && now - e.fxAt > (oRar >= 4 ? 150 : 420)) {
         e.fxAt = now;
         const r = e.seed;
-        pr.spawn(PK.Mote, wx + (Math.random() - 0.5) * 16, wy - 8 - Math.random() * 24, (Math.random() - 0.5) * 6, -9 - Math.random() * 6, 1500, oRar >= 4 ? PCOL.legend : PCOL.epic);
+        pr.spawn(PK.Mote, wx + (Math.random() - 0.5) * 11, wy - 5 - Math.random() * 16, (Math.random() - 0.5) * 6, -9 - Math.random() * 6, 1500, oRar >= 4 ? PCOL.legend : PCOL.epic);
         void r;
       }
       // legendary weapon: trailing sparks from the tip while it moves, embers otherwise
@@ -648,18 +701,18 @@ export class SceneRenderer {
       // cauldron steam
       if (pk.state === 'craft' && now - e.fxAt > 130) {
         e.fxAt = now;
-        pr.spawn(PK.Steam, wx + (mirror ? -1 : 1) * 14.5 + (Math.random() - 0.5) * 4, wy - 13, (Math.random() - 0.5) * 6, -16 - Math.random() * 8, 1100, PCOL.steam);
+        pr.spawn(PK.Steam, wx + (mirror ? -1 : 1) * 9 + (Math.random() - 0.5) * 3, wy - 8, (Math.random() - 0.5) * 6, -16 - Math.random() * 8, 1100, PCOL.steam);
       }
     }
     // celebration confetti
     if (!red && e.v.act === 'celebrate' && pk.state === 'cheer' && now - e.fxAt > 110) {
       e.fxAt = now;
-      pr.spawn(PK.Spark, wx + (Math.random() - 0.5) * 18, wy - 30 - Math.random() * 8, (Math.random() - 0.5) * 30, -20 - Math.random() * 14, 800, Math.random() < 0.34 ? PCOL.legend : Math.random() < 0.5 ? PCOL.rare : PCOL.gold);
+      pr.spawn(PK.Spark, wx + (Math.random() - 0.5) * 12, wy - 20 - Math.random() * 6, (Math.random() - 0.5) * 30, -20 - Math.random() * 14, 800, Math.random() < 0.34 ? PCOL.legend : Math.random() < 0.5 ? PCOL.rare : PCOL.gold);
     }
     // resting: drifting z
     if (pk.chatIcon === 2) {
       const ph = (now / 1400 + e.seed) % 1;
-      const bx = Math.round(dx + spr.ax + (mirror ? -6 : 6) + ph * (mirror ? -4 : 4));
+      const bx = Math.round(dx + spr.ax + (mirror ? -4 : 4) + ph * (mirror ? -4 : 4));
       const by = Math.round(dy + (spr.top ?? 0) - 2 - ph * 8);
       s.globalAlpha = Math.sin(ph * Math.PI);
       s.fillStyle = '#f4f0ff';
@@ -670,7 +723,7 @@ export class SceneRenderer {
     }
     // chat bubble icon (no text)
     if (pk.chatIcon === 1) {
-      const bx = Math.round(dx + spr.ax + (mirror ? -7 : 7));
+      const bx = Math.round(dx + spr.ax + (mirror ? -6 : 6));
       const by = Math.round(dy + (spr.top ?? 0) - 4 - (Math.floor(now / 260) % 2));
       s.fillStyle = '#2a1e16';
       s.fillRect(bx - 4, by - 1, 9, 6);
@@ -687,7 +740,7 @@ export class SceneRenderer {
   private meditateAura(s: CanvasRenderingContext2D, e: Ent, ax: number, ay: number, spr: FlashSprite, now: number, wx: number, wy: number): void {
     const rank = e.v.rank ?? Math.min(8, 1 + Math.floor((e.v.lv ?? 1) / 12));
     const pulse = motion.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 900 + e.seed * 6.28);
-    const r = 18 + rank * 2.2;
+    const r = 12 + rank * 1.5;
     s.globalCompositeOperation = 'lighter';
     s.globalAlpha = 0.28 + pulse * 0.22;
     const d = this.bank.glowDisc(0xffffe89f, Math.round(r));
@@ -696,7 +749,7 @@ export class SceneRenderer {
     s.globalCompositeOperation = 'source-over';
     if (!motion.reduced && now - e.fxAt > 560 - rank * 50) {
       e.fxAt = now;
-      this.particles.spawn(PK.Mote, wx + (Math.random() - 0.5) * (14 + rank * 2), wy - 3 - Math.random() * 12, (Math.random() - 0.5) * 5, -9 - Math.random() * 8 - rank, 1700, PCOL.qi);
+      this.particles.spawn(PK.Mote, wx + (Math.random() - 0.5) * (9 + rank * 1.5), wy - 2 - Math.random() * 8, (Math.random() - 0.5) * 5, -9 - Math.random() * 8 - rank, 1700, PCOL.qi);
     }
   }
 

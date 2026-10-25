@@ -1,6 +1,7 @@
 /** Modal dialogs: generic `openModal` and promise-based `confirmModal`. Esc / backdrop click cancel. */
 import { t } from '../../i18n';
 import { h, type Child } from '../dom';
+import { icon } from '../icons';
 
 export interface ModalHandle {
   el: HTMLElement;
@@ -9,6 +10,7 @@ export interface ModalHandle {
 
 export interface ModalOptions {
   title?: string;
+  /** Icon name (see ui/icons.ts). */
   glyph?: string;
   cls?: string;
   /** Called once when the modal closes for any reason. */
@@ -52,9 +54,9 @@ export function openModal(build: (close: () => void) => Child, opts: ModalOption
       ? h(
           'header',
           { class: 'modal-head' },
-          opts.glyph ? h('span', { class: 'seal', 'aria-hidden': 'true' }, opts.glyph) : null,
+          opts.glyph ? h('span', { class: 'seal', 'aria-hidden': 'true' }, icon(opts.glyph)) : null,
           h('h2', { class: 'modal-title', id: titleId }, opts.title),
-          h('button', { class: 'btn-icon btn-close', type: 'button', 'aria-label': t('common.close'), onclick: close }, '✕'),
+          h('button', { class: 'btn-icon btn-close', type: 'button', 'aria-label': t('common.close'), onclick: close }, icon('close')),
         )
       : null,
     h('div', { class: 'modal-body' }, build(close)),
@@ -122,7 +124,7 @@ export function confirmModal(o: ConfirmOptions): Promise<boolean> {
       ],
       {
         title: o.title,
-        glyph: o.glyph ?? (o.danger ? '危' : '問'),
+        glyph: o.glyph ?? (o.danger ? 'warn' : 'question'),
         cls: 'modal-confirm',
         onClose: () => {
           if (!answered) resolve(false);

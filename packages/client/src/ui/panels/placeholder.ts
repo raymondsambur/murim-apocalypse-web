@@ -6,6 +6,7 @@ import { t } from '../../i18n';
 import type { StoreKey } from '../../state/store';
 import type { UiContext } from '../context';
 import { h, mount } from '../dom';
+import { icon } from '../icons';
 import { registerPanel } from './registry';
 
 export interface PlaceholderOptions {
@@ -37,7 +38,7 @@ export function placeholderPanel(o: PlaceholderOptions): void {
     render(root, ui) {
       mount(
         root,
-        h('div', { class: 'placeholder' }, h('span', { class: 'seal seal-lg placeholder-seal', 'aria-hidden': 'true' }, o.glyph), h('p', { class: 'placeholder-blurb' }, t(o.blurb))),
+        h('div', { class: 'placeholder' }, h('span', { class: 'seal seal-lg placeholder-seal', 'aria-hidden': 'true' }, icon(o.glyph)), h('p', { class: 'placeholder-blurb' }, t(o.blurb))),
         h('ul', { class: 'placeholder-list' }, ...o.features.map((f) => h('li', {}, t(f)))),
         o.live ? h('div', { class: 'card placeholder-live' }, o.live(ui)) : null,
         h('p', { class: 'placeholder-foot' }, t('panel.placeholderFoot')),

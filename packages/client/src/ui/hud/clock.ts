@@ -1,14 +1,15 @@
 /** Top-right world clock: time-of-day icon, time, day / season and the weather over the player. */
 import { t } from '../../i18n';
 import type { UiContext } from '../context';
-import { PHASE_GLYPH, WEATHER_GLYPH, climateBand, clockText, dayPhase, seasonName, worldClock } from '../format';
+import { PHASE_ICON, WEATHER_ICON, climateBand, clockText, dayPhase, seasonName, worldClock } from '../format';
 import { h } from '../dom';
+import { icon } from '../icons';
 
 export function mountClock(host: HTMLElement, ui: UiContext): { destroy(): void } {
-  const phase = h('span', { class: 'clock-phase glyph', 'aria-hidden': 'true' });
+  const phase = h('span', { class: 'clock-phase', 'aria-hidden': 'true' });
   const time = h('span', { class: 'clock-time' });
   const date = h('span', { class: 'clock-date' });
-  const wGlyph = h('span', { class: 'clock-weather-glyph glyph', 'aria-hidden': 'true' });
+  const wGlyph = h('span', { class: 'clock-weather-glyph', 'aria-hidden': 'true' });
   const wText = h('span', { class: 'clock-weather-text' });
   const el = h(
     'div',
@@ -25,7 +26,7 @@ export function mountClock(host: HTMLElement, ui: UiContext): { destroy(): void 
     const now = ui.state.serverNow();
     const r = worldClock(tv, now);
     const p = dayPhase(r.hours);
-    phase.textContent = PHASE_GLYPH[p];
+    phase.replaceChildren(icon(PHASE_ICON[p]));
     phase.dataset.phase = p;
     time.textContent = clockText(r.hours);
     date.textContent = t('clock.date', { day: r.dayOfSeason, season: seasonName(r.season), year: r.year + 1 });
@@ -33,7 +34,7 @@ export function mountClock(host: HTMLElement, ui: UiContext): { destroy(): void 
     const self = ui.state.selfEntity();
     const band = world && self ? climateBand(self.y, world.payload.h) : 1;
     const w = tv.weather[Math.min(band, tv.weather.length - 1)] ?? 'clear';
-    wGlyph.textContent = WEATHER_GLYPH[w];
+    wGlyph.replaceChildren(icon(WEATHER_ICON[w]));
     wText.textContent = t(`weather.${w}`);
     el.title = `${t(`clock.${p}`)} · ${t(`weather.${w}`)}`;
   };

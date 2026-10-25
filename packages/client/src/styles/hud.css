@@ -324,8 +324,8 @@
   font-family: var(--font-serif);
   font-weight: 700;
 }
-.chat-toggle .glyph {
-  font-size: 1.1rem;
+.chat-toggle .ico {
+  font-size: 1.15rem;
 }
 .chat-body {
   display: flex;
@@ -474,9 +474,11 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  padding: 0;
+  align-content: center;
+  gap: 0.1rem;
+  width: 3.7rem;
+  height: 3.3rem;
+  padding: 0.15rem 0 0.1rem;
   border: 1px solid transparent;
   border-radius: var(--radius);
   background: rgba(0, 0, 0, 0.25);
@@ -502,15 +504,39 @@
   box-shadow: 0 0 10px rgba(217, 184, 103, 0.3);
 }
 .abtn-glyph {
-  font-size: 1.4rem;
+  display: grid;
+  font-size: 1.35rem;
+}
+.abtn-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  white-space: nowrap;
 }
 .abtn-key {
   position: absolute;
-  right: 3px;
-  bottom: 1px;
-  font-size: 0.6rem;
+  left: 3px;
+  top: 2px;
+  font-size: 0.58rem;
   font-weight: 700;
   color: var(--text-faint);
+}
+.abtn:hover .abtn-key,
+.abtn.active .abtn-key {
+  color: var(--gold);
+}
+@media (min-width: 761px) and (max-width: 980px) {
+  .abtn {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+  .abtn:not(.abtn-big) .abtn-label {
+    display: none;
+  }
+  .abtn-glyph {
+    font-size: 1.4rem;
+  }
 }
 .abtn-dot {
   position: absolute;
@@ -667,7 +693,6 @@
   border-radius: 3px;
   background: rgba(0, 0, 0, 0.5);
   border: 1px solid var(--line);
-  font-family: var(--font-glyph);
   font-size: 0.75rem;
   color: var(--warn);
 }
@@ -1064,7 +1089,7 @@
   .chat.collapsed .chat-toggle-label {
     display: none;
   }
-  .chat.collapsed .chat-toggle .glyph {
+  .chat.collapsed .chat-toggle .ico {
     font-size: 1.4rem;
   }
   .chat.collapsed .badge {
@@ -1117,7 +1142,7 @@
     color: var(--gold);
     border-radius: 50%;
   }
-  .abar-menu .glyph {
+  .abar-menu .ico {
     font-size: 1.4rem;
   }
   .abar-sheet {

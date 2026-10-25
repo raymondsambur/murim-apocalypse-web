@@ -53,6 +53,8 @@ import { tabs } from '../widgets/tabs';
 import { attachTooltip, skillTooltip } from '../widgets/tooltip';
 import { registerPanel } from './registry';
 import '../../styles/panels/skills.css';
+import { icon } from '../icons';
+import { skillIconName } from '../glyphMap';
 
 addStrings({
   'sk.tab.arts': 'Arts',
@@ -142,9 +144,9 @@ addStrings({
 });
 
 type Tab = 'arts' | 'loadout' | 'stance' | 'tactics';
-const TAB_GLYPH: Record<Tab, string> = { arts: '藝', loadout: '裝', stance: '勢', tactics: '策' };
+const TAB_ICON: Record<Tab, string> = { arts: 'arts', loadout: 'loadout', stance: 'stance', tactics: 'tactics' };
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V'];
-const STANCE_GLYPH: Record<Stance, string> = { aggressive: '攻', balanced: '衡', defensive: '守', evasive: '閃' };
+const STANCE_ICON: Record<Stance, string> = { aggressive: 'swords', balanced: 'scale', defensive: 'shield', evasive: 'agility' };
 
 let tab: Tab = 'arts';
 let draft: BuildDraft | null = null;
@@ -181,7 +183,7 @@ function tierChip(def: SkillDef): HTMLElement {
 }
 
 function glyphBox(def: SkillDef, cls = ''): HTMLElement {
-  return h('span', { class: ['bld-glyph', cls, `tier-${def.tier}`], 'aria-hidden': 'true' }, def.glyph);
+  return h('span', { class: ['bld-glyph', cls, `tier-${def.tier}`], 'aria-hidden': 'true' }, icon(skillIconName(def)));
 }
 
 function slotName(ref: SlotRef): string {
@@ -268,7 +270,7 @@ function slotButton(ref: SlotRef, d: BuildDraft, ui: UiContext, edit: (d: BuildD
         ui.panels.refresh('skills');
       },
     },
-    def ? glyphBox(def, 'bld-glyph-lg') : h('span', { class: 'bld-slot-plus', 'aria-hidden': 'true' }, '+'),
+    def ? glyphBox(def, 'bld-glyph-lg') : h('span', { class: 'bld-slot-plus', 'aria-hidden': 'true' }, icon('plus')),
     h('span', { class: 'bld-slot-name' }, def ? def.name : slotName(ref)),
   );
   if (def) attachTooltip(btn, () => skillTooltip(def.id, undefined, { showReq: false }));
@@ -299,7 +301,7 @@ function slotButton(ref: SlotRef, d: BuildDraft, ui: UiContext, edit: (d: BuildD
     edit(next);
   });
   void level;
-  return h('div', { class: 'bld-slot-wrap' }, btn, def ? h('button', { class: 'btn-icon btn-sm bld-slot-x', type: 'button', 'aria-label': `${t('sk.loadout.clear')} (${slotName(ref)})`, title: t('sk.loadout.clear'), onclick: () => edit(placeSkill(d, ref, null)) }, '✕') : null);
+  return h('div', { class: 'bld-slot-wrap' }, btn, def ? h('button', { class: 'btn-icon btn-sm bld-slot-x', type: 'button', 'aria-label': `${t('sk.loadout.clear')} (${slotName(ref)})`, title: t('sk.loadout.clear'), onclick: () => edit(placeSkill(d, ref, null)) }, icon('close')) : null);
 }
 
 function loadoutTab(me: MeView, ui: UiContext, edit: (d: BuildDraft) => void): HTMLElement {
@@ -413,7 +415,7 @@ function stanceTab(saved: BuildDraft, edit: (d: BuildDraft) => void): HTMLElemen
     return h(
       'button',
       { class: ['bld-stance', on && 'is-on'], type: 'button', role: 'radio', 'aria-checked': String(on), onclick: () => edit({ ...d, stance: s }) },
-      h('span', { class: 'seal', 'aria-hidden': 'true' }, STANCE_GLYPH[s]),
+      h('span', { class: 'seal', 'aria-hidden': 'true' }, icon(STANCE_ICON[s])),
       h('span', { class: 'bld-stance-main' }, h('span', { class: 'bld-stance-name' }, STANCE_INFO[s].name, saved.stance === s ? h('span', { class: 'chip chip-gold' }, t('sk.stance.current')) : null), h('span', { class: 'bld-stance-desc' }, STANCE_INFO[s].desc)),
     );
   });
@@ -501,7 +503,7 @@ function tacticsTab(c: CharacterSave, ui: UiContext, edit: (d: BuildDraft) => vo
         { class: 'bld-rule-btns' },
         h('button', { class: 'btn-icon btn-sm', type: 'button', disabled: i === 0, 'aria-label': t('sk.tactics.up', { n }), onclick: () => setRules(moveRule(d.tactics, i, -1)) }, '↑'),
         h('button', { class: 'btn-icon btn-sm', type: 'button', disabled: i === d.tactics.length - 1, 'aria-label': t('sk.tactics.down', { n }), onclick: () => setRules(moveRule(d.tactics, i, 1)) }, '↓'),
-        h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-label': t('sk.tactics.del', { n }), onclick: () => setRules(removeRule(d.tactics, i)) }, '✕'),
+        h('button', { class: 'btn-icon btn-sm', type: 'button', 'aria-label': t('sk.tactics.del', { n }), onclick: () => setRules(removeRule(d.tactics, i)) }, icon('close')),
       ),
     );
     list.append(li);
@@ -541,7 +543,7 @@ function tacticsTab(c: CharacterSave, ui: UiContext, edit: (d: BuildDraft) => vo
 registerPanel({
   id: 'skills',
   title: 'panel.skills',
-  glyph: '武',
+  glyph: 'skills',
   hotkey: 'k',
   order: 30,
   width: 480,
@@ -607,7 +609,7 @@ registerPanel({
     const bottom = h('div', { class: 'bld-bar' }, status, why, h('span', { class: 'bld-bar-btns' }, revertBtn, applyBtn));
 
     const tb = tabs(
-      (Object.keys(TAB_GLYPH) as Tab[]).map((id) => ({ id, label: t(`sk.tab.${id}`), glyph: TAB_GLYPH[id] })),
+      (Object.keys(TAB_ICON) as Tab[]).map((id) => ({ id, label: t(`sk.tab.${id}`), glyph: TAB_ICON[id] })),
       (id) => {
         tab = id as Tab;
         picking = null;

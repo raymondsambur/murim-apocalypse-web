@@ -1,0 +1,66 @@
+import { describe, expect, it } from 'vitest';
+import { coverage, isHidden, plateAlpha, pointCovered, rowSpans, stepOcc, type Occluder } from './occlusion';
+
+const house: Occluder = { x: 0, y: 0, w: 100, h: 100, depth: 10, spans: null };
+const box = { x0: 40, y0: 40, x1: 56, y1: 70 };
+
+describe('plate occlusion', () => {
+  it('a building drawn after the entity covers it; one drawn before does not', () => {
+    const c = coverage(box, 9, [house]);
+    expect(c.frac).toBe(1);
+    expect(c.head).toBe(true);
+    expect(isHidden(c)).toBe(true);
+    const front = coverage(box, 11, [house]);
+    expect(front.frac).toBe(0);
+    expect(isHidden(front)).toBe(false);
+  });
+
+  it('only the overlapping part counts (more than 60% hides, less keeps the plate)', () => {
+    // covers the lower 4 of 5 sample rows but not the head
+    const low: Occluder = { x: 0, y: 48, w: 100, h: 100, depth: 10, spans: null };
+    const c = coverage(box, 9, [low]);
+    expect(c.head).toBe(false);
+    expect(c.frac).toBeCloseTo(0.8, 5);
+    expect(isHidden(c)).toBe(true);
+    const part: Occluder = { x: 0, y: 60, w: 100, h: 100, depth: 10, spans: null };
+    const c2 = coverage(box, 9, [part]);
+    expect(c2.frac).toBeCloseTo(0.4, 5);
+    expect(isHidden(c2)).toBe(false);
+  });
+
+  it('a covered head alone hides the plate', () => {
+    const roof: Occluder = { x: 0, y: 0, w: 100, h: 44, depth: 10, spans: null };
+    const c = coverage(box, 9, [roof]);
+    expect(c.head).toBe(true);
+    expect(c.frac).toBeLessThan(0.6);
+    expect(isHidden(c)).toBe(true);
+  });
+
+  it('transparent corners of an occluder sprite do not count (row spans)', () => {
+    const px = new Uint32Array(10 * 4);
+    // rows of width 10 where only x 3..6 are opaque
+    for (let y = 0; y < 4; y++) for (let x = 3; x <= 6; x++) px[y * 10 + x] = 0xff000000;
+    const sp = rowSpans(px, 10, 4);
+    expect(sp.min[0]).toBe(3);
+    expect(sp.max[0]).toBe(6);
+    const o: Occluder = { x: 0, y: 0, w: 10, h: 4, depth: 5, spans: sp };
+    expect(pointCovered(1, 1, 0, [o])).toBe(false);
+    expect(pointCovered(4, 1, 0, [o])).toBe(true);
+    expect(pointCovered(4, 1, 6, [o])).toBe(false);
+  });
+
+  it('fades smoothly without flicker', () => {
+    let o = 0;
+    o = stepOcc(o, true, 16);
+    expect(o).toBeGreaterThan(0);
+    expect(o).toBeLessThan(0.2);
+    for (let i = 0; i < 20; i++) o = stepOcc(o, true, 16);
+    expect(o).toBe(1);
+    expect(plateAlpha(1)).toBeCloseTo(0.12, 5);
+    expect(plateAlpha(1, 0.4)).toBeCloseTo(0.4, 5);
+    expect(plateAlpha(0)).toBe(1);
+    o = stepOcc(o, false, 16);
+    expect(o).toBeLessThan(1);
+    expect(o).toBeGreaterThan(0.8);
+  });
+});

@@ -5,6 +5,7 @@
 import { makeCanvas } from '../art/canvas';
 import { NAME_COLORS } from '../art/palette';
 import type { Ent } from './entities';
+import { plateAlpha } from './occlusion';
 
 const RANK_COLORS = ['#d8e4f2', '#b8e6c8', '#9edcff', '#ffe08a', '#ffb36a', '#ff9ad2', '#d6a6ff', '#ff8a8a'];
 
@@ -159,6 +160,16 @@ export class Overlay {
         const near = self ? Math.hypot(self.x - e.x, self.y - e.y) < 5 : false;
         if (!(near || selectedId === e.id || hoverId === e.id)) continue;
       } else if (crowded && v.kind === 'npc' && v.role === 'villager' && selectedId !== e.id && hoverId !== e.id && zoom < 1.1) continue;
+      // plates hide (fade) while scenery drawn after the entity covers it; targets and fighters keep a faint one
+      const floor = selectedId === e.id || hoverId === e.id ? 0.4 : v.kind === 'monster' && v.state === 'fight' ? 0.35 : 0.1;
+      const pa = e.id === selfId ? 1 : plateAlpha(e.occ, floor);
+      if (pa < 0.03) {
+        if (e.bubble && now >= e.bubbleUntil) {
+          e.bubble = null;
+          this.bubbles.delete(e.id);
+        }
+        continue;
+      }
       const x = e.sx * P;
       let y = (e.sy - e.topPx) * P - 4 * dpr;
       const color = nameColor(e, selfId);
@@ -176,6 +187,7 @@ export class Overlay {
         const frac = Math.max(0, Math.min(1, v.hp! / v.maxHp!));
         const bx = Math.round(x - bw / 2);
         const by = Math.round(y);
+        ctx.globalAlpha = pa;
         ctx.fillStyle = 'rgba(14,8,18,0.85)';
         ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
         ctx.fillStyle = '#3a2024';
@@ -186,8 +198,11 @@ export class Overlay {
         ctx.fillStyle = 'rgba(255,255,255,0.28)';
         ctx.fillRect(bx, by, Math.round(bw * frac), 1);
         y -= bh + 3 * dpr;
+        ctx.globalAlpha = 1;
       }
+      ctx.globalAlpha = pa;
       if (v.state !== 'dead') ctx.drawImage(e.plate, Math.round(x - e.plate.width / 2), Math.round(y - e.plate.height));
+      ctx.globalAlpha = 1;
       // speech bubble
       if (e.bubble && now < e.bubbleUntil) {
         let b = this.bubbles.get(e.id);
@@ -196,7 +211,7 @@ export class Overlay {
           this.bubbles.set(e.id, b);
         }
         const fade = Math.min(1, (e.bubbleUntil - now) / 400, (now - e.bubbleAt) / 120 + 0.2);
-        ctx.globalAlpha = Math.max(0, fade);
+        ctx.globalAlpha = Math.max(0, fade) * pa;
         ctx.drawImage(b.cv, Math.round(x - b.cv.width / 2), Math.round(y - e.plate.height - b.cv.height - 2 * dpr));
         ctx.globalAlpha = 1;
       } else if (e.bubble) {

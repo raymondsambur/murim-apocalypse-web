@@ -20,6 +20,8 @@ export interface Style {
   seed: number;
   /** Burn / soot tint for fallen buildings. */
   soot: Col;
+  /** Vertical stretch of the model (matches Scene3D.zk); wall / door shaders take heights in design units. */
+  zk?: number;
 }
 
 export const SNOW = hex('#f3f6fb');
@@ -65,7 +67,9 @@ export interface WallSpec {
   off?: number;
 }
 
-export function wallShader(st: Style, w: WallSpec): Shader {
+export function wallShader(st: Style, w0: WallSpec): Shader {
+  const zk = st.zk ?? 1;
+  const w: WallSpec = zk === 1 ? w0 : { ...w0, H: w0.H * zk, ruin: (w0.ruin ?? 0) * zk };
   const timber = w.timber ?? st.timber;
   const post = w.post ?? 0;
   const eave = w.eave ?? 5;
@@ -297,6 +301,7 @@ export function roof(sc: Scene3D, st: Style, u0: number, v0: number, u1: number,
   const nv = Math.max(4, Math.ceil((B - T) * 6));
   sc.heightfield(L, T, R, B, nu, nv, h, shader);
   // eave fascia on the two visible edges
+  const fz = 3.5 / sc.zk;
   const fas: Shader = (_s, t, lit) => lc(st.fallen ? mix(LACQUER_D, st.soot, 0.6) : t > 2 ? scale(o.color, 0.55) : LACQUER_D, lit);
   const seg = Math.max(4, Math.ceil((R - L) * 4));
   for (let i = 0; i < seg; i++) {
@@ -304,7 +309,7 @@ export function roof(sc: Scene3D, st: Style, u0: number, v0: number, u1: number,
     const b = L + ((R - L) * (i + 1)) / seg;
     const ha = h(a, B);
     const hb = h(b, B);
-    sc.quad([a, B, ha - 3.5], [b, B, hb - 3.5], [b, B, hb], [a, B, ha], (b - a) * AHW, 3.5, LIT_LEFT * 0.9, fas);
+    sc.quad([a, B, ha - fz], [b, B, hb - fz], [b, B, hb], [a, B, ha], (b - a) * AHW, 3.5, LIT_LEFT * 0.9, fas);
   }
   const segv = Math.max(4, Math.ceil((B - T) * 4));
   for (let i = 0; i < segv; i++) {
@@ -312,7 +317,7 @@ export function roof(sc: Scene3D, st: Style, u0: number, v0: number, u1: number,
     const b = T + ((B - T) * (i + 1)) / segv;
     const ha = h(R, a);
     const hb = h(R, b);
-    sc.quad([R, a, ha - 3.5], [R, b, hb - 3.5], [R, b, hb], [R, a, ha], (b - a) * AHW, 3.5, LIT_RIGHT * 0.9, fas);
+    sc.quad([R, a, ha - fz], [R, b, hb - fz], [R, b, hb], [R, a, ha], (b - a) * AHW, 3.5, LIT_RIGHT * 0.9, fas);
   }
   return { L, R, T, B, h };
 }
@@ -333,20 +338,21 @@ export function door(sc: Scene3D, st: Style, face: FaceId, at: number, center: n
   const a0 = center - widthT / 2;
   const a1 = center + widthT / 2;
   const wpx = widthT * AHW;
+  const hs = h * sc.zk;
   const sh: Shader = (s, t, lit, x, y) => {
-    if (s < 1.2 || s > wpx - 1.2 || t > h - 1.5) return charred(st, lc(LACQUER_D, lit), 0.5); // frame
+    if (s < 1.2 || s > wpx - 1.2 || t > hs - 1.5) return charred(st, lc(LACQUER_D, lit), 0.5); // frame
     if (st.fallen && hf(x, y, 6) < 0.35) return lc(hex('#1a1316'), lit);
     let c = color;
     if (Math.abs(s - wpx / 2) < 0.6) c = scale(color, 0.6); // central gap
     else if (((s | 0) + ((t / 4) | 0)) % 4 === 0) c = scale(color, 0.85);
-    if (t > h * 0.4 && t < h * 0.4 + 1.2) c = scale(color, 0.7);
-    if (Math.abs(s - wpx * 0.4) < 0.8 && Math.abs(t - h * 0.45) < 1.2) c = GOLD; // knocker
+    if (t > hs * 0.4 && t < hs * 0.4 + 1.2) c = scale(color, 0.7);
+    if (Math.abs(s - wpx * 0.4) < 0.8 && Math.abs(t - hs * 0.45) < 1.2) c = GOLD; // knocker
     return charred(st, lc(c, lit), 0.5);
   };
   decalQuad(sc, face, at, a0, a1, z0, z0 + h, sh);
   // lintel
   const lin: Shader = (_s, _t, lit) => charred(st, lc(LACQUER, lit), 0.5);
-  decalQuad(sc, face, at, a0 - 0.08, a1 + 0.08, z0 + h, z0 + h + 3, lin);
+  decalQuad(sc, face, at, a0 - 0.08, a1 + 0.08, z0 + h, z0 + h + 3 / sc.zk, lin);
   void glowColor;
 }
 
@@ -355,23 +361,24 @@ export function windowDecal(sc: Scene3D, st: Style, face: FaceId, at: number, ce
   const a1 = center + widthT / 2;
   const wpx = widthT * AHW;
   const frame = st.timber;
+  const hs = h * sc.zk;
   const sh: Shader = (s, t, lit) => {
-    if (s < 1 || s > wpx - 1 || t < 1 || t > h - 1) return charred(st, lc(frame, lit), 0.5);
+    if (s < 1 || s > wpx - 1 || t < 1 || t > hs - 1) return charred(st, lc(frame, lit), 0.5);
     if (round) {
       const dx = (s - wpx / 2) / (wpx / 2);
-      const dy = (t - h / 2) / (h / 2);
+      const dy = (t - hs / 2) / (hs / 2);
       if (dx * dx + dy * dy > 1) return charred(st, lc(frame, lit), 0.5);
     }
     // lattice
-    if (Math.abs(s - wpx / 2) < 0.6 || Math.abs(t - h / 2) < 0.6) return charred(st, lc(frame, lit), 0.5);
+    if (Math.abs(s - wpx / 2) < 0.6 || Math.abs(t - hs / 2) < 0.6) return charred(st, lc(frame, lit), 0.5);
     if (st.fallen) return lc(hex('#171116'), lit);
-    return lc(t > h * 0.55 && s < wpx * 0.5 ? PANE_L : PANE, lit);
+    return lc(t > hs * 0.55 && s < wpx * 0.5 ? PANE_L : PANE, lit);
   };
   decalQuad(sc, face, at, a0, a1, z0, z0 + h, sh);
   if (!st.fallen) {
     const gl: Shader = (s, t) => {
-      if (s < 1.4 || s > wpx - 1.4 || t < 1.4 || t > h - 1.4) return 0;
-      if (Math.abs(s - wpx / 2) < 0.6 || Math.abs(t - h / 2) < 0.6) return 0;
+      if (s < 1.4 || s > wpx - 1.4 || t < 1.4 || t > hs - 1.4) return 0;
+      if (Math.abs(s - wpx / 2) < 0.6 || Math.abs(t - hs / 2) < 0.6) return 0;
       return glow;
     };
     decalQuad(sc, face, at, a0, a1, z0, z0 + h, gl, 'glow');
@@ -438,10 +445,11 @@ export function crenellate(sc: Scene3D, st: Style, u0: number, v0: number, u1: n
 
 /** Low railing along a visible face. */
 export function rail(sc: Scene3D, st: Style, face: FaceId, at: number, a0: number, a1: number, z: number, h = 6, color: Col = LACQUER): void {
+  const hs = h * sc.zk;
   const sh: Shader = (s, t, lit) => {
     const post = (s | 0) % 6 < 1;
-    if (t < 1.2 || t > h - 1.6 || post) return charred(st, lc(color, lit), 0.5);
-    if (t > h * 0.45 && t < h * 0.45 + 1.1) return charred(st, lc(scale(color, 0.85), lit), 0.5);
+    if (t < 1.2 || t > hs - 1.6 || post) return charred(st, lc(color, lit), 0.5);
+    if (t > hs * 0.45 && t < hs * 0.45 + 1.1) return charred(st, lc(scale(color, 0.85), lit), 0.5);
     return 0;
   };
   decalQuad(sc, face, at, a0, a1, z, z + h, sh);

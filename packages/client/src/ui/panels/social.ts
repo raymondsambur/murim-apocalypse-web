@@ -39,6 +39,7 @@ import { openModal } from '../widgets/modal';
 import { tabs } from '../widgets/tabs';
 import { attachTooltip } from '../widgets/tooltip';
 import { registerPanel } from './registry';
+import { icon } from '../icons';
 
 addStrings({
   'soc.title': 'Social',
@@ -427,7 +428,7 @@ function ownSect(ui: UiContext, role: SectRole): HTMLElement[] {
     h(
       'section',
       { class: 'card soc-sect-head' },
-      h('div', { class: 'soc-sect-title' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, '門'), h('div', {}, h('strong', { class: 'soc-sect-name' }, v.name), h('div', { class: 'chip-row' }, h('span', { class: 'chip chip-gold' }, `[${v.tag}]`), h('span', { class: 'chip' }, t('soc.sect.level', { n: v.level })), h('span', { class: 'chip chip-good' }, t('soc.sect.bonus', { n: Math.round(sectXpBonus(v.level) * 100) })), roleChip(role)))),
+      h('div', { class: 'soc-sect-title' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, icon('sect')), h('div', {}, h('strong', { class: 'soc-sect-name' }, v.name), h('div', { class: 'chip-row' }, h('span', { class: 'chip chip-gold' }, `[${v.tag}]`), h('span', { class: 'chip' }, t('soc.sect.level', { n: v.level })), h('span', { class: 'chip chip-good' }, t('soc.sect.bonus', { n: Math.round(sectXpBonus(v.level) * 100) })), roleChip(role)))),
       h('dl', { class: 'kv' }, h('dt', {}, t('soc.sect.treasury')), h('dd', {}, `${fmtInt(v.treasury)} ${t('common.gold')}`), h('dt', {}, t('soc.sect.founded')), h('dd', {}, new Date(v.founded).toLocaleDateString())),
       form.mottoEditing && perms.motto
         ? h(
@@ -598,7 +599,7 @@ function masterTab(ui: UiContext): HTMLElement[] {
       h(
         'div',
         { class: 'card soc-master' },
-        h('span', { class: 'seal', 'aria-hidden': 'true' }, '師'),
+        h('span', { class: 'seal', 'aria-hidden': 'true' }, icon('master')),
         h('div', { class: 'soc-master-body' }, h('strong', {}, m.npc ? t('soc.ma.npc', { name: m.name }) : t('soc.ma.player', { name: m.name }))),
         h('span', { class: 'soc-actions' }, m.npc ? null : h('button', { class: 'btn btn-xs', type: 'button', onclick: () => ui.chat(`/w ${m.name} `) }, t('soc.whisper')), h('button', { class: 'btn btn-xs btn-danger', type: 'button', onclick: async () => { if (await ui.confirm({ title: t('soc.ma.leaveTitle'), text: t('soc.ma.leaveText'), ok: t('soc.ma.leave'), danger: true })) send(ui, { t: 'master', op: 'dismiss' }); } }, t('soc.ma.leave'))),
       ),
@@ -741,7 +742,7 @@ function openDuel(ui: UiContext, name: string, entityId: number): void {
         input,
         h('div', { class: 'soc-duel-actions' }, h('button', { class: 'btn btn-ghost', type: 'button', onclick: close }, t('common.cancel')), h('button', { class: 'btn btn-danger', type: 'submit' }, t('soc.nb.duelGo'))),
       ),
-    { title: t('soc.nb.duelTitle', { name }), glyph: '決' },
+    { title: t('soc.nb.duelTitle', { name }), glyph: 'swords' },
   );
 }
 
@@ -777,7 +778,7 @@ function rankingTab(ui: UiContext): HTMLElement[] {
 registerPanel({
   id: 'social',
   title: 'soc.title',
-  glyph: '友',
+  glyph: 'social',
   hotkey: 'f',
   order: 70,
   width: 460,
@@ -812,11 +813,11 @@ registerPanel({
     const incoming = C(ui).friends.data?.filter((f) => f.status === 'in').length ?? 0;
     const tb = tabs(
       [
-        { id: 'friends', label: t('soc.tab.friends'), glyph: '友', badge: incoming },
-        { id: 'sect', label: t('soc.tab.sect'), glyph: '門' },
-        { id: 'master', label: t('soc.tab.master'), glyph: '師' },
-        { id: 'nearby', label: t('soc.tab.nearby'), glyph: '近' },
-        { id: 'ranking', label: t('soc.tab.ranking'), glyph: '榜' },
+        { id: 'friends', label: t('soc.tab.friends'), glyph: 'friend', badge: incoming },
+        { id: 'sect', label: t('soc.tab.sect'), glyph: 'sect' },
+        { id: 'master', label: t('soc.tab.master'), glyph: 'master' },
+        { id: 'nearby', label: t('soc.tab.nearby'), glyph: 'nearby' },
+        { id: 'ranking', label: t('soc.tab.ranking'), glyph: 'ranking' },
       ],
       (id) => {
         tab = id as TabId;

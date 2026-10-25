@@ -42,6 +42,7 @@ export function drawLookPreview(canvas: HTMLCanvasElement, look: Look, opts: Loo
     gear: opts.gear ? gearAppearance(opts.gear) : undefined,
     variant: opts.variant ?? 0,
     tool: opts.tool,
+    full: true,
   };
   const key = charKey(spec);
   let spr = previewCache.get(key);

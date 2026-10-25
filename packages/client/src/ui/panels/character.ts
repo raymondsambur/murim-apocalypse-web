@@ -5,13 +5,15 @@
 import { FACTIONS, ORIGINS, STAT_INFO, STAT_KEYS, TALENTS, gearTotals, getItem, levelLabel, reputationTitle, stackValue, type MeView, type StatKey } from '@murim/shared';
 import { t } from '../../i18n';
 import type { UiContext } from '../context';
-import { h } from '../dom';
+import { glyph, h } from '../dom';
 import { fmtDuration, fmtInt, fmtNum, fmtPct, fmtSigned, rankColor } from '../format';
 import { breakthroughStatus } from '../logic/breakthrough';
 import { drawLook } from '../portrait';
 import { bar } from '../widgets/bar';
 import { attachTooltip, itemTooltip, talentTooltip } from '../widgets/tooltip';
 import { registerPanel } from './registry';
+import { icon } from '../icons';
+import { itemIconName } from '../glyphMap';
 
 function attributesSection(me: MeView, ui: UiContext): HTMLElement {
   const c = me.c;
@@ -24,7 +26,7 @@ function attributesSection(me: MeView, ui: UiContext): HTMLElement {
     const row = h(
       'div',
       { class: 'attr-row' },
-      h('div', { class: 'attr-name' }, h('span', { class: 'attr-short' }, info.short), info.name),
+      h('div', { class: 'attr-name' }, glyph(k, 'attr-ico'), h('span', { class: 'attr-short' }, info.short), info.name),
       h('div', { class: 'attr-val', 'aria-label': `${info.name} ${c.stats[k]}${bonus ? ` plus ${bonus} from gear` : ''}` }, String(c.stats[k]), bonus ? h('span', { class: ['attr-bonus', bonus > 0 ? 'tone-good' : 'tone-bad'] }, ` ${fmtSigned(bonus)}`) : null),
       h(
         'div',
@@ -41,7 +43,7 @@ function attributesSection(me: MeView, ui: UiContext): HTMLElement {
     'section',
     { class: 'char-sec' },
     h('div', { class: 'sect-title' }, t('char.attributes')),
-    points > 0 ? h('div', { class: 'points-banner', role: 'status' }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, '點'), t('char.pointsLeft', { n: points })) : h('p', { class: 'attr-hint' }, t('char.pointsHint')),
+    points > 0 ? h('div', { class: 'points-banner', role: 'status' }, glyph('sparkle'), t('char.pointsLeft', { n: points })) : h('p', { class: 'attr-hint' }, t('char.pointsHint')),
     h('div', { class: 'attr-grid' }, rows),
   );
 }
@@ -78,14 +80,14 @@ function breakthroughSection(me: MeView, ui: UiContext): HTMLElement {
   const bt = breakthroughStatus(me);
   const head = h('div', { class: 'sect-title' }, t('char.breakthrough'));
   if (bt.sealed && bt.atPeak) {
-    return h('section', { class: 'char-sec' }, head, h('div', { class: 'bt card bt-sealed' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, '封'), h('p', {}, t('bt.sealed'))));
+    return h('section', { class: 'char-sec' }, head, h('div', { class: 'bt card bt-sealed' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, icon('lock')), h('p', {}, t('bt.sealed'))));
   }
   if (bt.sealed) {
     return h('section', { class: 'char-sec' }, head, h('p', { class: 'attr-hint' }, t('bt.sealedFar')));
   }
   const check = (ok: boolean, text: string, extra?: HTMLElement | null) =>
     h('li', { class: ['bt-item', ok ? 'is-ok' : 'is-missing'] }, h('span', { class: 'bt-mark', 'aria-hidden': 'true' }, ok ? '✓' : '✗'), h('span', { class: 'bt-text' }, text), extra ?? null, h('span', { class: 'sr-only' }, ok ? t('bt.met') : t('bt.notMet')));
-  const pillTip = bt.pill ? h('button', { class: 'chip chip-gold bt-pill', type: 'button', 'aria-label': bt.pill.name }, getItem(bt.pill.id)?.glyph ?? '丹', ' ', bt.pill.name) : null;
+  const pillTip = bt.pill ? h('button', { class: 'chip chip-gold bt-pill', type: 'button', 'aria-label': bt.pill.name }, icon(itemIconName(getItem(bt.pill.id))), ' ', bt.pill.name) : null;
   if (pillTip && bt.pill) attachTooltip(pillTip, () => itemTooltip({ id: bt.pill!.id, qty: 1 }));
   const chanceBar = bar('xp', { label: t('bt.chance'), size: 'md' });
   chanceBar.set(bt.chance * 100, 100, t('bt.chanceText', { n: Math.round(bt.chance * 100) }));
@@ -107,7 +109,7 @@ function breakthroughSection(me: MeView, ui: UiContext): HTMLElement {
       onclick: async () => {
         const ok = await ui.confirm({
           title: t('bt.confirmTitle'),
-          glyph: '突',
+          glyph: 'ascend',
           text: t('bt.confirmText', { rank: bt.nextRankName, chance: Math.round(bt.chance * 100) }),
           ok: t('bt.attempt'),
           danger: bt.chance < 0.6,
@@ -115,7 +117,7 @@ function breakthroughSection(me: MeView, ui: UiContext): HTMLElement {
         if (ok) ui.net.send({ t: 'breakthrough' });
       },
     },
-    h('span', { class: 'glyph', 'aria-hidden': 'true' }, '突'),
+    glyph('ascend'),
     t('bt.attempt'),
   );
   return h(
@@ -193,7 +195,7 @@ function header(me: MeView, ui: UiContext): HTMLElement {
   xpBar.set(c.xp, me.xpNext);
   const talents = c.talents.map((id) => {
     const def = TALENTS[id];
-    const chip = h('button', { class: ['chip', def?.positive === false ? 'chip-bad' : 'chip-good'], type: 'button', 'aria-label': def?.name ?? id }, h('span', { class: 'glyph', 'aria-hidden': 'true' }, def?.positive === false ? '凶' : '吉'), def?.name ?? id);
+    const chip = h('button', { class: ['chip', def?.positive === false ? 'chip-bad' : 'chip-good'], type: 'button', 'aria-label': def?.name ?? id }, glyph(def?.positive === false ? 'warn' : 'sparkle'), def?.name ?? id);
     attachTooltip(chip, () => talentTooltip(id));
     return chip;
   });
@@ -218,7 +220,7 @@ function header(me: MeView, ui: UiContext): HTMLElement {
 registerPanel({
   id: 'character',
   title: 'panel.character',
-  glyph: '人',
+  glyph: 'character',
   hotkey: 'c',
   order: 10,
   width: 480,

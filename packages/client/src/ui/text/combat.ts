@@ -91,13 +91,14 @@ export function stanceName(s: Stance): string {
   return STANCE_INFO[s]?.name ?? s;
 }
 
-export const STATUS_GLYPH: Record<StatusKind, string> = {
-  bleed: '血',
-  poison: '毒',
-  stun: '暈',
-  slow: '緩',
-  guard: '守',
-  buffAtk: '攻',
-  buffDef: '防',
-  rot: '腐',
+/** Icon name per combat status (see icons.ts). */
+export const STATUS_ICON: Record<StatusKind, string> = {
+  bleed: 'bleed',
+  poison: 'poison',
+  stun: 'stun',
+  slow: 'slow',
+  guard: 'guard',
+  buffAtk: 'buffAtk',
+  buffDef: 'buffDef',
+  rot: 'rot',
 };

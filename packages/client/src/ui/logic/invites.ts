@@ -4,7 +4,7 @@ import type { Invite } from '../../state/store';
 
 export const INVITE_TTL_MS = 60_000;
 
-export const INVITE_GLYPH: Record<InviteKind, string> = { friend: '友', sect: '門', master: '師', duel: '決' };
+export const INVITE_ICON: Record<InviteKind, string> = { friend: 'friend', sect: 'sect', master: 'master', duel: 'swords' };
 
 export interface InviteReplies {
   accept: C2S | null;

@@ -84,8 +84,13 @@ describe('animation selection', () => {
     expect(p.state).toBe('fight');
     store.patch({ id: 1, state: 'work' }, 8000);
     pickChar(e, env(store, 9000), p);
+    expect(p.state).not.toBe('work'); // an NPC needs a specific act cue to work
+    const kind = e.v.kind;
+    e.v.kind = 'player'; // players keep the activity animations driven by their state
+    pickChar(e, env(store, 9000), p);
     expect(p.state).toBe('work');
     expect(p.tool).toBe('hoe');
+    e.v.kind = kind;
     store.patch({ id: 1, state: 'meditate' }, 10000);
     pickChar(e, env(store, 11000), p);
     expect(p.state).toBe('meditate');
@@ -145,7 +150,7 @@ describe('animation selection', () => {
     expect(p.state).toBe('cheer');
   });
   it('plays a matching in-place animation for every server act cue', () => {
-    const acts: NpcAct[] = ['work', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate'];
+    const acts: NpcAct[] = ['work', 'farm', 'forge', 'brew', 'gather', 'mine', 'guard', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate'];
     expect(Object.keys(ACT_STATE).sort()).toEqual([...acts].sort());
     const { store } = setup(3);
     const e = store.map.get(1)!;
@@ -159,12 +164,32 @@ describe('animation selection', () => {
       expect(p.state, act).not.toBe('walk');
     }
     expect(seen.size).toBeGreaterThanOrEqual(9);
+    // specific work cues pick their tool; the generic one just stands
+    for (const [act, tool] of [['forge', 'hammer'], ['gather', 'herb'], ['mine', 'pick']] as const) {
+      store.patch({ id: 1, act }, 0);
+      pickChar(e, env(store, 7000), p);
+      expect([p.state, p.tool], act).toEqual(['work', tool]);
+    }
+    store.patch({ id: 1, act: 'farm' }, 0);
+    pickChar(e, env(store, 7000), p);
+    expect(p.state).toBe('work');
+    expect(['hoe', 'sickle']).toContain(p.tool);
+    store.patch({ id: 1, act: 'work' }, 0);
+    pickChar(e, env(store, 7000), p);
+    expect(p.state).toBe('idle');
+    // an NPC in the server state 'work' without a cue does not grab a tool
+    store.patch({ id: 1, act: undefined, state: 'work' }, 0);
+    pickChar(e, env(store, 7000), p);
+    expect(p.state).not.toBe('work');
+    expect(p.tool).toBeNull();
+    store.patch({ id: 1, state: 'idle' }, 0);
     store.patch({ id: 1, act: 'eat' }, 0);
     pickChar(e, env(store, 7000), p);
     expect(p.state).toBe('eat');
     store.patch({ id: 1, act: 'rest' }, 0);
     pickChar(e, env(store, 7000), p);
     expect(p.state).toBe('rest');
+    expect(p.chatIcon).toBe(0); // sitting, not sleeping: no 'z' bubble
     store.patch({ id: 1, act: undefined }, 0);
     pickChar(e, env(store, 7000), p);
     expect(['idle', 'sweep', 'chat', 'stretch']).toContain(p.state);

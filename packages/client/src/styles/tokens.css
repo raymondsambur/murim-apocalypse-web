@@ -54,7 +54,6 @@
 
   --font-serif: 'Palatino Linotype', 'Book Antiqua', Georgia, 'Noto Serif CJK SC', 'Source Han Serif SC', 'Songti SC', SimSun, 'Microsoft YaHei', serif;
   --font-ui: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
-  --font-glyph: 'Noto Serif CJK SC', 'Source Han Serif SC', 'Songti SC', SimSun, 'Microsoft YaHei', 'PingFang SC', serif;
 
   --radius: 6px;
   --radius-lg: 10px;
@@ -200,10 +199,22 @@ a {
   border: 0;
 }
 
-/* CJK glyph icons */
+/* inline-SVG icons (ui/icons.ts): sized by font-size, coloured by currentColor */
+.ico {
+  display: inline-block;
+  flex: none;
+  width: 1em;
+  height: 1em;
+  line-height: 0;
+  vertical-align: -0.15em;
+}
+.ico svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
 .glyph {
-  font-family: var(--font-glyph);
-  font-weight: 700;
   line-height: 1;
 }
 
@@ -217,9 +228,7 @@ a {
   border-radius: 4px;
   background: radial-gradient(circle at 30% 25%, var(--cinnabar-hi), var(--cinnabar) 55%, var(--cinnabar-lo));
   color: #f7e6c8;
-  font-family: var(--font-glyph);
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.15rem;
   line-height: 1;
   box-shadow: inset 0 0 0 1px rgba(255, 220, 190, 0.28), 0 1px 3px rgba(0, 0, 0, 0.6);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);

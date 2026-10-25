@@ -82,22 +82,24 @@ function finish(pb: PixelBuffer, ax: number, ay: number, tier: number, outline =
 // ---------------------------------------------------------------------------
 
 export function genPine(variant: number, season: number, tier: number): ObjSprite {
-  const W = 44;
-  const H = 76;
+  // about 3.5 persons tall (scale.ts): 6-7 tiers
+  const W = 64;
+  const H = 124;
   const pb = new PixelBuffer(W, H);
-  const cx = 22;
-  const ay = 68;
+  const cx = 32;
+  const ay = 116;
   const seed = 100 + variant;
-  groundShadow(pb, cx + 4, ay + 1, 14, 4.5, 64);
-  trunk(pb, cx, ay - 16, ay + 1, 3, 5, WOOD, seed);
-  const n = 4 + (variant % 2);
-  const hwBase = 15 + (variant === 2 ? 2 : 0);
+  groundShadow(pb, cx + 5, ay + 1, 19, 5.5, 64);
+  trunk(pb, cx, ay - 26, ay + 1, 3.5, 6, WOOD, seed);
+  const n = 6 + (variant % 2);
+  const SP = 14.2 - variant * 0.35;
+  const hwBase = 19 + (variant === 2 ? 2 : 0);
   const rampP = season === 2 ? PINE_AUTUMN : PINE;
   for (let i = 0; i < n; i++) {
     const t = i / (n - 1);
     const hw = hwBase * (1 - 0.6 * t);
-    const yBot = ay - 8 - i * (10.5 - variant * 0.3);
-    const lh = 19 - i * 2.2;
+    const yBot = ay - 14 - i * SP;
+    const lh = 25 - i * 2.5;
     const yTop = yBot - lh;
     for (let y = Math.floor(yTop); y <= Math.ceil(yBot); y++) {
       const f = (y + 0.5 - yTop) / lh;
@@ -123,37 +125,44 @@ export function genPine(variant: number, season: number, tier: number): ObjSprit
     }
   }
   // dark tip
-  pb.set(cx, Math.floor(ay - 8 - (n - 1) * 10.5 - (19 - (n - 1) * 2.2)) - 1, season === 3 ? SNOW : PINE.l);
+  pb.set(cx, Math.floor(ay - 14 - (n - 1) * SP - (25 - (n - 1) * 2.5)) - 1, season === 3 ? SNOW : PINE.l);
   return finish(pb, cx, ay, tier);
 }
 
 export function genOak(variant: number, season: number, tier: number): ObjSprite {
-  const W = 60;
-  const H = 72;
+  // about 3.3 persons tall (scale.ts): taller trunk and an anisotropic crown
+  const W = 92;
+  const H = 124;
   const pb = new PixelBuffer(W, H);
-  const cx = 30;
-  const ay = 64;
+  const cx = 46;
+  const ay = 110;
   const seed = 200 + variant;
-  groundShadow(pb, cx + 5, ay + 1, 17, 5, 66);
-  const trunkH = 20 + (variant % 2) * 3;
-  trunk(pb, cx, ay - trunkH, ay + 1, 5, 7, WOOD, seed);
+  const KX = 1.45;
+  const KY = 2.05;
+  groundShadow(pb, cx + 6, ay + 1, 24, 6.5, 66);
+  const trunkH = 41 + (variant % 2) * 4;
+  trunk(pb, cx, ay - trunkH, ay + 1, 6, 9, WOOD, seed);
   // flared roots
-  pb.set(cx - 4, ay, WOOD.d);
-  pb.set(cx + 4, ay, WOOD.d);
+  pb.set(cx - 5, ay, WOOD.d);
+  pb.set(cx + 5, ay, WOOD.d);
+  pb.set(cx - 6, ay, WOOD.dd);
+  pb.set(cx + 6, ay, WOOD.dd);
   const topY = ay - trunkH;
   if (season === 3) {
     // bare crown: forking branches with snow on top
     const rr = (a: number, b: number): number => a + hf(variant, a * 7 + b, 9) * (b - a);
+    const rx = (a: number, b: number): number => rr(a, b) * KX;
+    const ry = (a: number, b: number): number => rr(a, b) * KY;
     const tips: [number, number][] = [];
     const main: [number, number, number, number][] = [
-      [cx, topY, cx - rr(8, 15), topY - rr(14, 22)],
-      [cx, topY, cx + rr(8, 15), topY - rr(14, 22)],
-      [cx, topY + 3, cx - rr(14, 20), topY - rr(2, 8)],
-      [cx, topY + 3, cx + rr(14, 20), topY - rr(2, 8)],
-      [cx, topY - 2, cx + rr(-3, 3), topY - rr(22, 28)],
+      [cx, topY, cx - rx(8, 15), topY - ry(14, 22)],
+      [cx, topY, cx + rx(8, 15), topY - ry(14, 22)],
+      [cx, topY + 3, cx - rx(14, 20), topY - ry(2, 8)],
+      [cx, topY + 3, cx + rx(14, 20), topY - ry(2, 8)],
+      [cx, topY - 2, cx + rx(-3, 3), topY - ry(22, 28)],
     ];
     for (const [x0, y0, x1, y1] of main) {
-      branch(pb, x0, y0, x1, y1, 3, 1.2, WOOD);
+      branch(pb, x0, y0, x1, y1, 4, 1.4, WOOD);
       tips.push([x1, y1]);
       // twigs
       for (let k = 0; k < 3; k++) {
@@ -161,7 +170,7 @@ export function genOak(variant: number, season: number, tier: number): ObjSprite
         const bx = x0 + (x1 - x0) * t;
         const by = y0 + (y1 - y0) * t;
         const dir = k % 2 ? 1 : -1;
-        branch(pb, bx, by, bx + dir * rr(4, 8), by - rr(3, 7), 1.4, 1, WOOD);
+        branch(pb, bx, by, bx + dir * rx(4, 8), by - ry(3, 7), 1.8, 1.1, WOOD);
       }
     }
     snowCap(pb, 2, seed, 0.85);
@@ -177,7 +186,7 @@ export function genOak(variant: number, season: number, tier: number): ObjSprite
   ];
   blobs.forEach(([dx, dy, rx, ry], i) => {
     const r = season === 2 ? OAK_AUTUMN[(variant + i) % OAK_AUTUMN.length] : base;
-    shadedBlob(pb, cx + dx, topY + dy, rx, ry, r, {
+    shadedBlob(pb, cx + dx * KX, topY + dy * KY + 6, rx * KX, ry * KY, r, {
       seed: seed + i,
       speckle: season === 2 ? 0.18 : 0.14,
       accent:
@@ -187,29 +196,31 @@ export function genOak(variant: number, season: number, tier: number): ObjSprite
     });
   });
   // fallen leaves under the tree in autumn
-  if (season === 2) for (let k = 0; k < 9; k++) pb.set(cx - 14 + Math.floor(hf(variant, k, 3) * 30), ay - 1 + Math.floor(hf(variant, k, 4) * 4), OAK_AUTUMN[k % 4].b);
+  if (season === 2) for (let k = 0; k < 9; k++) pb.set(cx - 20 + Math.floor(hf(variant, k, 3) * 40), ay - 1 + Math.floor(hf(variant, k, 4) * 5), OAK_AUTUMN[k % 4].b);
   return finish(pb, cx, ay, tier);
 }
 
 export function genDeadTree(variant: number, season: number, tier: number): ObjSprite {
-  const W = 52;
-  const H = 66;
+  // about 2.5 persons tall
+  const W = 80;
+  const H = 96;
   const pb = new PixelBuffer(W, H);
-  const cx = 26;
-  const ay = 58;
+  const cx = 40;
+  const ay = 88;
   const seed = 300 + variant;
-  groundShadow(pb, cx + 4, ay + 1, 11, 3.5, 56);
-  const lean = (hf(variant, 1, 1) - 0.5) * 8;
+  const DK = 1.6;
+  groundShadow(pb, cx + 5, ay + 1, 15, 4.5, 56);
+  const lean = (hf(variant, 1, 1) - 0.5) * 12;
   const topX = cx + lean;
-  const topY = ay - 30 - variant * 2;
-  branch(pb, cx, ay + 1, topX, topY, 6, 3, DEAD_WOOD);
+  const topY = ay - 52 - variant * 3;
+  branch(pb, cx, ay + 1, topX, topY, 8, 3.5, DEAD_WOOD);
   const rr = (a: number, b: number, s: number): number => a + hf(variant, s, 11) * (b - a);
   const br: [number, number, number, number, number][] = [
-    [0.45, -rr(8, 15, 1), -rr(8, 14, 2), 3, 1.2],
-    [0.6, rr(8, 15, 3), -rr(7, 13, 4), 3, 1.2],
-    [0.78, -rr(6, 11, 5), -rr(6, 10, 6), 2.4, 1],
-    [0.9, rr(4, 9, 7), -rr(6, 11, 8), 2, 1],
-    [0.3, rr(7, 12, 9), -rr(3, 7, 10), 2.6, 1.2],
+    [0.45, -rr(8, 15, 1) * DK, -rr(8, 14, 2) * DK, 4, 1.4],
+    [0.6, rr(8, 15, 3) * DK, -rr(7, 13, 4) * DK, 4, 1.4],
+    [0.78, -rr(6, 11, 5) * DK, -rr(6, 10, 6) * DK, 3, 1.2],
+    [0.9, rr(4, 9, 7) * DK, -rr(6, 11, 8) * DK, 2.4, 1.1],
+    [0.3, rr(7, 12, 9) * DK, -rr(3, 7, 10) * DK, 3.2, 1.4],
   ];
   for (const [t, dx, dy, w0, w1] of br) {
     const bx = cx + (topX - cx) * t;
@@ -219,8 +230,7 @@ export function genDeadTree(variant: number, season: number, tier: number): ObjS
   }
   if (season === 3) snowCap(pb, 2, seed, 0.8);
   // hollow knot
-  pb.set(cx - 1, ay - 8, DEAD_WOOD.dd);
-  pb.set(cx - 1, ay - 7, DEAD_WOOD.dd);
+  for (let i = 0; i < 4; i++) pb.set(cx - 1, ay - 12 - i, DEAD_WOOD.dd);
   if (tier >= 1) {
     sicken(pb, 0.3);
   }
@@ -229,20 +239,21 @@ export function genDeadTree(variant: number, season: number, tier: number): ObjS
 }
 
 export function genBamboo(variant: number, season: number, tier: number): ObjSprite {
-  const W = 44;
-  const H = 84;
+  // about 3.4 persons tall (stalks 75-110 px)
+  const W = 60;
+  const H = 134;
   const pb = new PixelBuffer(W, H);
-  const cx = 22;
-  const ay = 76;
+  const cx = 30;
+  const ay = 126;
   const seed = 400 + variant;
-  groundShadow(pb, cx + 3, ay + 1, 13, 4, 56);
+  groundShadow(pb, cx + 4, ay + 1, 17, 5, 56);
   const stalkR = season === 2 ? ramp('#9bb04a', 0.72, 1.2) : season === 3 ? ramp('#8fb07a', 0.72, 1.2) : ramp('#5aa044', 0.7, 1.25);
   const leafR = season === 2 ? ramp('#c9b83a', 0.7, 1.2) : season === 3 ? ramp('#7fa078', 0.7, 1.2) : season === 0 ? ramp('#86c456', 0.72, 1.22) : ramp('#3f8f3c', 0.7, 1.28);
   const n = 4 + (variant % 3);
   for (let k = 0; k < n; k++) {
-    const ox = Math.round((k - (n - 1) / 2) * 5 + (hf(variant, k, 1) - 0.5) * 3);
-    const h = 44 + hf(variant, k, 2) * 26;
-    const lean = (hf(variant, k, 3) - 0.5) * 7;
+    const ox = Math.round((k - (n - 1) / 2) * 6 + (hf(variant, k, 1) - 0.5) * 3);
+    const h = 70 + hf(variant, k, 2) * 34;
+    const lean = (hf(variant, k, 3) - 0.5) * 9;
     const x0 = cx + ox;
     const baseY = ay + (k % 2) * 2;
     const topY = baseY - h;
@@ -250,10 +261,10 @@ export function genBamboo(variant: number, season: number, tier: number): ObjSpr
     for (let y = Math.floor(topY); y <= baseY; y++) {
       const t = (y - topY) / h;
       const x = Math.round(x0 + lean * (1 - t));
-      const node = (baseY - y) % 8 === 0;
+      const node = (baseY - y) % 11 === 0;
       pb.set(x, y, node ? stalkR.l : stalkR.b);
       pb.set(x + 1, y, node ? stalkR.d : stalkR.d);
-      if ((baseY - y) % 8 === 1) {
+      if ((baseY - y) % 11 === 1) {
         pb.set(x, y, stalkR.dd);
         pb.set(x + 1, y, stalkR.dd);
       }
@@ -266,7 +277,7 @@ export function genBamboo(variant: number, season: number, tier: number): ObjSpr
       const blades = ct === 0 ? 6 : 3;
       for (let b = 0; b < blades; b++) {
         const dir = b % 2 ? 1 : -1;
-        const len = 6 + hf(variant, k * 9 + b, 5) * 5;
+        const len = 8 + hf(variant, k * 9 + b, 5) * 6;
         const ang = (0.25 + hf(variant, k * 9 + b, 6) * 0.9) * (ct === 0 && b < 2 ? 0.4 : 1);
         let px = lx;
         let py = ly;
@@ -280,7 +291,7 @@ export function genBamboo(variant: number, season: number, tier: number): ObjSpr
     }
   }
   // grass tufts at the base
-  for (let k = 0; k < 8; k++) pb.set(cx - 12 + Math.floor(hf(variant, k, 8) * 24), ay - Math.floor(hf(variant, k, 9) * 3), season === 3 ? SNOW : leafR.d);
+  for (let k = 0; k < 10; k++) pb.set(cx - 16 + Math.floor(hf(variant, k, 8) * 32), ay - Math.floor(hf(variant, k, 9) * 3), season === 3 ? SNOW : leafR.d);
   if (season === 3) snowCap(pb, 1, seed, 0.5);
   return finish(pb, cx, ay, tier);
 }
@@ -363,8 +374,8 @@ export function genReeds(variant: number, season: number, tier: number): ObjSpri
   const n = 7 + (variant % 3);
   for (let k = 0; k < n; k++) {
     const x0 = cx + Math.round((k - (n - 1) / 2) * 2.1 + (hf(variant, k, 1) - 0.5) * 1.5);
-    const h = 18 + hf(variant, k, 2) * 14;
-    const bend = (hf(variant, k, 3) - 0.5) * 9;
+    const h = 12 + hf(variant, k, 2) * 9;
+    const bend = (hf(variant, k, 3) - 0.5) * 7;
     for (let y = 0; y < h; y++) {
       const t = y / h;
       const x = Math.round(x0 + bend * t * t);

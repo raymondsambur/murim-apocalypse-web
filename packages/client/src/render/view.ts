@@ -566,7 +566,7 @@ export class GameView implements GameViewApi {
         const ent = f.id ? this.ents.map.get(f.id) : undefined;
         const tx = ent ? ent.x : f.x;
         const ty = ent ? ent.y : f.y;
-        const top = ent && ent.drawn ? ent.topPx : 30;
+        const top = ent && ent.drawn ? ent.topPx : 20;
         out.x = ((tx - ty) * 16 - ax0) * P;
         out.y = ((tx + ty) * 8 - ay0 - top - 4) * P;
       });

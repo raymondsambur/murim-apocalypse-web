@@ -143,7 +143,6 @@
   font-weight: 600;
 }
 .world-entry-glyph {
-  font-family: var(--font-glyph);
   color: var(--text-dim);
   width: 1.3rem;
   text-align: center;

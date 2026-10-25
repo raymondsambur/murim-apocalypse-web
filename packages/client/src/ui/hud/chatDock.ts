@@ -8,7 +8,7 @@ import { CHAT_COMMANDS, parseChatInput, type SendChannel } from '../../state/cha
 import type { ChatLine } from '../../state/store';
 import { CHAT_CHANNELS } from '../../state/store';
 import type { UiContext } from '../context';
-import { NARROW_QUERY, h, isNarrow, isTypingTarget } from '../dom';
+import { NARROW_QUERY, glyph, h, isNarrow, isTypingTarget } from '../dom';
 import { rankColor, rankColorOfRank } from '../format';
 import { formatChatTime, maxKey, pushHistory, stepHistory, unreadSince, whisperParty } from '../logic/chat';
 import { tabs } from '../widgets/tabs';
@@ -44,7 +44,7 @@ export function mountChatDock(host: HTMLElement, ui: UiContext): ChatDock {
   const toggle = h(
     'button',
     { class: 'chat-toggle', type: 'button', 'aria-controls': 'chat-body', onclick: () => setCollapsed(!collapsed) },
-    h('span', { class: 'glyph', 'aria-hidden': 'true' }, '語'),
+    glyph('chat'),
     h('span', { class: 'chat-toggle-label' }, t('chat.title')),
     toggleBadge,
   );

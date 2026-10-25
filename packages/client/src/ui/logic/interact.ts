@@ -7,6 +7,7 @@ export interface ContextAction {
   id: ContextActionId;
   /** i18n key of the button label. */
   label: string;
+  /** Icon name (see icons.ts). */
   glyph: string;
   primary?: boolean;
   danger?: boolean;
@@ -22,11 +23,11 @@ export interface ActionContext {
 }
 
 const NODE_LABEL: Record<NodeKind, { label: string; glyph: string }> = {
-  herb: { label: 'act.gather', glyph: '採' },
-  rareHerb: { label: 'act.gather', glyph: '採' },
-  ore: { label: 'act.mine', glyph: '礦' },
-  shrine: { label: 'act.pray', glyph: '拜' },
-  heart: { label: 'act.purify', glyph: '淨' },
+  herb: { label: 'act.gather', glyph: 'herb' },
+  rareHerb: { label: 'act.gather', glyph: 'herb' },
+  ore: { label: 'act.mine', glyph: 'pickaxe' },
+  shrine: { label: 'act.pray', glyph: 'lotus' },
+  heart: { label: 'act.purify', glyph: 'lotus' },
 };
 
 /** Roles of a sect that may invite others. */
@@ -39,12 +40,12 @@ export function contextActions(e: EntityView, ctx: ActionContext): ContextAction
   const dead = e.state === 'dead';
   switch (e.kind) {
     case 'npc':
-      return [{ id: 'talk', label: 'act.talk', glyph: '談', primary: true, disabled: ctx.selfDead ? 'act.whyDead' : undefined }];
+      return [{ id: 'talk', label: 'act.talk', glyph: 'chat', primary: true, disabled: ctx.selfDead ? 'act.whyDead' : undefined }];
     case 'monster': {
       const out: ContextAction[] = [];
       const busy = ctx.selfDead ? 'act.whyDead' : ctx.inCombat ? 'act.whyInCombat' : dead ? 'act.whyDown' : undefined;
-      out.push({ id: 'attack', label: 'act.attack', glyph: '戰', primary: true, danger: true, disabled: busy });
-      if (e.combatId !== undefined && e.state === 'fight') out.push({ id: 'assist', label: 'act.assist', glyph: '援', disabled: busy });
+      out.push({ id: 'attack', label: 'act.attack', glyph: 'swords', primary: true, danger: true, disabled: busy });
+      if (e.combatId !== undefined && e.state === 'fight') out.push({ id: 'assist', label: 'act.assist', glyph: 'shield', disabled: busy });
       return out;
     }
     case 'node': {
@@ -53,11 +54,11 @@ export function contextActions(e: EntityView, ctx: ActionContext): ContextAction
     }
     case 'player': {
       const online = e.online !== false;
-      const out: ContextAction[] = [{ id: 'inspect', label: 'act.inspect', glyph: '觀', primary: true }];
-      out.push({ id: 'whisper', label: 'act.whisper', glyph: '語', disabled: online ? undefined : 'act.whyOffline' });
-      out.push({ id: 'friend', label: 'act.friend', glyph: '友' });
-      if (canInviteToSect(ctx.sectRole)) out.push({ id: 'sectInvite', label: 'act.sectInvite', glyph: '門' });
-      out.push({ id: 'duel', label: 'act.duel', glyph: '決', disabled: !online ? 'act.whyOffline' : ctx.inCombat ? 'act.whyInCombat' : ctx.selfDead ? 'act.whyDead' : dead ? 'act.whyDown' : undefined });
+      const out: ContextAction[] = [{ id: 'inspect', label: 'act.inspect', glyph: 'inspect', primary: true }];
+      out.push({ id: 'whisper', label: 'act.whisper', glyph: 'whisper', disabled: online ? undefined : 'act.whyOffline' });
+      out.push({ id: 'friend', label: 'act.friend', glyph: 'friend' });
+      if (canInviteToSect(ctx.sectRole)) out.push({ id: 'sectInvite', label: 'act.sectInvite', glyph: 'sect' });
+      out.push({ id: 'duel', label: 'act.duel', glyph: 'swords', disabled: !online ? 'act.whyOffline' : ctx.inCombat ? 'act.whyInCombat' : ctx.selfDead ? 'act.whyDead' : dead ? 'act.whyDown' : undefined });
       return out;
     }
   }
@@ -83,12 +84,12 @@ export function entityKindKey(e: EntityView): string {
   }
 }
 
-/** Glyph used as a portrait for entities without a Look. */
-export function entityGlyph(e: EntityView): string {
-  if (e.kind === 'monster') return e.elite ? '凶' : '獸';
+/** Icon name used as a portrait for entities without a Look. */
+export function entityIcon(e: EntityView): string {
+  if (e.kind === 'monster') return e.elite ? 'skull' : 'paw';
   if (e.kind === 'node') return NODE_LABEL[e.nodeKind ?? 'herb'].glyph;
-  if (e.kind === 'npc') return '人';
-  return '俠';
+  if (e.kind === 'npc') return 'character';
+  return 'master';
 }
 
 /** Distance in tiles between two things with x/y. */

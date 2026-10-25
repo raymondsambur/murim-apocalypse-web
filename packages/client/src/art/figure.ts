@@ -349,6 +349,117 @@ export function selOutline(pb: PixelBuffer, ink: Col): void {
     }
 }
 
+/**
+ * Resample a painted sprite by `k`. Enlarging is nearest neighbour; shrinking picks one *source pixel* per destination pixel
+ * (never blends colours): the opaque pixel with the largest area overlap, boosted by how much it differs from the block average,
+ * so thin bright details (gold trim, gems, pupils, weapon edges) survive instead of being averaged away. A destination pixel is
+ * transparent when less than `cover` of its block is opaque. The result keeps the palette crisp; re-outline afterwards.
+ */
+export function resizePixels(src: PixelBuffer, k: number, cover = 0.4, accent = 1.3): PixelBuffer {
+  if (k === 1) return src;
+  const w = Math.max(1, Math.round(src.w * k));
+  const h = Math.max(1, Math.round(src.h * k));
+  const out = new PixelBuffer(w, h);
+  if (k > 1) {
+    for (let y = 0; y < h; y++) {
+      const sy = Math.min(src.h - 1, Math.floor(y / k));
+      for (let x = 0; x < w; x++) out.px[y * w + x] = src.px[sy * src.w + Math.min(src.w - 1, Math.floor(x / k))];
+    }
+    return out;
+  }
+  const bx = src.w / w;
+  const by = src.h / h;
+  const sp = src.px;
+  for (let dy = 0; dy < h; dy++) {
+    const y0 = dy * by;
+    const y1 = y0 + by;
+    const iy0 = Math.floor(y0);
+    const iy1 = Math.min(src.h, Math.ceil(y1));
+    for (let dx = 0; dx < w; dx++) {
+      const x0 = dx * bx;
+      const x1 = x0 + bx;
+      const ix0 = Math.floor(x0);
+      const ix1 = Math.min(src.w, Math.ceil(x1));
+      let wt = 0;
+      let wo = 0;
+      let mr = 0;
+      let mg = 0;
+      let mb = 0;
+      for (let iy = iy0; iy < iy1; iy++) {
+        const oy = Math.min(y1, iy + 1) - Math.max(y0, iy);
+        for (let ix = ix0; ix < ix1; ix++) {
+          const a = (Math.min(x1, ix + 1) - Math.max(x0, ix)) * oy;
+          wt += a;
+          const c = sp[iy * src.w + ix];
+          if (c >>> 24 < 128) continue;
+          wo += a;
+          mr += (c & 255) * a;
+          mg += ((c >>> 8) & 255) * a;
+          mb += ((c >>> 16) & 255) * a;
+        }
+      }
+      if (wo < wt * cover || wo <= 0) continue;
+      mr /= wo;
+      mg /= wo;
+      mb /= wo;
+      let best = 0;
+      let bs = -1;
+      for (let iy = iy0; iy < iy1; iy++) {
+        const oy = Math.min(y1, iy + 1) - Math.max(y0, iy);
+        for (let ix = ix0; ix < ix1; ix++) {
+          const c = sp[iy * src.w + ix];
+          if (c >>> 24 < 128) continue;
+          const a = (Math.min(x1, ix + 1) - Math.max(x0, ix)) * oy;
+          const d = (Math.abs((c & 255) - mr) + Math.abs(((c >>> 8) & 255) - mg) + Math.abs(((c >>> 16) & 255) - mb)) / 255;
+          const s = a * (1 + accent * d);
+          if (s > bs) {
+            bs = s;
+            best = c;
+          }
+        }
+      }
+      out.px[dy * w + dx] = best;
+    }
+  }
+  return out;
+}
+
+/** Resample an additive glow layer: each destination pixel takes the strongest source pixel of its block (enlarging: nearest). */
+export function resizeGlow(src: PixelBuffer, k: number): PixelBuffer {
+  if (k === 1) return src;
+  const w = Math.max(1, Math.round(src.w * k));
+  const h = Math.max(1, Math.round(src.h * k));
+  const out = new PixelBuffer(w, h);
+  if (k > 1) {
+    for (let y = 0; y < h; y++) {
+      const sy = Math.min(src.h - 1, Math.floor(y / k));
+      for (let x = 0; x < w; x++) out.px[y * w + x] = src.px[sy * src.w + Math.min(src.w - 1, Math.floor(x / k))];
+    }
+    return out;
+  }
+  for (let dy = 0; dy < h; dy++) {
+    const iy0 = Math.floor(dy / k);
+    const iy1 = Math.min(src.h, Math.max(iy0 + 1, Math.ceil((dy + 1) / k)));
+    for (let dx = 0; dx < w; dx++) {
+      const ix0 = Math.floor(dx / k);
+      const ix1 = Math.min(src.w, Math.max(ix0 + 1, Math.ceil((dx + 1) / k)));
+      let best = 0;
+      let ba = 0;
+      for (let iy = iy0; iy < iy1; iy++)
+        for (let ix = ix0; ix < ix1; ix++) {
+          const c = src.px[iy * src.w + ix];
+          const a = c >>> 24;
+          if (a > ba) {
+            ba = a;
+            best = c;
+          }
+        }
+      out.px[dy * w + dx] = best;
+    }
+  }
+  return out;
+}
+
 /** Rotate by `deg` degrees (clockwise on screen) about a pivot, nearest neighbour, into a same-sized buffer. */
 export function rotateNearest(src: PixelBuffer, deg: number, pivX: number, pivY: number, shX = 0, shY = 0): PixelBuffer {
   const out = new PixelBuffer(src.w, src.h);

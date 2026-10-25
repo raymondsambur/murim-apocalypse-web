@@ -102,7 +102,14 @@ const AMB_DUR: Partial<Record<Amb, number>> = { sweep: 4200, stretch: 2000, chat
  * moves the entity), 'train' loops the weapon attacks (or a form without a weapon), 'celebrate' loops the cheer.
  */
 export const ACT_STATE: Record<NpcAct, { state: CharState; tool?: ToolKind }> = {
-  work: { state: 'work' },
+  // 'work' is the old generic cue: NPCs just stand (the server sends a specific kind instead).
+  work: { state: 'idle' },
+  farm: { state: 'work', tool: 'hoe' },
+  forge: { state: 'work', tool: 'hammer' },
+  brew: { state: 'craft' },
+  gather: { state: 'work', tool: 'herb' },
+  mine: { state: 'work', tool: 'pick' },
+  guard: { state: 'idle' },
   eat: { state: 'eat' },
   chat: { state: 'chat' },
   pray: { state: 'pray' },
@@ -261,13 +268,20 @@ export function pickChar(e: Ent, env: PickEnv, out: AnimPick): void {
     const act = v.act;
     const at = e.born + e.seed * 2600;
     switch (act) {
-      case 'work':
-        if (v.role === 'alchemist') set('craft', at, true);
-        else {
-          out.tool = env.toolFor(e);
-          set('work', at, true);
-        }
+      case 'farm':
+        out.tool = e.seed < 0.5 ? 'hoe' : 'sickle';
+        set('work', at, true);
         return;
+      case 'forge':
+      case 'gather':
+      case 'mine':
+        out.tool = ACT_STATE[act].tool ?? null;
+        set('work', at, true);
+        return;
+      case 'brew':
+        set('craft', at, true);
+        return;
+      case 'guard':
       case 'patrol':
         set('idle', at, true);
         out.blink = blinkAt(e, now);
@@ -298,8 +312,8 @@ export function pickChar(e: Ent, env: PickEnv, out: AnimPick): void {
         return;
       }
       case 'rest':
+        // Sitting on a doorstep or bench: no sleeping bubble (real sleep happens indoors, out of sight).
         set('rest', at, true);
-        out.chatIcon = 2;
         return;
       default: {
         const s = ACT_STATE[act];
@@ -310,7 +324,8 @@ export function pickChar(e: Ent, env: PickEnv, out: AnimPick): void {
     }
   }
   // ---- activities from the server state --------------------------------------------------------------------
-  if (v.state === 'work') {
+  // NPCs only work with a specific cue; a bare 'work' state (e.g. mid-conversation) just stands.
+  if (v.state === 'work' && v.kind !== 'npc') {
     out.tool = env.toolFor(e);
     set('work', e.born + e.seed * 600, true);
     return;

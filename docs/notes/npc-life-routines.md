@@ -32,17 +32,17 @@ If every dwelling is full the NPC bunks in a teahouse / hall / dojo / pagoda / b
 
 | Activity | `entity.act` | `entity.state` | Where | Hidden | Hours | Notes |
 |---|---|---|---|---|---|---|
-| sleep | none (`rest` if no bed) | idle | home door | yes | until wake time (4-10) | wake ~05:24 +- phase, night guards 15:00, innkeeper 06:30; short nap only if exhausted |
+| sleep | none | idle | home door (else any inn / hall / house nearby; no bed = stays awake) | yes (never outdoors) | until wake time (4-10) | wake ~05:24 +- phase, night guards 15:00, innkeeper 06:30; short nap only if exhausted |
 | eat | `eat` | idle | home (indoors) or inn spots | home yes | 0.35-0.7 | inn for guards, legends, cheerful / cunning / boastful |
-| work | `work` | work | workplace spot | no | 1.5-3 (greedy x1.25) | smith, alchemist, villagers, innkeeper, elder, master (teach) |
+| work | specific: `farm` (villager on a Farm-terrain tile of its field), `forge` (smith at the smithy), `brew` (alchemist at the lab), `gather` (herb hut), `mine` (mine entrance), `trade` (innkeeper at the inn); none for elders | `work` only with a cue, else idle | workplace spot | no | 1.5-3 (greedy x1.25) | villagers without a field / hut / mine do chores (sweep, wander, doorstep rest); masters teach (`train`); guards, masters, legends never get farm / forge / brew / gather / mine |
 | trade | `trade` | work | market spot | no | 1.5-3 | merchants |
 | socialise | `chat` once paired, none while waiting | idle | plaza / inn / market / home door, or walk up to a waiting NPC | no | 0.4-0.9 (x1.8 waiting) | pairs face each other, emit `npcChat` |
 | pray | `pray` | idle | shrine, pagoda or hall | no | 0.3-0.6 | |
 | sweep | `sweep` | work | home yard, or the shop front for service roles | no | 0.3-0.7 | |
 | train | `train` | work | dojo / hall / pagoda (guards: dojo, barracks) | no | 1-2 | masters, guards, legends |
-| patrol | `patrol` | work | next post of the loop | no | 0.3-0.8 per post | stands scanning; walking between posts is the patrol |
+| patrol | `guard` (standing watch) | work | next post of the loop | no | 0.3-0.8 per post | stands scanning; walking between posts is the patrol |
 | wander | none | idle | plaza or home yard | no | 0.2-0.5 | looks around now and then |
-| rest | `rest` | idle | home door | no | 0.5-1.1 | |
+| rest | `rest` (seated, no sleep bubble on the client) | idle | doorstep (first 2 spots by the home door) or plaza edge; never 21:00-06:00 | no | 0.5-1.1 | |
 | shelter | `shelter` | idle | nearest building: inside (hidden) or under the eaves | ~55% | 0.7-1.5 | rain / storm, hurried walk |
 | hide | none | idle | home, indoors | yes | 1-2 | siege, Blight alarm (60% of civilians) |
 | muster | `patrol` | work | a gate | no | 1-2 | guards (4.2), masters / legends (2.6) on a siege |
@@ -65,6 +65,8 @@ While a player is talking to an NPC (`NPC_DATA.holdUntil`), the cue is cleared a
 | 21-24 | sleep | sleep | patrol | sleep (from 22) | sleep (from 22) | work | sleep (from 21) | sleep (from 20:30) | sleep (from 22) |
 
 Each NPC has a personal offset (+-0.75 h by id hash; weary -0.3 h) so dawn and dusk have stragglers; durations and departure pauses are randomised.
+
+Farmers: whole families (hash of the surname, 60%) work the real `Farm`-terrain tiles near a farm site (sites on grass / dirt are ignored; if none, Farm tiles around the settlement are used); a settlement without any field has no farmers. A work cue is re-checked on arrival (`cueValid`), also after LOD snapping, and dropped if the tile / place / role does not match.
 
 **Needs** (0..1, advance per world hour: hunger +0.11, rest +0.06, company +0.07, devotion +0.05, duty +0.12; activities override, e.g. eat -1.5 hunger, sleep -0.17 rest, pray -2 devotion): hunger x1.5 feeds `eat` (and suppresses it below 0.3), rest x0.55 feeds `sleep`, company x1.2 `socialise`, devotion x0.9 `pray`, duty x0.5 `work`. `safety` is derived (1 under siege, 0.7 Blight alarm).
 **Traits**: devout (+0.4 pray, devotion x1.6), superstitious (+0.15 pray), cheerful (+0.25 chat, inn meals), kind (+0.1 chat), boastful (+0.1 chat, +0.15 train), gruff (-0.3 chat, hardy), stern (-0.15 chat, hardy), weary (+0.2 sleep / rest, earlier bedtime), greedy (+0.15 work, x1.25 longer), honest (+0.1 work), cunning (inn meals).
@@ -97,7 +99,7 @@ ctx.events.on('npcChat', ({ a, b, settlementId }) => ...)   // once per conversa
 
 1. `activities.ts`: add the id to `ActivityId` and `ACTIVITY_IDS`; a row in `ACTIVITIES` (cue, entity state, hour range, need effects); a score line in `scoreAll` (use `s(id)` for the schedule weight, return about -9 to disable it); optional weights in `SCHEDULE`.
 2. `life.ts` `resolve()`: add a `case` that returns a `Plan` (`this.mk(act, place, st, { inside, stable, hours, hurry })`) or `null` when no place is usable (the next best activity is tried).
-3. Cue: set `cue` in the table (it is applied by `beginDoing`); special cases go in `cueFor`.
+3. Cue: set `cue` in the table, or per plan (`mk(..., { cue })`, `null` = none); `cueValid` / `workCue` in `life.ts` decide which role may show which work cue. `entity.state` is `work` only when a cue is shown.
 4. Add a test in `npclife/npclife.test.ts` using `makeLifeHarness` (`h.setHour`, `h.run(ms)`, `h.hours(n)`).
 
 ## Additive edits outside the folder

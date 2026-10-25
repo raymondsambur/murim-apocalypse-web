@@ -539,3 +539,31 @@
 .inspect-actions {
   margin-top: 1rem;
 }
+
+/* attribute and misc inline icons */
+.attr-ico {
+  margin-right: 0.35rem;
+  color: var(--gold);
+  font-size: 1.05rem;
+  vertical-align: -0.2em;
+}
+.chip .ico,
+.btn .ico {
+  margin-right: 0.3rem;
+}
+.chip .ico:last-child,
+.btn .ico:last-child,
+.btn-icon .ico,
+.btn-close .ico,
+.toast-x .ico,
+.seal .ico,
+.tab-glyph.ico {
+  margin-right: 0;
+}
+.btn-icon .ico,
+.btn-close .ico {
+  font-size: 1.05rem;
+}
+.world-fac-seal .ico {
+  font-size: 1.15rem;
+}

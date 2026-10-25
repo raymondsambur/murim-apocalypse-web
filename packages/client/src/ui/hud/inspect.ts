@@ -46,7 +46,7 @@ export async function inspectPlayer(ui: UiContext, target: { id?: number; name?:
           ),
         ),
         h('div', { class: 'sect-title' }, t('inspect.gear')),
-        h('div', { class: 'inspect-gear' }, itemSlot(eq.weapon, { size: 'lg', emptyGlyph: '劍', emptyLabel: t('inv.slot.weapon') }), itemSlot(eq.outfit, { size: 'lg', emptyGlyph: '衣', emptyLabel: t('inv.slot.outfit') }), itemSlot(eq.accessory, { size: 'lg', emptyGlyph: '環', emptyLabel: t('inv.slot.accessory') })),
+        h('div', { class: 'inspect-gear' }, itemSlot(eq.weapon, { size: 'lg', emptyGlyph: 'sword', emptyLabel: t('inv.slot.weapon') }), itemSlot(eq.outfit, { size: 'lg', emptyGlyph: 'outfit', emptyLabel: t('inv.slot.outfit') }), itemSlot(eq.accessory, { size: 'lg', emptyGlyph: 'ring', emptyLabel: t('inv.slot.accessory') })),
         h('div', { class: 'sect-title' }, t('inspect.stats')),
         h('dl', { class: 'kv' }, ...STAT_KEYS.flatMap((k) => [h('dt', {}, STAT_INFO[k].name), h('dd', {}, String(p.stats[k]))])),
         isSelf
@@ -60,6 +60,6 @@ export async function inspectPlayer(ui: UiContext, target: { id?: number; name?:
             ),
       );
     },
-    { title: t('inspect.title'), glyph: '觀', cls: 'modal-inspect' },
+    { title: t('inspect.title'), glyph: 'inspect', cls: 'modal-inspect' },
   );
 }

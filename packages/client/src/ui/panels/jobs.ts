@@ -33,6 +33,8 @@ import { stepper } from '../widgets/stepper';
 import { tabs } from '../widgets/tabs';
 import { attachTooltip } from '../widgets/tooltip';
 import { registerPanel } from './registry';
+import { icon } from '../icons';
+import { jobIconName } from '../glyphMap';
 
 addStrings({
   'jobs.title': 'Jobs & Crafting',
@@ -249,7 +251,7 @@ function activityCard(ui: UiContext, a0: Activity | null): HTMLElement {
 
   const title =
     a.kind === 'train' ? t('jobs.kind.train') : a.kind === 'shift' ? t('jobs.kind.shift', { job: jobName(a.job) }) : t('jobs.kind.craft', { name: RECIPES[a.recipe]?.name ?? a.recipe });
-  const glyph = a.kind === 'train' ? '修' : a.kind === 'shift' ? JOB_DEFS[a.job].glyph : JOB_DEFS[RECIPES[a.recipe]?.job ?? 'blacksmith'].glyph;
+  const headIcon = a.kind === 'train' ? 'training' : a.kind === 'shift' ? jobIconName(JOB_DEFS[a.job]) : jobIconName(JOB_DEFS[RECIPES[a.recipe]?.job ?? 'blacksmith']);
   const stop = h(
     'button',
     {
@@ -267,7 +269,7 @@ function activityCard(ui: UiContext, a0: Activity | null): HTMLElement {
     'section',
     { class: 'card jobs-current' },
     h('div', { class: 'sect-title' }, t('jobs.current')),
-    h('div', { class: 'jobs-head' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, glyph), h('div', { class: 'jobs-head-text' }, h('div', { class: 'jobs-name' }, title), h('div', { class: 'jobs-fine' }, t('jobs.capNote', { n: OFFLINE_CAP_MS / 3_600_000 }))), stop),
+    h('div', { class: 'jobs-head' }, h('span', { class: 'seal', 'aria-hidden': 'true' }, icon(headIcon)), h('div', { class: 'jobs-head-text' }, h('div', { class: 'jobs-name' }, title), h('div', { class: 'jobs-fine' }, t('jobs.capNote', { n: OFFLINE_CAP_MS / 3_600_000 }))), stop),
     live,
   );
 }
@@ -293,7 +295,7 @@ function jobCards(ui: UiContext): HTMLElement {
     return h(
       'div',
       { class: ['jobs-job', working && 'working'], role: 'listitem' },
-      h('span', { class: 'seal jobs-seal', 'aria-hidden': 'true' }, def.glyph),
+      h('span', { class: 'seal jobs-seal', 'aria-hidden': 'true' }, icon(jobIconName(def))),
       h('div', { class: 'jobs-job-body' }, h('div', { class: 'jobs-job-head' }, h('strong', {}, def.name), h('span', { class: 'chip chip-gold' }, t('jobs.level', { n: m.level }))), xp.el, desc),
     );
   });
@@ -351,7 +353,7 @@ function sitesTab(ui: UiContext): HTMLElement[] {
     const dis = busy || inCombat || dead || !near.inside;
     const btn = h('button', { class: 'btn btn-sm btn-primary', type: 'button', disabled: dis, onclick: () => ui.net.send({ t: 'astart', kind: 'train', site: anySite.id }) }, t('jobs.sites.trainAny'));
     attachTooltip(btn, () => (busy ? t('jobs.why.busy') : !near.inside ? t('jobs.sites.nowhere') : t('jobs.sites.trainTip')));
-    out.push(h('div', { class: 'card jobs-site' }, h('span', { class: 'seal jobs-seal', 'aria-hidden': 'true' }, '修'), h('div', { class: 'jobs-site-body' }, h('strong', {}, t('jobs.sites.train')), h('div', { class: 'jobs-fine' }, t('jobs.sites.trainTip'))), btn));
+    out.push(h('div', { class: 'card jobs-site' }, h('span', { class: 'seal jobs-seal', 'aria-hidden': 'true' }, icon('training')), h('div', { class: 'jobs-site-body' }, h('strong', {}, t('jobs.sites.train')), h('div', { class: 'jobs-fine' }, t('jobs.sites.trainTip'))), btn));
   }
   if (!models.length) out.push(h('p', { class: 'empty-note' }, t('jobs.sites.empty')));
   for (const m of models) out.push(siteCard(ui, m, dead));
@@ -360,7 +362,7 @@ function sitesTab(ui: UiContext): HTMLElement[] {
 
 function siteCard(ui: UiContext, m: SiteModel, dead: boolean): HTMLElement {
   const s = m.site;
-  const glyph = s.kind === 'dojo' ? '武' : s.job ? JOB_DEFS[s.job].glyph : '場';
+  const siteIcon = s.kind === 'dojo' ? 'training' : s.job ? jobIconName(JOB_DEFS[s.job]) : 'sites';
   const act = m.action;
   let button: HTMLElement | null = null;
   const blocked = dead ? { key: 'jobs.why.dead' } : m.blocked;
@@ -390,7 +392,7 @@ function siteCard(ui: UiContext, m: SiteModel, dead: boolean): HTMLElement {
   return h(
     'div',
     { class: ['card', 'jobs-site', m.inRange && 'in-reach'] },
-    h('span', { class: 'seal jobs-seal', 'aria-hidden': 'true' }, glyph),
+    h('span', { class: 'seal jobs-seal', 'aria-hidden': 'true' }, icon(siteIcon)),
     h(
       'div',
       { class: 'jobs-site-body' },
@@ -542,7 +544,7 @@ function recipeDetail(ui: UiContext, r: RecipeView): HTMLElement {
 registerPanel({
   id: 'jobs',
   title: 'jobs.title',
-  glyph: '工',
+  glyph: 'jobs',
   hotkey: 'j',
   order: 50,
   width: 440,
@@ -572,9 +574,9 @@ registerPanel({
     }
     const tb = tabs(
       [
-        { id: 'work', label: t('jobs.tab.work'), glyph: '工' },
-        { id: 'sites', label: t('jobs.tab.sites'), glyph: '場' },
-        { id: 'craft', label: t('jobs.tab.craft'), glyph: '造' },
+        { id: 'work', label: t('jobs.tab.work'), glyph: 'jobs' },
+        { id: 'sites', label: t('jobs.tab.sites'), glyph: 'sites' },
+        { id: 'craft', label: t('jobs.tab.craft'), glyph: 'craft' },
       ],
       (id) => selectTab(id as TabId, ui),
       { initial: tab, label: t('jobs.tabs') },

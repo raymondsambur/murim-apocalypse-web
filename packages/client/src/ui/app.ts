@@ -18,6 +18,7 @@ import { mountInkBackdrop } from './screens/inkBackdrop';
 import type { Screen } from './screens/screen';
 import { SettingsStore } from './settings';
 import { toast } from './widgets/toast';
+import { icon } from './icons';
 
 export interface AppOptions {
   root: HTMLElement;
@@ -63,7 +64,7 @@ export class App {
   private boot(text: string): Screen {
     const root = h('main', { class: 'screen screen-boot' });
     const bd = mountInkBackdrop(root);
-    root.append(h('span', { class: 'seal seal-lg seal-pulse', 'aria-hidden': 'true' }, '武'), h('div', { class: 'boot-status', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), text));
+    root.append(h('span', { class: 'seal seal-lg seal-pulse', 'aria-hidden': 'true' }, icon('logo')), h('div', { class: 'boot-status', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), text));
     return {
       el: root,
       destroy() {
@@ -79,7 +80,7 @@ export class App {
     const bd = mountInkBackdrop(root);
     const msg = e instanceof ApiFailure ? e.message : t('err.network');
     root.append(
-      h('span', { class: 'seal seal-lg', 'aria-hidden': 'true' }, '斷'),
+      h('span', { class: 'seal seal-lg', 'aria-hidden': 'true' }, icon('brokenRoad')),
       h('div', { class: 'boot-error' }, h('h1', { class: 'overlay-title' }, t('boot.errorTitle')), h('p', { class: 'overlay-text', role: 'alert' }, msg), h('button', { class: 'btn btn-primary', type: 'button', onclick: retry }, t('common.retry'))),
     );
     this.show({

@@ -59,11 +59,11 @@ interface Def {
 }
 
 const DEFS: Record<Exclude<BeastKey, 'snake'>, Def> = {
-  boar: { L: 24, H: 12, leg: 6.5, legW: 3.4, headR: 5, snout: 5, body: ramp('#7a5a44', 0.62, 1.32), belly: ramp('#a68868', 0.7, 1.15), dark: ramp('#3a2a22', 0.7, 1.3), earKind: 'point', tail: 'curl', tusks: true, bristles: true, eye: hex('#ffcf5a'), scale: 1.18 },
-  wolf: { L: 25, H: 9.5, leg: 8.5, legW: 2.8, headR: 4.6, snout: 5.2, body: ramp('#8c8f98', 0.6, 1.3), belly: ramp('#cfcfd2', 0.74, 1.1), dark: ramp('#4a4d56', 0.7, 1.3), earKind: 'point', tail: 'bushy', ruff: true, eye: hex('#ffd84a'), scale: 1.18 },
-  wolf_blight: { L: 26, H: 9.5, leg: 8.5, legW: 2.6, headR: 4.8, snout: 5.2, body: ramp('#4e4660', 0.58, 1.42), belly: ramp('#6a5a7a', 0.7, 1.3), dark: ramp('#241c30', 0.7, 1.3), earKind: 'point', tail: 'bushy', ruff: true, eye: hex('#d58aff'), scale: 1.26 },
-  bear: { L: 28, H: 16, leg: 8, legW: 4.8, headR: 6.4, snout: 4.4, body: ramp('#4a3a32', 0.58, 1.38), belly: ramp('#6a5a4c', 0.7, 1.2), dark: ramp('#241a16', 0.7, 1.3), earKind: 'round', tail: 'stub', hump: true, claws: true, eye: hex('#e0c068'), scale: 1.38 },
-  tiger: { L: 31, H: 11.5, leg: 9.5, legW: 3.4, headR: 5.6, snout: 4.8, body: ramp('#dc8c3c', 0.62, 1.25), belly: ramp('#f0e4cc', 0.8, 1.05), dark: ramp('#2a1c16', 0.7, 1.3), earKind: 'round', tail: 'thin', stripes: true, claws: true, whiskers: true, eye: hex('#fff1a0'), scale: 1.3 },
+  boar: { L: 24, H: 12, leg: 6.5, legW: 3.4, headR: 5, snout: 5, body: ramp('#7a5a44', 0.62, 1.32), belly: ramp('#a68868', 0.7, 1.15), dark: ramp('#3a2a22', 0.7, 1.3), earKind: 'point', tail: 'curl', tusks: true, bristles: true, eye: hex('#ffcf5a'), scale: 0.74 },
+  wolf: { L: 25, H: 9.5, leg: 8.5, legW: 2.8, headR: 4.6, snout: 5.2, body: ramp('#8c8f98', 0.6, 1.3), belly: ramp('#cfcfd2', 0.74, 1.1), dark: ramp('#4a4d56', 0.7, 1.3), earKind: 'point', tail: 'bushy', ruff: true, eye: hex('#ffd84a'), scale: 0.76 },
+  wolf_blight: { L: 26, H: 9.5, leg: 8.5, legW: 2.6, headR: 4.8, snout: 5.2, body: ramp('#4e4660', 0.58, 1.42), belly: ramp('#6a5a7a', 0.7, 1.3), dark: ramp('#241c30', 0.7, 1.3), earKind: 'point', tail: 'bushy', ruff: true, eye: hex('#d58aff'), scale: 0.78 },
+  bear: { L: 28, H: 16, leg: 8, legW: 4.8, headR: 6.4, snout: 4.4, body: ramp('#4a3a32', 0.58, 1.38), belly: ramp('#6a5a4c', 0.7, 1.2), dark: ramp('#241a16', 0.7, 1.3), earKind: 'round', tail: 'stub', hump: true, claws: true, eye: hex('#e0c068'), scale: 0.84 },
+  tiger: { L: 31, H: 11.5, leg: 9.5, legW: 3.4, headR: 5.6, snout: 4.8, body: ramp('#dc8c3c', 0.62, 1.25), belly: ramp('#f0e4cc', 0.8, 1.05), dark: ramp('#2a1c16', 0.7, 1.3), earKind: 'round', tail: 'thin', stripes: true, claws: true, whiskers: true, eye: hex('#fff1a0'), scale: 1.04 },
 };
 
 const INK = rgba(30, 22, 34);
@@ -685,7 +685,7 @@ export interface BeastSprite {
 }
 
 export function beastScale(key: BeastKey, elite?: 0 | 1 | 2): number {
-  const base = key === 'snake' ? 1.25 : DEFS[key].scale;
+  const base = key === 'snake' ? 0.58 : DEFS[key].scale;
   return base * (elite === 2 ? 1.4 : elite === 1 ? 1.15 : 1);
 }
 

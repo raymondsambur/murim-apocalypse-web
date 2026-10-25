@@ -137,7 +137,7 @@ export function shrine(c: Ctx): void {
   // small sanctuary at the back
   plinth(sc, st, 0.4, 0.2, w - 0.4, 1.05, 3, scale(st.stone, 1.05));
   walls(sc, st, 0.52, 0.3, w - 0.52, 0.95, 3, 16, { kind: 'plaster', base: mix(LACQUER, st.wall, 0.15), post: 8, timber: LACQUER_D, ruin: st.fallen ? 6 : 0 });
-  door(sc, st, 'left', 0.95, w / 2, 0.4, 3, 11, hex('#7a3a2a'));
+  door(sc, st, 'left', 0.95, w / 2, 0.6, 3, 17, hex('#7a3a2a'));
   const ro = roof(sc, st, 0.52, 0.3, w - 0.52, 0.95, { zEave: 16, rise: 9, over: 0.24, up: 4, color: hex('#3c3a44'), ridge: LACQUER, holes: st.fallen ? 0.3 : 0 });
   void ro;
   addLight(c, w / 2, 1.0, 9, 26, GLOW_WARM);
@@ -177,7 +177,7 @@ export function pagoda(c: Ctx): void {
     const v1 = cy + hs;
     const wh = 15;
     walls(sc, st, u0, v0, u1, v1, z, z + wh, { kind: 'plaster', base: scale(st.wall, 1.02), post: 8, timber: LACQUER, ruin: st.fallen ? 6 : 0 });
-    if (i === 0) door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.55, z, 12, hex('#7a3a2a'));
+    if (i === 0) door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.8, z, 17, hex('#7a3a2a'));
     else {
       windowDecal(sc, st, 'left', v1, cx, 0.42, z + 5, 7, GLOW_WARM, true);
       windowDecal(sc, st, 'right', u1, cy, 0.42, z + 5, 7, GLOW_WARM, true);
@@ -330,14 +330,14 @@ export function tower(c: Ctx): void {
   const ss = (off: number): Shader => wallShader(st, { kind: 'stone', base: scale(st.stone, 0.98), H: 46, eave: 0, off });
   sc.box(u0 - 0.06, v0 - 0.06, 0, u1 + 0.06, v1 + 0.06, 5, stoneTop(st, st.stone), wallShader(st, { kind: 'stone', base: scale(st.stone, 0.9), H: 5, eave: 0 }), wallShader(st, { kind: 'stone', base: scale(st.stone, 0.9), H: 5, eave: 0, off: 4 }));
   sc.box(u0, v0, 5, u1, v1, 46, stoneTop(st, scale(st.stone, 1.05)), ss(0), ss(6));
-  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.face === 'left' ? Math.min(Math.max(dp.center, u0 + 0.5), u1 - 0.5) : Math.min(Math.max(dp.center, v0 + 0.5), v1 - 0.5), 0.5, 5, 15, hex('#4a3a30'));
+  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.face === 'left' ? Math.min(Math.max(dp.center, u0 + 0.5), u1 - 0.5) : Math.min(Math.max(dp.center, v0 + 0.5), v1 - 0.5), 0.7, 5, 20, hex('#4a3a30'));
   for (const zz of [27, 37]) {
     windowDecal(sc, { ...st, timber: hex('#2c2830') }, 'left', v1, (u0 + u1) / 2, 0.22, zz, 7, GLOW_WARM);
     windowDecal(sc, { ...st, timber: hex('#2c2830') }, 'right', u1, (v0 + v1) / 2, 0.22, zz, 7, GLOW_WARM);
   }
   // machicolation ring + crenels
   sc.box(u0 - 0.1, v0 - 0.1, 44, u1 + 0.1, v1 + 0.1, 48, stoneTop(st, scale(st.stone, 1.1)), ss(1), ss(7));
-  crenellate(sc, st, u0 - 0.1, v0 - 0.1, u1 + 0.1, v1 + 0.1, 48, 5);
+  crenellate(sc, st, u0 - 0.1, v0 - 0.1, u1 + 0.1, v1 + 0.1, 48, 3);
   // watch pavilion
   for (const [pu, pv] of [
     [u0 + 0.3, v0 + 0.3],
@@ -396,7 +396,7 @@ export function ruinedHouse(c: Ctx): void {
   walls(sc, st, u0, v0, u1, v1, 3, 26, { kind: 'plaster', base: mix(st.wall, st.soot, 0.35), post: 11, ruin: 16, eave: 0 });
   // dark doorway and dead windows
   const dp = doorPlacement(c.spec);
-  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.5, 3, 16);
+  door(sc, st, dp.face, dp.face === 'left' ? v1 : u1, dp.center, 0.7, 3, 18);
   windowsFor(c, u0, u1, v0, v1, 12, 7);
   // broken roof: mostly gone
   const ro = roof(sc, st, u0, v0, u1, v1, { zEave: 26, rise: 14, over: 0.32, up: 2, color: c.roofColor, holes: 0.62, rows: 7 });

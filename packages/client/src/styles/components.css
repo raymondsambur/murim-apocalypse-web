@@ -696,7 +696,6 @@ button.chip {
   opacity: 0.4;
 }
 .tab-glyph {
-  font-family: var(--font-glyph);
   font-size: 1rem;
   color: var(--gold);
 }
@@ -739,7 +738,6 @@ button.chip {
     0 3px 8px rgba(0, 0, 0, 0.6);
 }
 .slot-glyph {
-  font-family: var(--font-glyph);
   font-size: 1.6rem;
   font-weight: 700;
   line-height: 1;
@@ -843,7 +841,6 @@ button.chip {
   border: 2px solid var(--rc, var(--line-strong));
   border-radius: 5px;
   background: rgba(0, 0, 0, 0.45);
-  font-family: var(--font-glyph);
   font-size: 1.6rem;
   font-weight: 700;
 }
@@ -1042,7 +1039,6 @@ button.chip {
 }
 .toast-glyph {
   flex: none;
-  font-family: var(--font-glyph);
   font-size: 1.1rem;
   font-weight: 700;
   color: var(--tc);

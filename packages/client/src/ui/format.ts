@@ -83,8 +83,9 @@ export function dayPhase(hours: number): DayPhase {
   return 'night';
 }
 
-export const PHASE_GLYPH: Record<DayPhase, string> = { dawn: '曉', day: '日', dusk: '暮', night: '月' };
-export const WEATHER_GLYPH: Record<WeatherKind, string> = { clear: '晴', cloudy: '雲', rain: '雨', storm: '雷', fog: '霧', snow: '雪' };
+/** Icon names (see icons.ts) for the time of day and the weather. */
+export const PHASE_ICON: Record<DayPhase, string> = { dawn: 'dawn', day: 'sun', dusk: 'dusk', night: 'moon' };
+export const WEATHER_ICON: Record<WeatherKind, string> = { clear: 'sun', cloudy: 'cloud', rain: 'rain', storm: 'storm', fog: 'fog', snow: 'snow' };
 
 export function clockText(hours: number): string {
   const h = Math.floor(hours) % 24;

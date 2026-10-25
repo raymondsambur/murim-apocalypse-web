@@ -1,5 +1,6 @@
 /** Bridges the pure PixelBuffer world to DOM canvases (the only art module that touches the DOM). */
 import type { PixelBuffer } from './pixel';
+import { rowSpans, type RowSpans } from '../render/occlusion';
 
 export function makeCanvas(w: number, h: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
@@ -48,11 +49,14 @@ export interface Sprite {
   glow?: HTMLCanvasElement;
   /** First opaque row (for plates above the head). */
   top?: number;
+  /** Opaque extent per row (only for tall drawables that can hide people; see render/occlusion.ts). */
+  spans?: RowSpans;
 }
 
-export function makeSprite(pb: PixelBuffer, ax: number, ay: number, glow?: PixelBuffer | null): Sprite {
+export function makeSprite(pb: PixelBuffer, ax: number, ay: number, glow?: PixelBuffer | null, spans = false): Sprite {
   const cv = pbToCanvas(pb);
   const s: Sprite = { cv, ax, ay, w: pb.w, h: pb.h };
+  if (spans) s.spans = rowSpans(pb.px, pb.w, pb.h);
   if (glow && glow.bounds()) s.glow = pbToCanvas(glow);
   return s;
 }

@@ -2,9 +2,10 @@
  * Action bar: one button per registered panel with its hotkey. On narrow screens it collapses into a single
  * menu button that opens a bottom sheet.
  */
-import { t } from '../../i18n';
+import { hasKey, t } from '../../i18n';
 import type { UiContext } from '../context';
-import { h } from '../dom';
+import { glyph, h } from '../dom';
+import { icon } from '../icons';
 import { listPanels, type PanelDef } from '../panels/registry';
 import { attachTooltip } from '../widgets/tooltip';
 
@@ -29,6 +30,7 @@ export function mountActionBar(host: HTMLElement, ui: UiContext): ActionBar {
 
   const makeButton = (p: PanelDef, big: boolean): HTMLButtonElement => {
     const label = t(p.title);
+    const shortLabel = hasKey(`bar.short.${p.id}`) ? t(`bar.short.${p.id}`) : label;
     const b = h(
       'button',
       {
@@ -41,8 +43,8 @@ export function mountActionBar(host: HTMLElement, ui: UiContext): ActionBar {
           if (big) setSheet(false);
         },
       },
-      h('span', { class: 'abtn-glyph glyph', 'aria-hidden': 'true' }, p.glyph),
-      big ? h('span', { class: 'abtn-label' }, label) : null,
+      h('span', { class: 'abtn-glyph', 'aria-hidden': 'true' }, icon(p.glyph)),
+      h('span', { class: 'abtn-label', 'aria-hidden': big ? undefined : 'true' }, shortLabel),
       p.hotkey ? h('kbd', { class: 'abtn-key', 'aria-hidden': 'true' }, p.hotkey.toUpperCase()) : null,
       h('span', { class: 'abtn-dot', hidden: true, 'aria-hidden': 'true' }),
     );
@@ -62,7 +64,7 @@ export function mountActionBar(host: HTMLElement, ui: UiContext): ActionBar {
   const menuBtn = h(
     'button',
     { class: 'abar-menu glass', type: 'button', 'aria-label': t('bar.menu'), 'aria-expanded': 'false', 'aria-controls': 'abar-sheet', onclick: () => setSheet(!sheetOpen) },
-    h('span', { class: 'glyph', 'aria-hidden': 'true' }, '☰'),
+    glyph('menu'),
     h('span', { class: 'abtn-dot', hidden: true, 'aria-hidden': 'true' }),
   );
   host.append(desktop, menuBtn, sheet);

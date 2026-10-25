@@ -34,6 +34,9 @@ export interface Ent {
   halfW: number;
   /** Depth key of the last draw (painter order). */
   depth: number;
+  /** Painter key used for the sorted pass and the smoothed occlusion level (0 visible .. 1 hidden behind scenery, see occlusion.ts). */
+  dkey: number;
+  occ: number;
   /** Plate cache key and canvas. */
   plateKey: string;
   plate: HTMLCanvasElement | null;
@@ -122,6 +125,8 @@ export class EntityStore {
       topPx: 30,
       halfW: 8,
       depth: 0,
+      dkey: 0,
+      occ: 0,
       plateKey: '',
       plate: null,
       born: now,

@@ -8,7 +8,8 @@ import type { Dir, EntityState, NpcRole, WeaponType } from '@murim/shared';
 import { type Pose, poseFor, FRAME_COUNTS, WIND_STATES, type CharState, type ToolKind } from './anim';
 import { corrupt, css, hex, mix, rgba, type Col } from './color';
 import { hf } from './draw';
-import { selOutline, rotateNearest } from './figure';
+import { selOutline, rotateNearest, resizePixels, resizeGlow } from './figure';
+import { CHAR_K, SIZE_MULT } from './scale';
 import { NO_GEAR, type GearAppearance } from './gear';
 import { PixelBuffer } from './pixel';
 import { Ctx, CHAR_AX, CHAR_AY, CHAR_H, CHAR_W, CX, INK, OY, paletteFor, type CharSpecBase, type SpecialStyle } from './charctx';
@@ -31,6 +32,8 @@ export { CHAR_AX, CHAR_AY, CHAR_H, CHAR_W, FRAME_COUNTS };
 export type { CharState, SpecialStyle, ToolKind };
 
 const QI = hex('#9fe8ff');
+const EYE_PX = hex('#24161c');
+const EYE_PX2 = hex('#3a2a30');
 
 export interface CharSpec extends CharSpecBase {
   state: CharState;
@@ -44,6 +47,8 @@ export interface CharSpec extends CharSpecBase {
   gaze?: number;
   tilt?: number;
   blink?: boolean;
+  /** Keep the detailed design size (about 48 px tall) instead of the in-world size (portraits, gallery). */
+  full?: boolean;
 }
 
 export function stateFromEntity(s: EntityState): CharState {
@@ -65,14 +70,20 @@ export function stateFromEntity(s: EntityState): CharState {
   }
 }
 
-export function charScale(spec: Pick<CharSpec, 'special' | 'elite'>): number {
+/** Size of the person relative to a normal adult (see scale.ts). */
+export function sizeMult(spec: Pick<CharSpec, 'special' | 'elite'>): number {
   const sp = spec.special ?? 'none';
-  if (sp === 'hollow_lord') return 1.5;
-  if (sp === 'bandit_boss') return 1.3;
-  if (sp === 'hollow_brute') return 1.26;
-  if (spec.elite === 2) return 1.3;
-  if (spec.elite === 1) return 1.12;
+  if (sp === 'hollow_lord') return SIZE_MULT.hollow_lord;
+  if (sp === 'bandit_boss') return SIZE_MULT.bandit_boss;
+  if (sp === 'hollow_brute') return SIZE_MULT.hollow_brute;
+  if (spec.elite === 2) return SIZE_MULT.elite2;
+  if (spec.elite === 1) return SIZE_MULT.elite1;
   return 1;
+}
+
+/** Total resample factor of the painted figure (`full` keeps the detailed design size, used by portraits). */
+export function charScale(spec: Pick<CharSpec, 'special' | 'elite' | 'full'>): number {
+  return (spec.full ? 1 : CHAR_K) * sizeMult(spec);
 }
 
 export interface CharSprite {
@@ -146,18 +157,6 @@ function paintFigure(c: Ctx): void {
   }
 }
 
-function scaleBuf(src: PixelBuffer, k: number): PixelBuffer {
-  if (k === 1) return src;
-  const w = Math.round(src.w * k);
-  const h = Math.round(src.h * k);
-  const out = new PixelBuffer(w, h);
-  for (let y = 0; y < h; y++) {
-    const sy = Math.min(src.h - 1, Math.floor(y / k));
-    for (let x = 0; x < w; x++) out.px[y * w + x] = src.px[sy * src.w + Math.min(src.w - 1, Math.floor(x / k))];
-  }
-  return out;
-}
-
 function reach(sx: number, sy: number, tx: number, ty: number, max: number): [number, number] {
   const dx = tx - sx;
   const dy = ty - sy;
@@ -224,9 +223,23 @@ export function genCharacter(spec: CharSpec): CharSprite {
   }
   const k = charScale(spec);
   if (k !== 1) {
-    pb = scaleBuf(pb, k);
-    glow = scaleBuf(glow, k);
+    pb = resizePixels(pb, k);
+    glow = resizeGlow(glow, k);
     if (tip) tip = [tip[0] * k, tip[1] * k];
+  }
+  // eyes are repainted at the final size (a 1 x 2 px pair stays legible where the 2 x 2 design eyes were averaged away)
+  const eyeXY: [number, number][] = [];
+  if (ctx.eyes && !fallen && k < 1) {
+    for (const [ex, ey] of ctx.eyes) {
+      const x = Math.floor((ex + 1) * k);
+      const y = Math.floor((ey + 0.5) * k);
+      eyeXY.push([x, y]);
+      if (spec.blink) pb.set(x, y + 1, EYE_PX);
+      else {
+        pb.set(x, y, EYE_PX);
+        pb.set(x, y + 1, EYE_PX2);
+      }
+    }
   }
   selOutline(pb, INK);
   // head top for the name plate: first opaque row near the head columns
@@ -288,11 +301,15 @@ export function genCharacter(spec: CharSpec): CharSprite {
   let eyes: CharSprite['eyes'] = null;
   if (ctx.eyes && !fallen && !spec.blink) {
     const skin = css(c0.skin.b);
-    eyes = ctx.eyes.map(([ex, ey]) => {
-      const w = Math.max(1, Math.round(2 * k));
-      const x = Math.floor(ex * k);
-      return { x: (mirror ? pb.w - x - w : x) - cx0, y: Math.floor(ey * k) - cy0, w, h: w, skin };
-    });
+    if (k < 1) {
+      eyes = eyeXY.map(([x, y]) => ({ x: (mirror ? pb.w - x - 1 : x) - cx0, y: y - cy0, w: 1, h: 2, skin }));
+    } else {
+      eyes = ctx.eyes.map(([ex, ey]) => {
+        const w = Math.max(1, Math.round(2 * k));
+        const x = Math.floor(ex * k);
+        return { x: (mirror ? pb.w - x - w : x) - cx0, y: Math.floor(ey * k) - cy0, w, h: w, skin };
+      });
+    }
   }
   return { pb: out, ax, ay, top: Math.max(0, top - cy0), glow: outGlow, tip: mtip, eyes, wRar: g.wT ? g.wR : 0, oRar: g.oT ? g.oR : 0 };
 }

@@ -47,7 +47,7 @@ export function freshNeeds(): Needs {
 
 export interface ActivityDef {
   id: ActivityId;
-  /** The `NpcAct` cue shown while standing and doing it (undefined = no cue). */
+  /** The `NpcAct` cue shown while standing and doing it (undefined = chosen per plan, e.g. `work` -> farm / forge / brew...). */
   cue?: NpcAct;
   /** `entity.state` while doing it. */
   state: EntityState;
@@ -60,13 +60,13 @@ export interface ActivityDef {
 export const ACTIVITIES: Record<ActivityId, ActivityDef> = {
   sleep: { id: 'sleep', state: 'idle', hours: [4, 10], net: { hunger: 0.03, rest: -0.17, company: 0.01, devotion: 0.01, duty: 0 } },
   eat: { id: 'eat', cue: 'eat', state: 'idle', hours: [0.35, 0.7], net: { hunger: -1.5 } },
-  work: { id: 'work', cue: 'work', state: 'work', hours: [1.5, 3], net: { duty: -0.5, rest: 0.07 } },
+  work: { id: 'work', state: 'work', hours: [1.5, 3], net: { duty: -0.5, rest: 0.07 } },
   socialise: { id: 'socialise', cue: 'chat', state: 'idle', hours: [0.4, 0.9], net: { company: -1.5 } },
   pray: { id: 'pray', cue: 'pray', state: 'idle', hours: [0.3, 0.6], net: { devotion: -2 } },
   sweep: { id: 'sweep', cue: 'sweep', state: 'work', hours: [0.3, 0.7], net: { duty: -0.15 } },
   train: { id: 'train', cue: 'train', state: 'work', hours: [1, 2], net: { duty: -0.4, rest: 0.09 } },
   trade: { id: 'trade', cue: 'trade', state: 'work', hours: [1.5, 3], net: { duty: -0.5 } },
-  patrol: { id: 'patrol', cue: 'patrol', state: 'work', hours: [0.3, 0.8], net: { duty: -0.5, rest: 0.07 } },
+  patrol: { id: 'patrol', cue: 'guard', state: 'work', hours: [0.3, 0.8], net: { duty: -0.5, rest: 0.07 } },
   wander: { id: 'wander', state: 'idle', hours: [0.2, 0.5], net: {} },
   rest: { id: 'rest', cue: 'rest', state: 'idle', hours: [0.5, 1.1], net: { rest: -0.4 } },
   shelter: { id: 'shelter', cue: 'shelter', state: 'idle', hours: [0.7, 1.5], net: {} },
@@ -308,6 +308,9 @@ export function scoreAll(i: ScoreInput, noise: () => number): Record<ActivityId,
   out.mope = m.famine && !alarm && !fighter && i.role !== 'innkeeper' && i.hour >= 8 && i.hour < 20 ? 1.35 + (t('weary') ? 0.1 : 0) - (t('cheerful') ? 0.1 : 0) : -9;
   out.mourn = i.mournPending ? 3 : -9;
 
+  // Nobody sits about outdoors in the small hours: they sleep indoors or stay on their feet.
+  const night = ((i.hour % 24) + 24) % 24;
+  if (night >= 21 || night < 6) out.rest = -9;
   if (alarm) {
     // Nobody lingers over breakfast with the gates under attack.
     out.sleep *= 0.5;

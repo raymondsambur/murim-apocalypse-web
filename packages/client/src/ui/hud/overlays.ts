@@ -2,9 +2,10 @@
 import { t } from '../../i18n';
 import type { GameSocket } from '../../net/socket';
 import type { UiContext } from '../context';
-import { h } from '../dom';
+import { glyph, h } from '../dom';
 import { connectionView, type ConnView } from '../logic/connection';
 import { isDead } from './actions';
+import { icon } from '../icons';
 
 export interface OverlayOptions {
   socket: GameSocket;
@@ -26,7 +27,7 @@ export function mountOverlays(host: HTMLElement, ui: UiContext, o: OverlayOption
     h(
       'div',
       { class: 'overlay-card parchment' },
-      h('span', { class: ['seal', 'seal-lg', spinner && 'seal-pulse'], 'aria-hidden': 'true' }, glyph),
+      h('span', { class: ['seal', 'seal-lg', spinner && 'seal-pulse'], 'aria-hidden': 'true' }, icon(glyph)),
       h('h2', { class: 'overlay-title' }, title),
       text ? h('p', { class: 'overlay-text' }, text) : null,
       spinner ? h('div', { class: 'overlay-spin' }, h('span', { class: 'spinner', 'aria-hidden': 'true' })) : null,
@@ -49,28 +50,28 @@ export function mountOverlays(host: HTMLElement, ui: UiContext, o: OverlayOption
     const toLogin = (msg?: string) => h('button', { class: 'btn btn-primary', type: 'button', onclick: () => o.onReauth(msg) }, t('conn.toLogin'));
     switch (v.kind) {
       case 'loading':
-        conn.replaceChildren(card('武', t('conn.entering'), t('conn.enteringText'), [], true));
+        conn.replaceChildren(card('logo', t('conn.entering'), t('conn.enteringText'), [], true));
         break;
       case 'reconnecting':
         conn.replaceChildren(
-          card('斷', t('conn.lost'), null, [retry], true),
+          card('brokenRoad', t('conn.lost'), null, [retry], true),
         );
         conn.querySelector('.overlay-title')!.after(h('p', { class: 'overlay-text' }, t('conn.attempt', { n: v.attempt }), ' ', countdown));
         break;
       case 'replaced':
-        conn.replaceChildren(card('他', t('conn.replaced'), t('conn.replacedText'), [h('button', { class: 'btn btn-primary', type: 'button', onclick: () => location.reload() }, t('conn.playHere'))]));
+        conn.replaceChildren(card('sites', t('conn.replaced'), t('conn.replacedText'), [h('button', { class: 'btn btn-primary', type: 'button', onclick: () => location.reload() }, t('conn.playHere'))]));
         break;
       case 'auth':
-        conn.replaceChildren(card('期', t('conn.expired'), t('conn.expiredText'), [toLogin(t('err.sessionExpired'))]));
+        conn.replaceChildren(card('slow', t('conn.expired'), t('conn.expiredText'), [toLogin(t('err.sessionExpired'))]));
         break;
       case 'banned':
-        conn.replaceChildren(card('禁', t('conn.banned'), t('conn.bannedText'), [toLogin()]));
+        conn.replaceChildren(card('lock', t('conn.banned'), t('conn.bannedText'), [toLogin()]));
         break;
       case 'kicked':
-        conn.replaceChildren(card('離', t('conn.kicked'), v.reason || t('conn.kickedText'), [toLogin()]));
+        conn.replaceChildren(card('run', t('conn.kicked'), v.reason || t('conn.kickedText'), [toLogin()]));
         break;
       case 'failed':
-        conn.replaceChildren(card('斷', t('conn.failed'), t('conn.failedText'), [h('button', { class: 'btn btn-primary', type: 'button', onclick: () => location.reload() }, t('conn.reload'))]));
+        conn.replaceChildren(card('brokenRoad', t('conn.failed'), t('conn.failedText'), [h('button', { class: 'btn btn-primary', type: 'button', onclick: () => location.reload() }, t('conn.reload'))]));
         break;
     }
     const first = conn.querySelector<HTMLElement>('button');
@@ -96,7 +97,7 @@ export function mountOverlays(host: HTMLElement, ui: UiContext, o: OverlayOption
       h(
         'div',
         { class: 'death-card' },
-        h('span', { class: 'death-glyph glyph', 'aria-hidden': 'true' }, '亡'),
+        glyph('skull', 'death-glyph'),
         h('h2', { class: 'death-title' }, t('death.title')),
         h('p', { class: 'death-text' }, t('death.text')),
         h('div', { class: 'overlay-spin' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), ' ', t('death.waking')),

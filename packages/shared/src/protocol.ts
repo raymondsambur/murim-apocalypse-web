@@ -143,9 +143,18 @@ export type EntityPatch = Partial<Omit<EntityView, 'id' | 'kind'>> & { id: numbe
 /**
  * What an NPC is doing right now (server-driven by the NPC life system). The renderer plays a matching
  * in-place animation while the entity is standing still. Absent = no cue (renderer may use ambient fidgets).
+ * 'work' is generic and no longer sent by the server for NPCs.
  */
 export type NpcAct =
   | 'work'
+  /** Specific work kinds (the server only sends them while the NPC stands at the matching workplace). */
+  | 'farm'
+  | 'forge'
+  | 'brew'
+  | 'gather'
+  | 'mine'
+  /** Standing watch at a post (scanning gaze). */
+  | 'guard'
   | 'eat'
   | 'chat'
   | 'pray'
