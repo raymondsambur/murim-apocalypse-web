@@ -6,6 +6,7 @@
  */
 import {
   BREAKTHROUGHS,
+  DLG_TRAITS,
   FACTIONS,
   INVENTORY_SLOTS,
   MAX_ACTIVE_MISSIONS,
@@ -18,6 +19,7 @@ import {
   breakthroughChance,
   buildMonsterCombatant,
   buildPlayerCombatant,
+  composeLine,
   deriveForCharacter,
   findPath,
   getItem,
@@ -32,6 +34,7 @@ import {
   sanitizeLoadout,
   stackValue,
   statPointsForLevel,
+  strHash,
   stepBeat,
   tileSpeed,
   winner,
@@ -43,6 +46,9 @@ import {
   type ChronicleEntry,
   type CombatEvent,
   type CombatState,
+  type DlgInput,
+  type DlgRumorKind,
+  type DlgTrait,
   type CharacterSave,
   type Combatant,
   type Dir,
@@ -137,6 +143,7 @@ export class MockGame {
   private weather: WeatherKind[] = ['clear', 'cloudy', 'rain'];
   private chronicle: ChronicleEntry[] = [];
   private settlements: SettlementView[] = [];
+  private talkCount = 0;
   private boards = new Map<number, MissionOffer[]>();
   private combat: { id: number; state: CombatState; monster: MEnt; nextBeat: number; fleeing: boolean; ended: boolean } | null = null;
   private combatSeq = 1;
@@ -866,7 +873,76 @@ export class MockGame {
       default:
         break;
     }
+    this.addTalk(menu, e);
     return menu;
+  }
+
+  /** Mock of the rule-based talk system: real shared dialogue library, fake situation. */
+  private mockTraits(name: string): DlgTrait[] {
+    const h = strHash(name);
+    return [DLG_TRAITS[h % DLG_TRAITS.length], DLG_TRAITS[(h >>> 7) % DLG_TRAITS.length]].filter((t, i, a) => a.indexOf(t) === i);
+  }
+
+  private talkInput(e: MEnt, topic: DlgInput['topic'], seed: number): DlgInput {
+    const info = e.npc!;
+    const town = this.world.settlements.find((s) => s.id === this.save.lastTown) ?? this.world.settlements[0];
+    const st = ['unknown', 'noted', 'welcomed', 'honoured', 'feared', 'despised'] as const;
+    const standing = st[Math.min(st.length - 1, Math.floor(this.save.completedMissions / 2))] ?? 'unknown';
+    return {
+      topic,
+      seed,
+      hour: Math.floor(Date.now() / 60000),
+      role: info.role,
+      traits: this.mockTraits(e.v.name),
+      weather: 'clear',
+      time: 'day',
+      season: 'spring',
+      states: ['calm'],
+      standing: standing === 'unknown' ? 'unknown' : standing,
+      moods: ['content'],
+      deeds: this.save.kills > 3 ? [{ kind: 'killedBandits', weight: 3, ageHours: 30 }] : [],
+      slots: { player: this.save.name, npc: e.v.name, settlement: town.name, kind: town.kind, rank: 'Third-Rate', trade: 'grain', price: 'fair', ...(info.title ? { title: info.title } : {}) },
+    };
+  }
+
+  private addTalk(menu: NpcMenu, e: MEnt): void {
+    const traits = this.mockTraits(e.v.name);
+    menu.greeting = composeLine(this.talkInput(e, 'greet', e.v.id * 7 + Math.floor(Date.now() / 20000)))?.text ?? menu.greeting;
+    menu.talk = {
+      topics: [
+        { id: 'news', label: 'Any news?' },
+        { id: 'town', label: 'How is the town?' },
+        { id: 'folk', label: 'Who lives here?' },
+        { id: 'me', label: 'What do you think of me?' },
+        { id: 'blight', label: 'About the Blight' },
+        { id: 'work', label: 'About your work' },
+      ],
+      mood: traits.join(', '),
+      traits,
+    };
+    menu.standing = this.talkInput(e, 'greet', 0).standing;
+  }
+
+  private talkAnswer(id: number, topic: string): { lines: string[] } {
+    const e = this.ents.get(id);
+    if (!e?.npc) throw new MockRefusal('not_found', 'There is nobody there.');
+    if (!['news', 'town', 'folk', 'me', 'blight', 'work'].includes(topic)) throw new MockRefusal('bad_topic', 'They do not understand the question.');
+    const seed = e.v.id * 31 + (this.talkCount = (this.talkCount ?? 0) + 1);
+    const kinds: DlgRumorKind[] = ['fell', 'siege', 'famine', 'heartSealed', 'war', 'legendSeen'];
+    const other = this.world.settlements[(id + 1) % this.world.settlements.length];
+    const lines: string[] = [];
+    if (topic === 'news') {
+      for (let i = 0; i < 2; i++) {
+        const kind = kinds[(seed + i * 2) % kinds.length];
+        const truth = [0.9, 0.55, 0.25][(seed + i) % 3];
+        const inp = this.talkInput(e, 'rumor', seed + i);
+        inp.rumor = { kind, truth, about: 'other', slots: { 'rumor.place': other.name, 'rumor.who': 'Seo Mugyeom', 'rumor.faction': 'the Azure Cloud Sect', 'rumor.faction2': 'the Black Wind Bandits', 'rumor.age': 'two days ago', 'rumor.n': 'a dozen or so' } };
+        const out = composeLine(inp);
+        if (out) lines.push(out.text);
+      }
+    }
+    if (lines.length === 0) lines.push(composeLine(this.talkInput(e, topic as DlgInput['topic'], seed))?.text ?? 'They shrug.');
+    return { lines };
   }
 
   // ---- command handling ------------------------------------------------------------------------------------------------------------------
@@ -1194,6 +1270,8 @@ export class MockGame {
         if (!e?.npc) throw new Error('no such npc');
         return this.npcMenu(e) as Queries[N]['res'];
       }
+      case 'npcTalk':
+        return this.talkAnswer(a.id as number, a.topic as string) as Queries[N]['res'];
       case 'board': {
         const sid = a.settlement as number;
         const st = this.world.settlements.find((x) => x.id === sid);

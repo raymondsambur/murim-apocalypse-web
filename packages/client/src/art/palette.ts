@@ -30,11 +30,13 @@ export interface Ramp {
   l: Col;
   /** Deep shadow / outline-adjacent tone. */
   dd: Col;
+  /** Specular / rim highlight (lighter than `l`). */
+  hl: Col;
 }
 
 export function ramp(base: Col | string, dark = 0.72, light = 1.18): Ramp {
   const b = typeof base === 'string' ? hex(base) : base;
-  return { d: shade(b, dark), b, l: shade(b, light), dd: shade(b, dark * 0.7) };
+  return { d: shade(b, dark), b, l: shade(b, light), dd: shade(b, dark * 0.7), hl: shade(b, Math.min(1.9, light + 0.2)) };
 }
 
 const pick = <T>(arr: readonly T[], i: number): T => arr[((i % arr.length) + arr.length) % arr.length];

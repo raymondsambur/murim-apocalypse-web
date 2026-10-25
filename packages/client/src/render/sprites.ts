@@ -8,6 +8,7 @@ import { genMountainTile, type RockSource } from '../art/mountain';
 import { genWallTile, genBridgeRails } from '../art/walls';
 import { genBuilding, type BuildingArt, type BuildingSpec } from '../art/buildings';
 import { genCharacter, type CharSpec } from '../art/character';
+import { gearKey } from '../art/gear';
 import { genBeast, type BeastSpec } from '../art/beasts';
 import { genNode } from '../art/nodes';
 import { makeCanvas, makeSprite, pbToCanvas, type Sprite } from '../art/canvas';
@@ -37,6 +38,37 @@ export interface NodeSpriteSet {
 /** A sprite plus a lazily created white "hit flash" version. */
 export interface FlashSprite extends Sprite {
   flash?: HTMLCanvasElement;
+  /** Weapon tip (sprite px) and the rarity of weapon / outfit for dynamic effects. */
+  tip?: [number, number] | null;
+  /** Eye rects for the blink overlay. */
+  eyes?: { x: number; y: number; w: number; h: number; skin: string }[] | null;
+  wRar?: number;
+  oRar?: number;
+}
+
+/** Cache key of a character frame (exported for tests). */
+export function charKey(spec: CharSpec, dir: number = spec.dir): string {
+  const l = spec.look;
+  const g = spec.gear;
+  return `${l.gender}${l.skin}${l.hairStyle}${l.hairColor}${l.outfit}${l.outfitColor}${l.sashColor}${l.accessory}|${spec.weapon ?? '-'}|${spec.state}|${dir}|${spec.frame}|${spec.role ?? '-'}|${spec.faction ?? '-'}|${spec.elite ?? 0}|${spec.special ?? '-'}|${spec.tool ?? '-'}|${g ? gearKey(g) : '-'}|${spec.variant ?? 0}|${spec.wind ?? 0}|${spec.gaze ?? 0}|${spec.tilt ?? 0}|${spec.blink ? 1 : 0}`;
+}
+
+/** Horizontally mirrored copy of a sprite (anchor, tip and glow mirrored too). */
+export function flipSprite(s: FlashSprite): FlashSprite {
+  const cv = makeCanvas(s.w, s.h);
+  const g = cv.getContext('2d')!;
+  g.translate(s.w, 0);
+  g.scale(-1, 1);
+  g.drawImage(s.cv, 0, 0);
+  let glow: HTMLCanvasElement | undefined;
+  if (s.glow) {
+    glow = makeCanvas(s.glow.width, s.glow.height);
+    const gg = glow.getContext('2d')!;
+    gg.translate(glow.width, 0);
+    gg.scale(-1, 1);
+    gg.drawImage(s.glow, 0, 0);
+  }
+  return { cv, ax: s.w - 1 - s.ax, ay: s.ay, w: s.w, h: s.h, glow, top: s.top, tip: s.tip ? [s.w - 1 - s.tip[0], s.tip[1]] : s.tip, eyes: s.eyes ? s.eyes.map((e) => ({ ...e, x: s.w - e.x - e.w })) : s.eyes, wRar: s.wRar, oRar: s.oRar };
 }
 
 export class SpriteBank {
@@ -46,8 +78,11 @@ export class SpriteBank {
   private walls = new Map<number, Sprite>();
   private rails = new Map<number, Sprite>();
   private buildings = new LRU<string, BuildingSprite>(80);
-  private chars = new LRU<string, FlashSprite>(2600);
-  private beasts = new LRU<string, FlashSprite>(900);
+  /** West facings are drawn as cached mirrors of the east ones (generation is the expensive part). */
+  private chars = new LRU<string, { spr: FlashSprite; mir: FlashSprite | null }>(6000);
+  private beasts = new LRU<string, { spr: FlashSprite; mir: FlashSprite | null }>(2000);
+  /** Milliseconds of sprite generation still allowed this frame (stale frames are drawn beyond it). */
+  private genBudget = 0;
   private nodes = new Map<string, NodeSpriteSet>();
   private glows = new Map<string, HTMLCanvasElement>();
   private rock: RockSource;
@@ -174,31 +209,53 @@ export class SpriteBank {
 
   // ---- characters and monsters --------------------------------------------------------------
 
-  getChar(spec: CharSpec): FlashSprite {
-    const l = spec.look;
-    const key = `${l.gender}${l.skin}${l.hairStyle}${l.hairColor}${l.outfit}${l.outfitColor}${l.sashColor}${l.accessory}|${spec.weapon ?? '-'}|${spec.state}|${spec.dir}|${spec.frame}|${spec.role ?? '-'}|${spec.faction ?? '-'}|${spec.elite ?? 0}|${spec.special ?? '-'}|${spec.tool ?? '-'}`;
-    let s = this.chars.get(key);
-    if (!s) {
-      const g = genCharacter(spec);
-      s = makeSprite(g.pb, g.ax, g.ay);
-      s.top = g.top;
-      this.chars.set(key, s);
-      this.built.chars++;
-    }
-    return s;
+  /** Start a frame: set the sprite generation time budget (ms). */
+  beginFrame(budgetMs = 5): void {
+    this.genBudget = budgetMs;
   }
 
-  getBeast(spec: BeastSpec): FlashSprite {
-    const key = `${spec.key}|${spec.state}|${spec.dir}|${spec.frame}|${spec.elite ?? 0}`;
-    let s = this.beasts.get(key);
-    if (!s) {
-      const g = genBeast(spec);
-      s = makeSprite(g.pb, g.ax, g.ay);
+  getChar(spec: CharSpec, fallback: FlashSprite | null = null): FlashSprite {
+    const mirror = spec.dir === 1 || spec.dir === 2;
+    const cd = mirror ? (spec.dir === 1 ? 0 : 3) : spec.dir;
+    const key = charKey(spec, cd);
+    let e = this.chars.get(key);
+    if (!e) {
+      if (this.genBudget <= 0 && fallback) return fallback;
+      const t0 = performance.now();
+      const g = genCharacter(cd === spec.dir ? spec : { ...spec, dir: cd as 0 });
+      const s: FlashSprite = makeSprite(g.pb, g.ax, g.ay, g.glow);
       s.top = g.top;
-      this.beasts.set(key, s);
-      this.built.beasts++;
+      s.tip = g.tip;
+      s.eyes = g.eyes;
+      s.wRar = g.wRar;
+      s.oRar = g.oRar;
+      e = { spr: s, mir: null };
+      this.chars.set(key, e);
+      this.built.chars++;
+      this.genBudget -= performance.now() - t0;
     }
-    return s;
+    if (!mirror) return e.spr;
+    return (e.mir ??= flipSprite(e.spr));
+  }
+
+  getBeast(spec: BeastSpec, fallback: FlashSprite | null = null): FlashSprite {
+    const mirror = spec.dir === 1 || spec.dir === 2;
+    const cd = mirror ? (spec.dir === 1 ? 0 : 3) : spec.dir;
+    const key = `${spec.key}|${spec.state}|${cd}|${spec.frame}|${spec.elite ?? 0}|${spec.variant ?? 0}`;
+    let e = this.beasts.get(key);
+    if (!e) {
+      if (this.genBudget <= 0 && fallback) return fallback;
+      const t0 = performance.now();
+      const g = genBeast(cd === spec.dir ? spec : { ...spec, dir: cd as 0 });
+      const s: FlashSprite = makeSprite(g.pb, g.ax, g.ay, g.glow);
+      s.top = g.top;
+      e = { spr: s, mir: null };
+      this.beasts.set(key, e);
+      this.built.beasts++;
+      this.genBudget -= performance.now() - t0;
+    }
+    if (!mirror) return e.spr;
+    return (e.mir ??= flipSprite(e.spr));
   }
 
   getNode(kind: NodeKind, variant: number, frame: number): NodeSpriteSet {

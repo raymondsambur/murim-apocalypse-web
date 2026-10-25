@@ -2,7 +2,8 @@
  * Contract between the UI layer (src/ui, src/net, src/state, main.ts) and the world renderer (src/render, src/art).
  * The renderer owns the canvas; the UI never draws into it directly.
  */
-import type { CombatEvent, Dir, EntityPatch, EntityView, FxKind, Look, SettlementView, TimeView, WeaponType, WorldPayload } from '@murim/shared';
+import type { CharState, ToolKind } from '../art/anim';
+import type { CombatEvent, Dir, EntityPatch, EntityView, FxKind, GearLook, Look, SettlementView, TimeView, WeaponType, WorldPayload } from '@murim/shared';
 
 /** World payload with its grids decoded from base64. */
 export interface DecodedWorld {
@@ -87,9 +88,22 @@ export interface LookPreviewOptions {
   scale?: number;
   /** Walk/idle animation time in ms; omit for a still pose. */
   time?: number;
-  state?: 'idle' | 'walk' | 'fight' | 'meditate';
+  /**
+   * Animation state. 'idle' | 'walk' | 'fight' | 'meditate' as before; also 'run', 'attack' (use `variant`), 'hit', 'block',
+   * 'dodge', 'die', 'dead', 'work', 'craft', 'cheer', 'loot', 'stretch', 'sweep', 'chat', 'fan', 'wipe', 'form', 'draw',
+   * 'eat', 'pray', 'rest', 'trade', 'shelter', 'mourn'.
+   */
+  state?: CharState;
   /** Draw a soft ground shadow and backdrop. Default true. */
   backdrop?: boolean;
+  /** Equipped gear (tiers and rarities, as in EntityView.gear): outfit finery, weapon quality, accessory trinket. */
+  gear?: GearLook;
+  /** Attack animation variant (0-3). */
+  variant?: number;
+  /** Work tool for state 'work'. */
+  tool?: ToolKind;
+  /** Fixed frame instead of `time`. */
+  frame?: number;
 }
 
 /** Implemented in src/render/index.ts. */

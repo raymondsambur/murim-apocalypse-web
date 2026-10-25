@@ -18,5 +18,6 @@ export * from './data/monsters';
 export * from './data/origins';
 export * from './data/jobs';
 export * from './data/factions';
+export * from './data/dialogue';
 export * from './simtypes';
 export * from './protocol';

@@ -24,7 +24,7 @@ export interface MoveStateImpl extends MoveState {
 /** Internal, writable view of an entity. Only core modules use this type. */
 export type EntityImpl = { -readonly [K in keyof Entity]: Entity[K] } & { move: MoveStateImpl | null; cell: number };
 
-const EXTRA_KEYS = ['look', 'sprite', 'lv', 'hp', 'maxHp', 'tag', 'faction', 'role', 'elite', 'nodeKind', 'combatId', 'online', 'weapon', 'rank'] as const satisfies readonly (keyof EntityExtras)[];
+const EXTRA_KEYS = ['look', 'sprite', 'lv', 'hp', 'maxHp', 'tag', 'faction', 'role', 'elite', 'nodeKind', 'combatId', 'online', 'weapon', 'gear', 'act', 'rank'] as const satisfies readonly (keyof EntityExtras)[];
 
 export class EntityStoreImpl implements EntityStore {
   private nextId = 1;

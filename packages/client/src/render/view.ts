@@ -5,12 +5,14 @@
  */
 import { TILE_H, TILE_W, type CombatEvent, type EntityPatch, type EntityView, type FxKind, type SettlementView, type TimeView } from '@murim/shared';
 import type { DecodedWorld, GameViewApi, MinimapOptions, PickGesture, PickResult } from './api';
+import type { CharState, ToolKind } from '../art/anim';
 import { Camera } from './camera';
 import { ChunkManager } from './chunks';
 import { WorldClock } from './clock';
 import { EntityStore, type Ent } from './entities';
 import { Fx } from './fx';
 import { InputController, type GestureEvent } from './input';
+import { initMotionPreference } from './life';
 import { ART, clampZoom, cssToTile, makeFrameXf, snapZoom, tileToWorld, worldToTile, type FrameXf } from './iso';
 import { ambientAt, rgbStr, type Ambient } from './lighting';
 import { Minimap } from './minimap';
@@ -77,6 +79,7 @@ export class GameView implements GameViewApi {
     });
     this.resize();
     this.cam.zoom = this.cam.targetZoom = snapZoom(this.cam.targetZoom, this.dpr);
+    initMotionPreference();
   }
 
   // ---- lifecycle ---------------------------------------------------------------
@@ -216,21 +219,60 @@ export class GameView implements GameViewApi {
       const e = this.ents.map.get(id);
       return e ? { x: e.x, y: e.y } : null;
     };
-    for (const ev of events)
+    for (const ev of events) {
       this.fxs.combat(ev, now, pos, this.selfId, (a, d, crit) => {
         const ae = this.ents.map.get(a);
-        if (ae) ae.attackAt = now;
+        if (ae) {
+          ae.attackAt = now;
+          ae.attackIdx++;
+        }
         const de = this.ents.map.get(d);
         if (de) {
           de.hitAt = now;
           de.crit = crit;
+          if (ae) this.setBlowDir(de, ae);
         }
       });
+      if (ev.k === 'miss') {
+        // the defender sidesteps or blocks
+        const de = this.ents.map.get(ev.d);
+        const ae = this.ents.map.get(ev.s);
+        if (de) {
+          if (ae) this.setBlowDir(de, ae);
+          if ((de.id + de.attackIdx) % 2 === 0) de.dodgeAt = now;
+          else de.blockAt = now;
+        }
+      } else if (ev.k === 'heal') {
+        const de = this.ents.map.get(ev.d);
+        if (de) de.healAt = now;
+      }
+    }
+  }
+
+  /** Sandbox / tools: force an animation state on an entity (null clears). */
+  debugAnim(id: number, state: CharState | null, variant = 0, tool: ToolKind | null = null): void {
+    const e = this.ents.map.get(id);
+    if (e) e.force = state ? { state, variant, tool, t0: performance.now() } : null;
+  }
+
+  /** Unit-ish screen direction of a blow from attacker to defender (for the knock-back). */
+  private setBlowDir(de: Ent, ae: Ent): void {
+    const sx = de.x - de.y - (ae.x - ae.y);
+    const sy = (de.x + de.y - (ae.x + ae.y)) * 0.5;
+    const l = Math.hypot(sx, sy) || 1;
+    de.hitDx = sx / l;
+    de.hitDy = sy / l;
   }
 
   fx(kind: FxKind, entityId?: number, text?: string): void {
     const now = performance.now();
     const e = entityId !== undefined ? this.ents.map.get(entityId) : this.selfId !== null ? this.ents.map.get(this.selfId) : undefined;
+    if (e) {
+      // emote poses
+      if (kind === 'levelup' || kind === 'breakthrough') e.cheerAt = now;
+      else if (kind === 'loot' || kind === 'gather') e.lootAt = now;
+      else if (kind === 'heal') e.healAt = now;
+    }
     let x: number;
     let y: number;
     if (e) {

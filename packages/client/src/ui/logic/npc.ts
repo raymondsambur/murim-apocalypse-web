@@ -1,7 +1,7 @@
 /** NPC dialog logic: which tabs exist, shop arithmetic, and mission-board gating. Pure. */
 import { MAX_ACTIVE_MISSIONS, getItem, rankOf, stackValue, type ActiveMission, type ItemStack, type MeView, type MissionOffer, type NpcMenu, type ShopEntry } from '@murim/shared';
 
-export type NpcTab = 'shop' | 'teach' | 'missions' | 'rest' | 'disciple';
+export type NpcTab = 'shop' | 'teach' | 'missions' | 'rest' | 'disciple' | 'talk';
 
 /** Roles that post or review the settlement mission board. */
 const BOARD_ROLES = new Set(['elder', 'guard', 'master', 'legend', 'innkeeper']);
@@ -13,6 +13,7 @@ export function npcTabs(menu: NpcMenu): NpcTab[] {
   if (menu.turnIns.length > 0 || BOARD_ROLES.has(menu.role)) out.push('missions');
   if (menu.restPrice !== undefined) out.push('rest');
   if (menu.disciple) out.push('disciple');
+  if (menu.talk) out.push('talk');
   return out;
 }
 

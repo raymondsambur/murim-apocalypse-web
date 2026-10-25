@@ -16,6 +16,7 @@ import type {
   ActiveMission,
   CharacterSave,
   EquipSlot,
+  GearLook,
   ItemStack,
   JobId,
   Loadout,
@@ -129,11 +130,33 @@ export interface EntityView {
   /** For players: false when the character is an offline worker/trainer. */
   online?: boolean;
   weapon?: WeaponType;
+  /** Visible equipment summary (weapon/outfit/accessory tier + rarity) so sprites can show finery. */
+  gear?: GearLook;
+  /** NPC activity cue (see NpcAct). */
+  act?: NpcAct;
   /** Rank 1..8, shown as a name colour. */
   rank?: number;
 }
 
 export type EntityPatch = Partial<Omit<EntityView, 'id' | 'kind'>> & { id: number };
+
+/**
+ * What an NPC is doing right now (server-driven by the NPC life system). The renderer plays a matching
+ * in-place animation while the entity is standing still. Absent = no cue (renderer may use ambient fidgets).
+ */
+export type NpcAct =
+  | 'work'
+  | 'eat'
+  | 'chat'
+  | 'pray'
+  | 'sweep'
+  | 'rest'
+  | 'patrol'
+  | 'trade'
+  | 'train'
+  | 'shelter'
+  | 'mourn'
+  | 'celebrate';
 
 // ---------------------------------------------------------------------------
 // Views sent to the client
@@ -263,6 +286,15 @@ export interface NpcMenu {
   restPrice?: number;
   /** For masters: can this player be accepted as a disciple? */
   disciple?: { ok: boolean; reason?: string; already: boolean };
+  /** Rule-based conversation (npc-life-memory): topics the player can ask about, and how the NPC comes across. */
+  talk?: {
+    topics: { id: string; label: string }[];
+    /** The NPC's temperament as a short line, e.g. "gruff, weary". */
+    mood?: string;
+    traits?: string[];
+  };
+  /** How this settlement regards the player (from its memory of their deeds). */
+  standing?: 'unknown' | 'noted' | 'welcomed' | 'honoured' | 'feared' | 'despised';
 }
 
 export interface SectMember {
@@ -365,6 +397,8 @@ export interface LeaderEntry {
 
 export interface Queries {
   npc: { args: { id: number }; res: NpcMenu };
+  /** Ask an NPC about a topic (`news`, `town`, `folk`, `me`, `blight`, `work`); answers with composed lines. */
+  npcTalk: { args: { id: number; topic: string }; res: { lines: string[] } };
   board: { args: { settlement: number }; res: { offers: MissionOffer[]; settlement: SettlementView } };
   world: { args: Record<string, never>; res: WorldInfo };
   chronicle: { args: { before?: number; limit?: number }; res: ChronicleEntry[] };

@@ -12,7 +12,7 @@
  *  - When it stops, the patch carries x, y, nx = x, ny = y and step = 0.
  *  - An `add` for an id the client already knows replaces that entity entirely.
  */
-import { AOI_RADIUS, type EntityPatch, type EntityView, type Look, type S2C } from '@murim/shared';
+import { AOI_RADIUS, sameGearLook, type EntityPatch, type EntityView, type GearLook, type Look, type S2C } from '@murim/shared';
 import type { Entity } from '../ctx';
 import { EXTRA_KEYS, viewOf, type EntityImpl, type EntityStoreImpl } from './entities';
 
@@ -54,6 +54,7 @@ export function diffViews(prev: EntityView, next: EntityView, stepChanged: boole
     const b = next[k];
     if (a === b) continue;
     if (k === 'look' && a !== undefined && b !== undefined && sameLook(a as Look, b as Look)) continue;
+    if (k === 'gear' && sameGearLook(a as GearLook | undefined, b as GearLook | undefined)) continue;
     if (b === undefined) return 'replace';
     out[k] = b;
     n++;

@@ -19,7 +19,9 @@ import type {
   EntityKind,
   EntityState,
   EntityView,
+  GearLook,
   Look,
+  NpcAct,
   MeView,
   NodeKind,
   NoteLevel,
@@ -102,6 +104,8 @@ export interface NpcEntityData {
   /** Wandering is paused until this time (set when a player talks to the NPC). */
   holdUntil: number;
   nextWanderAt: number;
+  /** Set by the NPC life system (`systems/npclife.ts`): when true the built-in random wander leaves this NPC alone. */
+  driven?: boolean;
 }
 
 /** `NPC_DATA.get(entity)?.npcId` maps an npc entity to its sim NPC. */
@@ -150,6 +154,10 @@ export interface EntityExtras {
   /** Players: false when the character is an offline worker. */
   online?: boolean;
   weapon?: WeaponType;
+  /** Visible equipment summary; replace the object (don't mutate) when it changes, then touch. */
+  gear?: GearLook;
+  /** NPC activity cue sent to clients (set by the NPC life system). */
+  act?: NpcAct;
   rank?: number;
 }
 

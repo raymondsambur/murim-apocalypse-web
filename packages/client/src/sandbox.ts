@@ -6,6 +6,7 @@
 import {
   FACTIONS,
   Rng,
+  STAT_KEYS,
   WEAPON_TYPES,
   findPath,
   generateWorld,
@@ -14,7 +15,11 @@ import {
   type CombatEvent,
   type EntityView,
   type FxKind,
+  type GearLook,
   type Look,
+  type NpcAct,
+  type StatKey,
+  type WeaponType,
   type NpcRole,
   type SettlementView,
   type TimeView,
@@ -22,7 +27,9 @@ import {
   type WorldPayload,
 } from '@murim/shared';
 import type { DecodedWorld } from './render/api';
-import { createGameView } from './render/index';
+import { FRAME_COUNTS, type CharState } from './art/anim';
+import { ACT_STATE } from './render/life';
+import { createGameView, drawLookPreview } from './render/index';
 import type { GameView } from './render/view';
 
 function encode(bytes: Uint8Array): string {
@@ -313,6 +320,8 @@ panel.innerHTML = `
 <h4>Settlement 0..7</h4><div class="row" id="settle"></div>
 <h4>FX on you</h4><div class="row" id="fxs"></div>
 <div class="row"><button id="sayb">say</button><button id="combat">combat burst</button></div>
+<h4>Gear and animation lab (applies to you)</h4>
+<div id="lab"></div>
 </div>`;
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const mk = (parent: HTMLElement, label: string, fn: () => void): void => {
@@ -379,6 +388,168 @@ el('collapse').onclick = () => {
   const b = el('body');
   b.style.display = b.style.display === 'none' ? '' : 'none';
 };
+// ---- gear / animation lab ------------------------------------------------------------------------
+const lab = {
+  oT: Number(params.get('oT') ?? 0),
+  oR: Number(params.get('oR') ?? 0),
+  wType: (params.get('w') ?? 'sword') as WeaponType | 'none',
+  wT: Number(params.get('wT') ?? 0),
+  wR: Number(params.get('wR') ?? 0),
+  aK: (params.get('aK') ?? 'none') as StatKey | 'none',
+  aT: Number(params.get('aT') ?? 3),
+  aR: Number(params.get('aR') ?? 0),
+  state: (params.get('state') ?? 'auto') as CharState | 'auto',
+  variant: Number(params.get('variant') ?? 0),
+  dir: Number(params.get('dir') ?? 0),
+};
+const STATES: (CharState | 'auto')[] = ['auto', 'idle', 'walk', 'run', 'draw', 'fight', 'attack', 'hit', 'block', 'dodge', 'die', 'dead', 'meditate', 'work', 'craft', 'cheer', 'loot', 'stretch', 'sweep', 'chat', 'fan', 'wipe', 'form', 'eat', 'pray', 'rest', 'trade', 'shelter', 'mourn'];
+const ACTS = ['none', 'work', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate'] as const;
+let labAct: (typeof ACTS)[number] = 'none';
+function labGear(): GearLook | undefined {
+  const g: GearLook = {};
+  if (lab.oT > 0) g.o = { t: lab.oT, r: lab.oR };
+  if (lab.wT > 0 && lab.wType !== 'none') g.w = { t: lab.wT, r: lab.wR };
+  if (lab.aK !== 'none') g.a = { k: lab.aK, t: lab.aT, r: lab.aR };
+  return g.o || g.w || g.a ? g : undefined;
+}
+function labApply(): void {
+  const gear = labGear();
+  const self = ents.get(SELF)!;
+  self.gear = gear;
+  self.weapon = lab.wType === 'none' ? undefined : lab.wType;
+  view.applyEntities({ upd: [{ id: SELF, gear, weapon: self.weapon, face: lab.dir as 0 }] });
+  const e = view.entity(SELF);
+  if (e) e.face = lab.dir as 0;
+  view.debugAnim(SELF, lab.state === 'auto' ? null : lab.state, lab.variant, lab.state === 'work' ? 'hammer' : null);
+  if (galleryOn) buildGallery();
+}
+const labEl = el('lab');
+const sel = (label: string, opts: (string | number)[], cur: string | number, fn: (v: string) => void): void => {
+  const l = document.createElement('label');
+  l.append(label);
+  const s2 = document.createElement('select');
+  for (const o of opts) {
+    const op = document.createElement('option');
+    op.value = String(o);
+    op.textContent = String(o);
+    if (String(o) === String(cur)) op.selected = true;
+    s2.appendChild(op);
+  }
+  s2.onchange = () => {
+    fn(s2.value);
+    labApply();
+  };
+  l.appendChild(s2);
+  labEl.appendChild(l);
+};
+sel('outfit tier', [0, 1, 2, 3, 4, 5], lab.oT, (v) => (lab.oT = Number(v)));
+sel('outfit rarity', [0, 1, 2, 3, 4], lab.oR, (v) => (lab.oR = Number(v)));
+sel('weapon', ['none', ...WEAPON_TYPES], lab.wType, (v) => (lab.wType = v as WeaponType));
+sel('weapon tier', [0, 1, 2, 3, 4, 5], lab.wT, (v) => (lab.wT = Number(v)));
+sel('weapon rarity', [0, 1, 2, 3, 4], lab.wR, (v) => (lab.wR = Number(v)));
+sel('accessory', ['none', ...STAT_KEYS], lab.aK, (v) => (lab.aK = v as StatKey));
+sel('accessory tier', [1, 2, 3, 4, 5], lab.aT, (v) => (lab.aT = Number(v)));
+sel('accessory rarity', [0, 1, 2, 3, 4], lab.aR, (v) => (lab.aR = Number(v)));
+sel('state', STATES, lab.state, (v) => (lab.state = v as CharState));
+sel('attack variant', [0, 1, 2, 3], lab.variant, (v) => (lab.variant = Number(v)));
+sel('direction', [0, 1, 2, 3], lab.dir, (v) => (lab.dir = Number(v)));
+sel('NPC act (all NPCs)', [...ACTS], 'none', (v) => {
+  labAct = v as (typeof ACTS)[number];
+  const upd = [...ents.values()].filter((x) => x.kind === 'npc').map((x) => ({ id: x.id, act: labAct === 'none' ? undefined : (labAct as NpcAct) }));
+  view.applyEntities({ upd });
+  if (galleryOn) buildGallery();
+});
+const labRow = document.createElement('div');
+labRow.className = 'row';
+labEl.appendChild(labRow);
+mk(labRow, 'reroll look', () => {
+  const lk = randLook();
+  const self = ents.get(SELF)!;
+  self.look = lk;
+  view.applyEntities({ upd: [{ id: SELF, look: lk }] });
+  if (galleryOn) buildGallery();
+});
+mk(labRow, 'gallery', () => toggleGallery());
+mk(labRow, 'crowd', () => toggleCrowd());
+mk(labRow, 'max gear', () => {
+  Object.assign(lab, { oT: 5, oR: 4, wT: 5, wR: 4, aK: 'spirit', aT: 5, aR: 4 });
+  const vals = [5, 4, lab.wType, 5, 4, 'spirit', 5, 4];
+  labEl.querySelectorAll('select').forEach((s3, i) => {
+    if (i < vals.length) s3.value = String(vals[i]);
+  });
+  labApply();
+});
+
+// gallery: one character large, all frames of the chosen state
+let galleryOn = false;
+const gal = document.createElement('div');
+gal.style.cssText = 'position:fixed;inset:0;z-index:20;background:rgba(13,24,35,0.96);overflow:auto;display:none;padding:12px 260px 12px 12px;align-content:flex-start;flex-wrap:wrap;gap:6px;';
+document.body.appendChild(gal);
+function buildGallery(): void {
+  gal.innerHTML = '';
+  const self = ents.get(SELF)!;
+  const st = (labAct !== 'none' ? ACT_STATE[labAct as NpcAct].state : lab.state === 'auto' ? 'idle' : lab.state) as CharState;
+  const n = FRAME_COUNTS[st];
+  const tool = st === 'work' ? 'hammer' : undefined;
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement('canvas');
+    c.width = 240;
+    c.height = 340;
+    c.style.cssText = 'border:1px solid #3a3040;border-radius:4px;image-rendering:pixelated;background:#17121d';
+    c.title = `${st} frame ${i}`;
+    gal.appendChild(c);
+    drawLookPreview(c, self.look!, { state: st, frame: i, dir: lab.dir as 0, weapon: self.weapon, gear: self.gear, variant: lab.variant, tool, scale: 5, backdrop: true });
+  }
+  const live = document.createElement('canvas');
+  live.width = 240;
+  live.height = 340;
+  live.style.cssText = 'border:1px solid #d9b867;border-radius:4px;image-rendering:pixelated;background:#17121d';
+  gal.appendChild(live);
+  const tick = (t: number): void => {
+    if (!galleryOn || !live.isConnected) return;
+    drawLookPreview(live, self.look!, { state: st, time: t, dir: lab.dir as 0, weapon: self.weapon, gear: self.gear, variant: lab.variant, tool, scale: 5 });
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function toggleGallery(): void {
+  galleryOn = !galleryOn;
+  gal.style.display = galleryOn ? 'flex' : 'none';
+  if (galleryOn) buildGallery();
+}
+gal.onclick = (ev) => {
+  if (ev.target === gal) toggleGallery();
+};
+
+// crowd toggle (performance test): +60 walkers around you
+let crowdIds: number[] = [];
+function toggleCrowd(): void {
+  if (crowdIds.length) {
+    view.applyEntities({ del: crowdIds });
+    for (const id of crowdIds) {
+      ents.delete(id);
+      walkers.delete(id);
+    }
+    crowdIds = [];
+    return;
+  }
+  const self = ents.get(SELF)!;
+  for (let i = 0; i < 60; i++) {
+    const [x, y] = nearPassable(self.x, self.y, 8);
+    const w = rng.pick(WEAPON_TYPES);
+    const t = rng.int(1, 5);
+    const e = spawnEnt(
+      { kind: 'player', name: `P${i}`, x, y, face: rng.int(0, 3) as 0, state: 'idle', look: randLook(), weapon: w, rank: rng.int(1, 8), online: true, gear: { o: { t, r: rng.int(0, 4) }, w: { t: rng.int(1, 5), r: rng.int(0, 4) }, a: { k: rng.pick([...STAT_KEYS]), t: rng.int(1, 5), r: rng.int(0, 3) } } },
+      { center: [self.x, self.y], radius: 8, stepMs: rng.int(240, 520) },
+    );
+    crowdIds.push(e.id);
+  }
+}
+(window as unknown as { lab: unknown }).lab = { lab, apply: labApply, gallery: toggleGallery, crowd: toggleCrowd, ents };
+if (lab.oT || lab.wT || lab.aK !== 'none' || lab.state !== 'auto') labApply();
+if (params.get('crowd') === '1') toggleCrowd();
+if (params.get('gallery') === '1') toggleGallery();
+
 if (params.get('panel') === '0') panel.style.display = 'none';
 if (innerWidth < 640) el('body').style.display = 'none';
 
@@ -442,7 +613,6 @@ const zoom = params.get('zoom');
 if (zoom) view.setZoom(Number(zoom));
 
 // ---- look preview (character creation widget test) ---------------------------------------------------
-import { drawLookPreview } from './render/index';
 {
   const pv = document.createElement('canvas');
   pv.width = 150;

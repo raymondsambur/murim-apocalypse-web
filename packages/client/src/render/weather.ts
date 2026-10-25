@@ -199,5 +199,19 @@ function makeSoftBlob(w: number, h: number, rgbaPrefix: string): HTMLCanvasEleme
     g.fillStyle = grd;
     g.fillRect(0, 0, w, h);
   }
+  // The blobs' gradients reach past the texture, which left hard rectangular edges when drawn.
+  // Fade everything to fully transparent at the borders with an elliptical mask.
+  g.globalCompositeOperation = 'destination-in';
+  g.save();
+  g.translate(w / 2, h / 2);
+  g.scale(w / 2, h / 2);
+  const mask = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+  mask.addColorStop(0, 'rgba(0,0,0,1)');
+  mask.addColorStop(0.5, 'rgba(0,0,0,0.9)');
+  mask.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = mask;
+  g.fillRect(-1, -1, 2, 2);
+  g.restore();
+  g.globalCompositeOperation = 'source-over';
   return c;
 }

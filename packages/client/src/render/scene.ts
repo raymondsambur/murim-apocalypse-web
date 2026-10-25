@@ -4,8 +4,12 @@
  * tiles is needed. Also collects night lights, window glow layers and smoke emitters.
  */
 import { O, T, FACTION_BY_ID, type Dir, type NodeKind } from '@murim/shared';
-import { BEAST_KEYS, BEAST_FRAMES, type BeastKey } from '../art/beasts';
-import { FRAME_COUNTS, stateFromEntity, type CharSpec, type CharState, type SpecialStyle } from '../art/character';
+import { BEAST_KEYS, type BeastKey } from '../art/beasts';
+import type { CharSpec, SpecialStyle } from '../art/character';
+import type { ToolKind } from '../art/anim';
+import { gearFor, rarityCol } from '../art/gear';
+import { newBeastPick, newPick, pickBeast, pickChar, reactionOffset, windLevel, motion, type AnimPick, type BeastPick, type PickEnv } from './life';
+import { PCOL, PK, Particles } from './particles';
 import { ihash } from '../art/noise';
 import { factionColor } from '../art/palette';
 import { NODE_FRAMES } from '../art/nodes';
@@ -60,6 +64,12 @@ export class SceneRenderer {
   selectedId: number | null = null;
   selfId: number | null = null;
   wind = 0.2;
+  readonly particles = new Particles();
+  private pick: AnimPick = newPick();
+  private bpick: BeastPick = newBeastPick();
+  private react = { x: 0, y: 0 };
+  private spec: CharSpec = { look: lookFromId(0), state: 'idle', dir: 0, frame: 0 };
+  private env: PickEnv;
   private dyn: Dyn[] = [];
   private dynPool: Dyn[] = [];
   private smokeNext = new Map<number, number>();
@@ -84,6 +94,7 @@ export class SceneRenderer {
     private ents: EntityStore,
   ) {
     for (let i = 0; i < 3; i++) this.mist.push(makeMist(i));
+    this.env = { now: 0, moving: false, ents, wind: 0, weapon: null, hollow: false, hasHuman: true, toolFor: (e) => this.toolFor(e) };
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -173,6 +184,8 @@ export class SceneRenderer {
    */
   draw(s: CanvasRenderingContext2D, ax0: number, ay0: number, bw: number, bh: number, now: number, dt: number): void {
     const w = this.world;
+    this.windLvl = windLevel(this.wind);
+    this.bank.beginFrame();
     this.lights.length = 0;
     this.glowLayers.length = 0;
     this.drawnEnts.length = 0;
@@ -233,6 +246,8 @@ export class SceneRenderer {
 
     // move target marker sits on the ground, under everything sorted
     this.drawMoveTarget(s, ax0, ay0, now);
+    this.particles.update(dt);
+    this.particles.drawGround(s, ax0, ay0);
 
     // --- sweep the diagonals --------------------------------------------------------------------
     const terrain = w.terrain;
@@ -293,6 +308,7 @@ export class SceneRenderer {
       }
     }
     flush(1e9);
+    this.particles.drawAir(s, ax0, ay0);
     this.updateSmoke(s, ax0, ay0, now, dt);
   }
 
@@ -347,23 +363,117 @@ export class SceneRenderer {
 
   // ---- entities ------------------------------------------------------------------------------------
 
+  /** Tool a working entity swings (by role, farmland or the nearest resource node). */
+  private toolFor(e: Ent): ToolKind | null {
+    if (e.tool !== null && this.nowRef - e.toolAt < 2500) return e.tool as ToolKind;
+    let tool: ToolKind = 'hammer';
+    const role = e.v.role;
+    if (role === 'smith') tool = 'hammer';
+    else {
+      const t = this.world.terrainAt(Math.round(e.x), Math.round(e.y));
+      let node: string | null = null;
+      let bd = 2.4 * 2.4;
+      for (const o of this.ents.map.values()) {
+        if (o.v.kind !== 'node') continue;
+        const dx = o.x - e.x;
+        const dy = o.y - e.y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) {
+          bd = d;
+          node = o.v.nodeKind ?? null;
+        }
+      }
+      if (node === 'ore') tool = 'pick';
+      else if (node === 'herb' || node === 'rareHerb') tool = 'herb';
+      else if (t === T.Farm) tool = e.seed < 0.5 ? 'hoe' : 'sickle';
+      else if (role === 'villager' || role === 'wanderer' || e.v.kind === 'player') tool = e.seed < 0.5 ? 'hoe' : 'pick';
+    }
+    e.tool = tool;
+    e.toolAt = this.nowRef;
+    return tool;
+  }
+
+  private nowRef = 0;
+
+  /** Screen-space sign (-1/+1) toward the nearest neighbour, or `fallback`. */
+  private lookSign(e: Ent, fallback: number): number {
+    let best = 0;
+    let bd = 5 * 5;
+    for (const o of this.ents.map.values()) {
+      if (o === e || o.v.kind === 'node') continue;
+      const dx = o.x - e.x;
+      const dy = o.y - e.y;
+      const d = dx * dx + dy * dy;
+      if (d < bd) {
+        bd = d;
+        best = (o.x - o.y) - (e.x - e.y);
+      }
+    }
+    return Math.abs(best) > 0.6 ? (best > 0 ? 1 : -1) : fallback;
+  }
+
+  /** Dust, splashes and winter prints at a footfall. */
+  private footfall(e: Ent, wx: number, wy: number): void {
+    if (motion.reduced) return;
+    const t = this.world.terrainAt(Math.round(e.x), Math.round(e.y));
+    const pr = this.particles;
+    const r = e.seed;
+    if (t === T.Water) {
+      for (let i = 0; i < 4; i++) pr.spawn(PK.Splash, wx + (i - 1.5) * 1.6, wy - 1, (i - 1.5) * 14 + (r - 0.5) * 10, -34 - i * 6, 340, i & 1 ? PCOL.white : PCOL.water);
+      return;
+    }
+    const snowy = this.bank.season === 3 && (t === T.Grass || t === T.Plains || t === T.Forest || t === T.Hill || t === T.Snow || t === T.Dirt || t === T.Farm);
+    if (snowy) {
+      pr.spawn(PK.Print, wx - 3 + (r > 0.5 ? 0 : 5), wy - 1, 0, 0, 5200, PCOL.snowPrint);
+      return;
+    }
+    if (t === T.Dirt || t === T.Sand || t === T.Farm || t === T.Road) {
+      const col = t === T.Sand ? PCOL.sand : t === T.Road ? PCOL.grey : PCOL.dirt;
+      pr.spawn(PK.Dust, wx - 2 + r * 4, wy - 1, -6 + r * 12, -10, 460, col);
+      pr.spawn(PK.Dust, wx + 1 + r * 3, wy, 5, -7, 380, col);
+    }
+  }
+
+  private drawGlowLayer(s: CanvasRenderingContext2D, gl: HTMLCanvasElement, dx: number, dy: number, now: number, e: Ent, rar: number): void {
+    s.globalCompositeOperation = 'lighter';
+    if (motion.reduced) {
+      s.globalAlpha = 0.5;
+      s.drawImage(gl, dx, dy);
+    } else {
+      const ph = now / 380 + e.seed * 6.28;
+      const bands = 3;
+      const bh = Math.ceil(gl.height / bands);
+      for (let b = 0; b < bands; b++) {
+        const y0 = b * bh;
+        const h = Math.min(bh, gl.height - y0);
+        if (h <= 0) break;
+        s.globalAlpha = rar >= 4 ? 0.6 + 0.3 * Math.sin(ph * 0.7 + b * 0.5) : 0.3 + 0.6 * Math.max(0, Math.sin(ph - b * 0.9));
+        s.drawImage(gl, 0, y0, gl.width, h, dx, dy + y0, gl.width, h);
+      }
+    }
+    s.globalAlpha = 1;
+    s.globalCompositeOperation = 'source-over';
+  }
+
   private drawEntity(s: CanvasRenderingContext2D, e: Ent, ax0: number, ay0: number, now: number): void {
     const v = e.v;
+    this.nowRef = now;
     const moving = isMoving(e.motion, now);
-    let ax = (e.x - e.y) * 16 - ax0;
-    let ay = (e.x + e.y) * 8 - ay0 + 1;
-    const sinceHit = now - e.hitAt;
-    if (sinceHit < 120 && sinceHit >= 0) ax += (e.id & 1 ? 1 : -1) * (sinceHit < 60 ? 1 : 0);
-    ax = Math.round(ax);
-    ay = Math.round(ay);
-    const dir: Dir = (moving ? e.face : v.face) ?? 0;
+    reactionOffset(e, now, this.react);
+    const wx = (e.x - e.y) * 16;
+    const wy = (e.x + e.y) * 8 + 1;
+    const ax = Math.round(wx - ax0 + this.react.x);
+    const ay = Math.round(wy - ay0 + this.react.y);
+    let dir: Dir = (moving ? e.face : v.face) ?? 0;
     let spr: FlashSprite | null = null;
     let nodeSet: ReturnType<SpriteBank['getNode']> | null = null;
     let shadowR = 7;
-    const sinceAtk = now - e.attackAt;
-    const attackFrame = sinceAtk < 160 ? 1 : sinceAtk < 420 ? 2 : 0;
-    const attacking = sinceAtk < 600;
+    const sinceHit = now - e.hitAt;
     const phase = now + e.t0;
+    const pk = this.pick;
+    let human = false;
+    let beast = false;
+    let mirror = false;
 
     if (v.kind === 'node') {
       const kind = (v.nodeKind ?? 'herb') as NodeKind;
@@ -374,59 +484,70 @@ export class SceneRenderer {
       shadowR = kind === 'heart' ? 34 : kind === 'ore' ? 12 : 8;
     } else if (v.kind === 'monster' && v.sprite && BEAST_KEYS.includes(v.sprite as BeastKey)) {
       const key = v.sprite as BeastKey;
-      let state: 'idle' | 'walk' | 'fight' | 'dead' = v.state === 'dead' ? 'dead' : moving ? 'walk' : v.state === 'fight' || attacking ? 'fight' : 'idle';
-      const fr = BEAST_FRAMES[state];
-      let frame = 0;
-      if (state === 'walk') frame = Math.floor(phase / (Math.min(v.step ?? 420, 600) * 0.3)) % fr;
-      else if (state === 'idle') frame = Math.floor(phase / 700) % fr;
-      else if (state === 'fight') frame = attacking ? attackFrame : 0;
-      if (state === 'fight' && !attacking) state = 'fight';
-      spr = this.bank.getBeast({ key, state, dir, frame, elite: v.elite ?? 0 });
+      const bp = this.bpick;
+      pickBeast(e, now, moving, key === 'wolf_blight', key === 'snake', bp);
+      spr = this.bank.getBeast({ key, state: bp.state, dir, frame: bp.frame, elite: v.elite ?? 0, variant: bp.variant }, e.lastSpr);
       shadowR = key === 'bear' ? 16 : key === 'tiger' ? 15 : key === 'snake' ? 10 : 12;
-    } else {
-      const special: SpecialStyle = v.kind === 'monster' && v.sprite && SPECIAL_KEYS.has(v.sprite) ? (v.sprite as SpecialStyle) : v.kind === 'monster' ? 'bandit' : 'none';
-      let state: CharState = v.state === 'dead' ? 'dead' : moving ? 'walk' : stateFromEntity(v.state);
-      if (state === 'walk' && !moving) state = 'idle';
-      if (attacking && state !== 'dead') state = 'fight';
-      const fr = FRAME_COUNTS[state];
-      let frame = 0;
-      switch (state) {
-        case 'walk':
-          frame = Math.floor(phase / (Math.min(v.step ?? 420, 600) * 0.28)) % fr;
-          break;
-        case 'idle':
-          frame = Math.floor(phase / 650) % fr;
-          break;
-        case 'fight':
-          frame = attacking ? attackFrame : 0;
-          break;
-        case 'work':
-          frame = Math.floor(phase / 280) % fr;
-          break;
-        case 'meditate':
-          frame = Math.floor(phase / 900) % fr;
-          break;
+      beast = true;
+      const fk = bp.frame + 16 * (bp.state === 'walk' ? 1 : 0);
+      if (fk !== e.lastFrame) {
+        e.lastFrame = fk;
+        if (bp.state === 'walk' && key !== 'snake' && (bp.frame === 0 || bp.frame === 4)) this.footfall(e, wx, wy);
       }
+    } else {
+      human = true;
+      const special: SpecialStyle = v.kind === 'monster' && v.sprite && SPECIAL_KEYS.has(v.sprite) ? (v.sprite as SpecialStyle) : v.kind === 'monster' ? 'bandit' : 'none';
       const role = v.role ?? null;
       const faction = v.faction && FACTION_BY_ID[v.faction] ? FACTION_BY_ID[v.faction].color : null;
-      const spec: CharSpec = {
-        look: v.look ?? lookFromId(e.id),
-        weapon: v.weapon ?? (special !== 'none' ? HUMAN_WEAPON[special] : role === 'guard' ? 'spear' : null),
-        state,
-        dir,
-        frame,
-        role,
-        faction,
-        elite: v.elite ?? 0,
-        special,
-        tool: role === 'smith' || role === 'alchemist' || role === 'innkeeper' ? 'hammer' : 'hoe',
-      };
-      spr = this.bank.getChar(spec);
+      const weapon = v.weapon ?? (special !== 'none' ? HUMAN_WEAPON[special] : role === 'guard' ? 'spear' : null);
+      const env = this.env;
+      env.now = now;
+      env.moving = moving;
+      env.weapon = weapon;
+      env.hollow = special.startsWith('hollow');
+      env.hasHuman = true;
+      pickChar(e, env, pk);
+      if (pk.dir >= 0) dir = pk.dir as Dir;
+      mirror = dir === 1 || dir === 2;
+      let gz = pk.gaze;
+      if (gz !== 0 && !env.hollow) gz = this.lookSign(e, gz);
+      // head fidgets hold the body at one of two frames so the cache stays small
+      if ((gz !== 0 || pk.tilt !== 0) && pk.state === 'idle') pk.frame = pk.frame < 4 ? 0 : 4;
+      const spec = this.spec;
+      spec.look = v.look ?? lookFromId(e.id);
+      spec.weapon = weapon;
+      spec.state = pk.state;
+      spec.dir = dir;
+      spec.frame = pk.frame;
+      spec.role = role;
+      spec.faction = faction;
+      spec.elite = v.elite ?? 0;
+      spec.special = special;
+      spec.tool = pk.tool ?? (role === 'smith' || role === 'alchemist' || role === 'innkeeper' ? 'hammer' : undefined);
+      spec.gear = gearFor(v.gear, role, special !== 'none' ? special : null);
+      spec.variant = pk.variant;
+      spec.wind = this.windLvl;
+      spec.gaze = mirror ? -gz : gz;
+      spec.tilt = pk.tilt;
+      spec.blink = false;
+      spr = this.bank.getChar(spec, e.lastSpr);
       shadowR = special === 'hollow_lord' ? 15 : special === 'hollow_brute' || special === 'bandit_boss' ? 11 : 7.5;
+      if (pk.state === 'dead' || pk.state === 'die') shadowR += 2;
+      // footfalls and event effects
+      const fk = pk.frame + 16 * (pk.state === 'walk' ? 1 : pk.state === 'run' ? 2 : pk.state === 'work' ? 3 : 0);
+      if (fk !== e.lastFrame) {
+        e.lastFrame = fk;
+        if (pk.state === 'walk' && (pk.frame === 0 || pk.frame === 4)) this.footfall(e, wx, wy);
+        else if (pk.state === 'run' && (pk.frame === 0 || pk.frame === 3)) this.footfall(e, wx, wy);
+        else if (pk.state === 'work' && pk.frame === 3 && !motion.reduced && (pk.tool === 'hammer' || pk.tool === 'pick')) {
+          for (let i = 0; i < 4; i++) this.particles.spawn(PK.Spark, wx + (mirror ? -1 : 1) * (14 + i), wy - 7, (mirror ? -1 : 1) * (14 + i * 9), -38 - i * 6, 300, i & 1 ? PCOL.gold : PCOL.white);
+        }
+      }
     }
     if (!spr) return;
+    e.lastSpr = spr;
     // soft shadow
-    const sh = this.shadow(shadowR * (v.kind === 'node' ? 1 : 1));
+    const sh = this.shadow(shadowR);
     s.drawImage(sh, ax - Math.round(sh.width / 2), ay - Math.round(sh.height / 2) + 1);
     // selection ring under the sprite
     if (this.selectedId === e.id) {
@@ -442,16 +563,41 @@ export class SceneRenderer {
       }
       s.globalAlpha = 1;
     }
-    // faction / legend aura
-    if (v.role === 'legend' || v.elite === 2) this.aura(s, ax, ay - (spr.ay >> 1), v.role === 'legend' ? '255,222,140' : v.sprite && v.sprite.startsWith('hollow') ? '170,90,255' : '255,120,90', now);
+    const oRar = spr.oRar ?? 0;
+    const wRar = spr.wRar ?? 0;
+    // faction / legend / rarity auras (cached soft discs, additive)
+    if (v.role === 'legend' || v.elite === 2) this.aura(s, ax, ay - (spr.ay >> 1), v.role === 'legend' ? 0xff8cdeff : v.sprite && v.sprite.startsWith('hollow') ? 0xffff5aaa : 0xff5a78ff, now, 26);
+    else if (oRar >= 4) this.aura(s, ax, ay - (spr.ay >> 1) - 2, rarityCol(oRar), now, 22);
+    else if (oRar === 3 && !motion.reduced) this.aura(s, ax, ay - (spr.ay >> 1) - 2, rarityCol(3), now, 15, 0.45);
+    if (pk.state === 'meditate' && human) this.meditateAura(s, e, ax, ay, spr, now, wx, wy);
+    const hl = now - e.healAt;
+    if (hl >= 0 && hl < 1100) {
+      s.globalCompositeOperation = 'lighter';
+      s.globalAlpha = (1 - hl / 1100) * 0.75;
+      const d = this.bank.glowDisc(0xff80f09a, 18);
+      s.drawImage(d, ax - 18, ay - (spr.ay >> 1) - 14, 36, 29);
+      s.globalAlpha = 1;
+      s.globalCompositeOperation = 'source-over';
+    }
     const fade = v.state === 'dead' && e.deadAt > 0 ? Math.max(0.15, Math.min(1, 1 - (now - e.deadAt - 3500) / 2500)) : 1;
     if (fade < 1) s.globalAlpha = fade;
     if (e.born + 400 > now) s.globalAlpha = Math.min(s.globalAlpha, (now - e.born) / 400);
     const dx = ax - spr.ax;
     const dy = ay - spr.ay;
     s.drawImage(spr.cv, dx, dy);
-    if (sinceHit < 150 && sinceHit >= 0 && v.kind !== 'node') s.drawImage(this.bank.flashOf(spr), dx, dy);
+    if (human && pk.blink && spr.eyes) {
+      // blink: close the eyes with a tiny overlay instead of regenerating the sprite
+      for (const ey of spr.eyes) {
+        s.fillStyle = ey.skin;
+        s.fillRect(dx + ey.x, dy + ey.y, ey.w, ey.h);
+        s.fillStyle = '#2a1c22';
+        s.fillRect(dx + ey.x, dy + ey.y + ey.h - 1, ey.w, 1);
+      }
+    }
+    if (sinceHit < 150 && sinceHit >= 0 && v.kind !== 'node' && !motion.reduced) s.drawImage(this.bank.flashOf(spr), dx, dy);
     s.globalAlpha = 1;
+    if ((human || beast) && spr.glow) this.drawGlowLayer(s, spr.glow, dx, dy, now, e, Math.max(oRar, wRar));
+    if (human) this.humanFx(s, e, spr, dx, dy, ax0, ay0, wx, wy, mirror, now, oRar, wRar);
     if (nodeSet) {
       if (nodeSet.glow) {
         s.globalCompositeOperation = 'lighter';
@@ -472,14 +618,96 @@ export class SceneRenderer {
     this.drawnEnts.push(e);
   }
 
-  private aura(s: CanvasRenderingContext2D, x: number, y: number, rgb: string, now: number): void {
-    const pulse = 0.5 + 0.5 * Math.sin(now / 340);
-    const g = s.createRadialGradient(x, y, 2, x, y, 26 + pulse * 3);
-    g.addColorStop(0, `rgba(${rgb},${0.38 + pulse * 0.1})`);
-    g.addColorStop(1, `rgba(${rgb},0)`);
+  /** Wind bucket for this frame. */
+  windLvl = 0;
+
+  /** Particle and overlay effects of a character (rarity motes, weapon sparks, steam, chat icon). */
+  private humanFx(s: CanvasRenderingContext2D, e: Ent, spr: FlashSprite, dx: number, dy: number, ax0: number, ay0: number, wx: number, wy: number, mirror: boolean, now: number, oRar: number, wRar: number): void {
+    const pk = this.pick;
+    const pr = this.particles;
+    const red = motion.reduced;
+    if (!red) {
+      // legendary outfit: drifting motes around the body
+      if (oRar >= 3 && now - e.fxAt > (oRar >= 4 ? 150 : 420)) {
+        e.fxAt = now;
+        const r = e.seed;
+        pr.spawn(PK.Mote, wx + (Math.random() - 0.5) * 16, wy - 8 - Math.random() * 24, (Math.random() - 0.5) * 6, -9 - Math.random() * 6, 1500, oRar >= 4 ? PCOL.legend : PCOL.epic);
+        void r;
+      }
+      // legendary weapon: trailing sparks from the tip while it moves, embers otherwise
+      if (wRar >= 4 && spr.tip && now - e.fx2At > 60) {
+        const swinging = pk.state === 'attack' || pk.state === 'walk' || pk.state === 'run' || pk.state === 'draw';
+        if (swinging || now % 300 < 20) {
+          e.fx2At = now;
+          pr.spawn(PK.Spark, dx + spr.tip[0] + ax0, dy + spr.tip[1] + ay0, (Math.random() - 0.5) * 16, -6 - Math.random() * 10, swinging ? 420 : 700, Math.random() < 0.5 ? PCOL.legend : PCOL.gold);
+        }
+      } else if (wRar === 3 && spr.tip && pk.state === 'attack' && now - e.fx2At > 90) {
+        e.fx2At = now;
+        pr.spawn(PK.Spark, dx + spr.tip[0] + ax0, dy + spr.tip[1] + ay0, (Math.random() - 0.5) * 12, -4, 360, PCOL.epic);
+      }
+      // cauldron steam
+      if (pk.state === 'craft' && now - e.fxAt > 130) {
+        e.fxAt = now;
+        pr.spawn(PK.Steam, wx + (mirror ? -1 : 1) * 14.5 + (Math.random() - 0.5) * 4, wy - 13, (Math.random() - 0.5) * 6, -16 - Math.random() * 8, 1100, PCOL.steam);
+      }
+    }
+    // celebration confetti
+    if (!red && e.v.act === 'celebrate' && pk.state === 'cheer' && now - e.fxAt > 110) {
+      e.fxAt = now;
+      pr.spawn(PK.Spark, wx + (Math.random() - 0.5) * 18, wy - 30 - Math.random() * 8, (Math.random() - 0.5) * 30, -20 - Math.random() * 14, 800, Math.random() < 0.34 ? PCOL.legend : Math.random() < 0.5 ? PCOL.rare : PCOL.gold);
+    }
+    // resting: drifting z
+    if (pk.chatIcon === 2) {
+      const ph = (now / 1400 + e.seed) % 1;
+      const bx = Math.round(dx + spr.ax + (mirror ? -6 : 6) + ph * (mirror ? -4 : 4));
+      const by = Math.round(dy + (spr.top ?? 0) - 2 - ph * 8);
+      s.globalAlpha = Math.sin(ph * Math.PI);
+      s.fillStyle = '#f4f0ff';
+      s.fillRect(bx, by, 3, 1);
+      s.fillRect(bx + 1, by + 1, 1, 1);
+      s.fillRect(bx, by + 2, 3, 1);
+      s.globalAlpha = 1;
+    }
+    // chat bubble icon (no text)
+    if (pk.chatIcon === 1) {
+      const bx = Math.round(dx + spr.ax + (mirror ? -7 : 7));
+      const by = Math.round(dy + (spr.top ?? 0) - 4 - (Math.floor(now / 260) % 2));
+      s.fillStyle = '#2a1e16';
+      s.fillRect(bx - 4, by - 1, 9, 6);
+      s.fillStyle = '#f6efd8';
+      s.fillRect(bx - 3, by, 7, 4);
+      s.fillRect(mirror ? bx + 2 : bx - 3, by + 4, 2, 2);
+      s.fillStyle = '#2a1e16';
+      s.fillRect(bx - 2, by + 2, 1, 1);
+      s.fillRect(bx, by + 2, 1, 1);
+      s.fillRect(bx + 2, by + 2, 1, 1);
+    }
+  }
+
+  private meditateAura(s: CanvasRenderingContext2D, e: Ent, ax: number, ay: number, spr: FlashSprite, now: number, wx: number, wy: number): void {
+    const rank = e.v.rank ?? Math.min(8, 1 + Math.floor((e.v.lv ?? 1) / 12));
+    const pulse = motion.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 900 + e.seed * 6.28);
+    const r = 18 + rank * 2.2;
     s.globalCompositeOperation = 'lighter';
-    s.fillStyle = g;
-    s.fillRect(x - 32, y - 32, 64, 64);
+    s.globalAlpha = 0.28 + pulse * 0.22;
+    const d = this.bank.glowDisc(0xffffe89f, Math.round(r));
+    s.drawImage(d, ax - r, ay - (spr.ay >> 1) - r * 0.7, r * 2, r * 1.6);
+    s.globalAlpha = 1;
+    s.globalCompositeOperation = 'source-over';
+    if (!motion.reduced && now - e.fxAt > 560 - rank * 50) {
+      e.fxAt = now;
+      this.particles.spawn(PK.Mote, wx + (Math.random() - 0.5) * (14 + rank * 2), wy - 3 - Math.random() * 12, (Math.random() - 0.5) * 5, -9 - Math.random() * 8 - rank, 1700, PCOL.qi);
+    }
+  }
+
+  private aura(s: CanvasRenderingContext2D, x: number, y: number, color: number, now: number, radius: number, strength = 1): void {
+    const pulse = motion.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(now / 340);
+    const r = radius + pulse * 2;
+    s.globalCompositeOperation = 'lighter';
+    s.globalAlpha = Math.min(1, (0.5 + pulse * 0.14) * strength);
+    const d = this.bank.glowDisc(color, Math.round(r));
+    s.drawImage(d, x - r, y - r * 0.8, r * 2, r * 1.6);
+    s.globalAlpha = 1;
     s.globalCompositeOperation = 'source-over';
   }
 

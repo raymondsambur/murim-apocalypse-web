@@ -50,6 +50,7 @@ const jobId = z.enum(['herbalist', 'miner', 'farmer', 'blacksmith', 'alchemist']
 /** `{t:'q'}` is validated per query name so each handler receives correctly shaped args. */
 const query = z.discriminatedUnion('name', [
   z.object({ t: z.literal('q'), id, name: z.literal('npc'), args: z.object({ id }) }),
+  z.object({ t: z.literal('q'), id, name: z.literal('npcTalk'), args: z.object({ id, topic: key }) }),
   z.object({ t: z.literal('q'), id, name: z.literal('board'), args: z.object({ settlement: id }) }),
   z.object({ t: z.literal('q'), id, name: z.literal('world'), args: z.object({}) }),
   z.object({ t: z.literal('q'), id, name: z.literal('chronicle'), args: z.object({ before: id.optional(), limit: int(1, 100).optional() }) }),

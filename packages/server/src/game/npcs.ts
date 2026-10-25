@@ -194,7 +194,7 @@ export class NpcManager {
 
   private wander(e: Entity, now: number): void {
     const data = NPC_DATA.get(e);
-    if (!data || e.move || e.state !== 'idle' || now < data.holdUntil || now < data.nextWanderAt) return;
+    if (!data || data.driven || e.move || e.state !== 'idle' || now < data.holdUntil || now < data.nextWanderAt) return;
     const npc = this.d.sim.npc(data.npcId);
     if (!npc) return;
     const prof = profileFor(npc.role, npc.legend);

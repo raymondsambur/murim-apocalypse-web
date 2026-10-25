@@ -17,9 +17,12 @@ import { tabs } from '../widgets/tabs';
 import { attachTooltip, skillTooltip } from '../widgets/tooltip';
 
 const MISSION_GLYPH: Record<MissionType, string> = { hunt: '獵', gather: '採', deliver: '送', purify: '淨', defend: '守', bounty: '賞', investigate: '查', sect: '門' };
-const TAB_GLYPH: Record<NpcTab, string> = { shop: '市', teach: '學', missions: '榜', rest: '宿', disciple: '徒' };
+const TAB_GLYPH: Record<NpcTab, string> = { shop: '市', teach: '學', missions: '榜', rest: '宿', disciple: '徒', talk: '談' };
 
 type Board = { offers: MissionOffer[]; settlement: number };
+type TalkEntry = { q: string; lines: string[]; pending: boolean; failed: boolean };
+/** Most conversation entries kept on screen. */
+const TALK_LOG_MAX = 24;
 
 export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): void; isOpen(): boolean } {
   const { state } = ui;
@@ -36,6 +39,11 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
   const qty = new Map<string, number>();
   let bodyScroll = 0;
   let menuSig = '';
+  // Talk tab: what the player asked and what the NPC said (kept while the same NPC stays open).
+  let talkLog: TalkEntry[] = [];
+  let talkBusy = false;
+  let logScroll = 0;
+  let logStick = true;
   let requeryTimer: ReturnType<typeof setTimeout> | null = null;
 
   const close = () => ui.closeNpc();
@@ -77,6 +85,47 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
       boardError = queryErrorMessage(e);
     }
     paint();
+  }
+
+  async function ask(menu: NpcMenu, topic: { id: string; label: string }): Promise<void> {
+    if (talkBusy) return;
+    const entry: TalkEntry = { q: topic.label, lines: [], pending: true, failed: false };
+    talkLog.push(entry);
+    if (talkLog.length > TALK_LOG_MAX) talkLog = talkLog.slice(-TALK_LOG_MAX);
+    talkBusy = true;
+    logStick = true;
+    paint();
+    try {
+      const res = await ui.net.query('npcTalk', { id: menu.id, topic: topic.id });
+      entry.lines = res.lines;
+    } catch (e) {
+      entry.failed = true;
+      entry.lines = [queryErrorMessage(e)];
+    }
+    entry.pending = false;
+    talkBusy = false;
+    if (openId === menu.id) {
+      logStick = true;
+      paint();
+    }
+  }
+
+  function talkBody(menu: NpcMenu): HTMLElement {
+    const talk = menu.talk!;
+    const buttons = h(
+      'div',
+      { class: 'talk-topics', role: 'group', 'aria-label': t('npc.talk.topics') },
+      ...talk.topics.map((tp) => h('button', { class: 'btn btn-sm', type: 'button', disabled: talkBusy, onclick: () => void ask(menu, tp) }, tp.label)),
+    );
+    const log = h('div', { class: 'talk-log', role: 'log', 'aria-label': t('npc.talk.log'), 'aria-live': 'polite', tabindex: '0' });
+    if (talkLog.length === 0) log.appendChild(h('p', { class: 'empty-note' }, t('npc.talk.hint', { name: menu.name })));
+    for (const e of talkLog) {
+      const node = h('div', { class: 'talk-entry' }, h('div', { class: 'talk-q' }, e.q));
+      if (e.pending) node.appendChild(h('p', { class: 'talk-line tone-dim' }, h('span', { class: 'spinner' }), ' ', t('npc.talk.listening')));
+      for (const line of e.lines) node.appendChild(h('p', { class: ['talk-line', e.failed && 'tone-bad'] }, e.failed ? line : '“' + line + '”'));
+      log.appendChild(node);
+    }
+    return h('div', { class: 'npc-tabbody npc-talk' }, buttons, log);
   }
 
   // ---- tab bodies ---------------------------------------------------------------------------------
@@ -303,10 +352,15 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
       boardStatus = 'idle';
       qty.clear();
       bodyScroll = 0;
+      talkLog = [];
+      talkBusy = false;
+      logStick = true;
     }
     if (!tab || !available.includes(tab)) tab = available[0] ?? null;
     const prevBody = backdrop.querySelector<HTMLElement>('.npc-body');
     if (prevBody) bodyScroll = prevBody.scrollTop;
+    const prevLog = backdrop.querySelector<HTMLElement>('.talk-log');
+    if (prevLog) logScroll = prevLog.scrollTop;
 
     const portrait = h('canvas', { class: 'npc-portrait', width: 72, height: 104, 'aria-hidden': 'true' });
     drawLook(ui.render, portrait, menu.look, 72, 104, 3, { dir: 0, state: 'idle', backdrop: true });
@@ -320,7 +374,8 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
         { class: 'npc-id' },
         h('h2', { class: 'npc-name', id: 'npc-title' }, menu.name),
         h('div', { class: 'npc-title' }, menu.title),
-        h('div', { class: 'chip-row' }, h('span', { class: 'chip chip-gold', style: { color: rankColor(menu.level) } }, t('ctx.level', { n: menu.level })), h('span', { class: 'chip' }, t(`role.${menu.role}`)), faction ? h('span', { class: 'chip', style: { color: faction.color, borderColor: faction.color } }, faction.short) : null),
+        menu.talk?.mood ? h('div', { class: 'npc-mood', title: t('npc.mood') }, menu.talk.mood) : null,
+        h('div', { class: 'chip-row' }, h('span', { class: 'chip chip-gold', style: { color: rankColor(menu.level) } }, t('ctx.level', { n: menu.level })), h('span', { class: 'chip' }, t(`role.${menu.role}`)), faction ? h('span', { class: 'chip', style: { color: faction.color, borderColor: faction.color } }, faction.short) : null, menu.standing && menu.standing !== 'unknown' ? h('span', { class: ['chip', 'chip-standing', `standing-${menu.standing}`], title: t('npc.standing.tip') }, t(`npc.standing.${menu.standing}`)) : null),
       ),
       h('button', { class: 'btn-icon btn-close', type: 'button', 'aria-label': t('npc.close'), onclick: close }, '✕'),
     );
@@ -334,6 +389,7 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
       content = missionsBody(menu, me);
     } else if (tab === 'rest') content = restBody(menu, me);
     else if (tab === 'disciple') content = discipleBody(menu);
+    else if (tab === 'talk') content = talkBody(menu);
 
     const tabBar = available.length > 1 ? tabs(available.map((id) => ({ id, label: t(`npc.tab.${id}`), glyph: TAB_GLYPH[id] })), (id) => ((tab = id as NpcTab), paint()), { initial: tab ?? undefined, label: t('npc.tabs') }) : null;
 
@@ -345,6 +401,9 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
     backdrop.hidden = false;
     const nb = card.querySelector<HTMLElement>('.npc-body');
     if (nb) nb.scrollTop = bodyScroll;
+    const lg = card.querySelector<HTMLElement>('.talk-log');
+    if (lg) lg.scrollTop = logStick ? lg.scrollHeight : logScroll;
+    logStick = false;
     if (wasHidden) requestAnimationFrame(() => card.focus({ preventScroll: true }));
   }
 

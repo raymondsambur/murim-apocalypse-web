@@ -1,4 +1,4 @@
-import { MAX_LEVEL, deriveForCharacter, getItem, isBreakthroughLevel, isEquipment, rankOf, xpToNext, type EquipSlot, type ItemDef, type ItemStack } from '@murim/shared';
+import { MAX_LEVEL, deriveForCharacter, gearLook, getItem, isBreakthroughLevel, isEquipment, rankOf, xpToNext, type EquipSlot, type ItemDef, type ItemStack } from '@murim/shared';
 import { GameError, type GameContext, type Player } from '../ctx';
 import { clampVitals, ensureUid, rankLabel, requireIdle, skillBlocker, learnSkill } from './econ';
 import { freeSlots, grantXp, removeAt } from './lib';
@@ -30,6 +30,7 @@ export function register(ctx: GameContext): void {
     clampVitals(ctx, p);
     const w = p.save.equipment.weapon;
     p.entity.weapon = w ? getItem(w.id)?.weaponType : undefined;
+    p.entity.gear = gearLook(p.save.equipment);
     ctx.entities.touch(p.entity);
     ctx.markDirty(p);
     ctx.markMe(p);

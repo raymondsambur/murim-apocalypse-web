@@ -7,7 +7,7 @@ import { getSkill, SKILLS, type PassiveBonus } from './data/skills';
 import { ORIGINS, TALENTS } from './data/origins';
 import { JOB_IDS } from './types';
 import type { Roll } from './stats';
-import type { Look } from './types';
+import type { GearLook, Look } from './types';
 
 export function characterPassives(save: Pick<CharacterSave, 'talents' | 'loadout'>): PassiveBonus[] {
   const out: PassiveBonus[] = [];
@@ -34,6 +34,25 @@ export function deriveForCharacter(save: CharacterSave, now = Date.now()): Deriv
 }
 
 export const DEFAULT_TACTICS: TacticRule[] = [{ cond: { k: 'hpBelow', v: 35 }, act: { k: 'item', id: 'pill_heal_s' } }];
+
+/** Visible summary of equipped gear, or undefined when nothing is worn. */
+export function gearLook(eq: Equipment): GearLook | undefined {
+  const out: GearLook = {};
+  const w = eq.weapon && getItem(eq.weapon.id);
+  if (eq.weapon && w) out.w = { t: w.tier, r: eq.weapon.r ?? 0 };
+  const o = eq.outfit && getItem(eq.outfit.id);
+  if (eq.outfit && o) out.o = { t: o.tier, r: eq.outfit.r ?? 0 };
+  const a = eq.accessory && getItem(eq.accessory.id);
+  if (eq.accessory && a?.stat) out.a = { k: a.stat.key, t: a.tier, r: eq.accessory.r ?? 0 };
+  return out.w || out.o || out.a ? out : undefined;
+}
+
+export function sameGearLook(a: GearLook | undefined, b: GearLook | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  const eq = (x?: { t: number; r: number }, y?: { t: number; r: number }) => (x === y) || (!!x && !!y && x.t === y.t && x.r === y.r);
+  return eq(a.w, b.w) && eq(a.o, b.o) && eq(a.a, b.a) && a.a?.k === b.a?.k;
+}
 
 export function emptyEquipment(): Equipment {
   return { weapon: null, outfit: null, accessory: null };

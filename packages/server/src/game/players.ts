@@ -6,6 +6,7 @@ import {
   PROTOCOL_VERSION,
   deriveForCharacter,
   getItem,
+  gearLook,
   isPassable,
   nearestWalkable,
   rankOf,
@@ -251,6 +252,7 @@ export class PlayerManager {
     e.tag = s.title ? s.title : undefined;
     e.online = p.online;
     e.weapon = s.equipment.weapon ? getItem(s.equipment.weapon.id)?.weaponType : undefined;
+    e.gear = gearLook(s.equipment);
     e.combatId = p.combatId ?? undefined;
     e.speed = playerSpeedFactor(d.speed);
     // Activity states are owned here; walk/fight/dead belong to movement and combat.

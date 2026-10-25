@@ -49,6 +49,17 @@ export interface Equipment {
   accessory: ItemStack | null;
 }
 
+/**
+ * What other players can see of your equipment. `t` is the item tier (1-5), `r` the rarity (0-4).
+ * Sent with the entity so the renderer can dress the sprite (robe finery, auras, weapon quality, trinkets).
+ */
+export interface GearLook {
+  w?: { t: number; r: number };
+  o?: { t: number; r: number };
+  /** Accessory: which attribute it boosts (picks the trinket shape/colour). */
+  a?: { k: StatKey; t: number; r: number };
+}
+
 /** Appearance indices; the client turns these into colours and shapes. */
 export interface Look {
   gender: 0 | 1;

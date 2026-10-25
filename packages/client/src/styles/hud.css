@@ -1203,3 +1203,65 @@
     aspect-ratio: 3 / 1.6;
   }
 }
+
+/* ---- NPC dialog: Talk tab, temperament line and standing chip --------------------------------------------------------- */
+.npc-mood {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+.chip-standing.standing-honoured,
+.chip-standing.standing-welcomed {
+  color: var(--good, #7ec26b);
+  border-color: currentColor;
+}
+.chip-standing.standing-feared {
+  color: var(--warn, #e0a23a);
+  border-color: currentColor;
+}
+.chip-standing.standing-despised {
+  color: var(--bad, #e8574a);
+  border-color: currentColor;
+}
+.npc-talk {
+  gap: 0.55rem;
+}
+.talk-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.talk-log {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  max-height: 15rem;
+  min-height: 5.5rem;
+  overflow-y: auto;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--line-faint);
+  overscroll-behavior: contain;
+}
+.talk-entry {
+  display: grid;
+  gap: 0.2rem;
+}
+.talk-q {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.talk-q::before {
+  content: '\203a ';
+}
+.talk-line {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
