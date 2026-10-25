@@ -1,0 +1,25 @@
+/* Missions panel (M) */
+.ms { display: flex; flex-direction: column; gap: 0.6rem; }
+.ms-body { display: flex; flex-direction: column; gap: 0.6rem; }
+.ms-count { display: flex; justify-content: flex-end; }
+.ms-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.ms-card { display: flex; gap: 0.65rem; align-items: flex-start; padding: 0.65rem 0.7rem; }
+.ms-card.is-ready { border-color: var(--good); box-shadow: 0 0 0 1px var(--good), 0 0 14px rgba(126, 194, 107, 0.25); background: linear-gradient(180deg, rgba(126, 194, 107, 0.1), transparent); }
+.ms-card.is-off { opacity: 0.8; }
+.ms-seal { flex: none; }
+.ms-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.ms-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; font-weight: 700; font-size: 0.95rem; }
+.ms-obj { font-size: 0.82rem; }
+.ms-desc { font-size: 0.78rem; color: var(--text-dim); }
+.ms-hint { font-size: 0.78rem; color: var(--text-dim); }
+.ms-act { flex: none; display: flex; flex-direction: column; gap: 0.3rem; }
+.ms-log { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-dim); text-align: center; }
+.ms-empty { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.ms-boardhead { display: flex; align-items: center; gap: 0.5rem; }
+.ms-boardtitle { flex: 1; margin: 0; font-size: 1rem; }
+.ms-reward { align-items: center; }
+
+@media (max-width: 760px) {
+  .ms-card { flex-wrap: wrap; }
+  .ms-act { flex-direction: row; margin-left: auto; width: 100%; justify-content: flex-end; }
+}

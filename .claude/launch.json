@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "game-server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "--tsconfig", "packages/server/tsconfig.json", "--disable-warning=ExperimentalWarning", "packages/server/src/main.ts"],
+      "port": 3000
+    },
+    {
+      "name": "game-client",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "packages/client", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}

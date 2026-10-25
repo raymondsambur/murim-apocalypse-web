@@ -1,0 +1,215 @@
+/* Jobs & Crafting panel */
+.jobs-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.7rem;
+}
+.jobs-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.jobs-fine {
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  line-height: 1.35;
+}
+.jobs-current,
+.jobs-site,
+.jobs-recipe-detail {
+  padding: 0.6rem 0.7rem;
+}
+.jobs-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.5rem;
+}
+.jobs-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.jobs-name {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+}
+.jobs-live {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.jobs-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+.jobs-est-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.25rem;
+}
+.jobs-chip {
+  font-variant-numeric: tabular-nums;
+}
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.jobs-job {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.18);
+}
+.jobs-job.working {
+  border-color: var(--line-strong);
+  box-shadow: 0 0 0 1px rgba(217, 184, 103, 0.18) inset;
+}
+.jobs-seal {
+  flex: none;
+}
+.jobs-job-body,
+.jobs-site-body {
+  flex: 1;
+  min-width: 0;
+}
+.jobs-job-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.jobs-desc {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.35;
+}
+.jobs-reports {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.jobs-site {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+.jobs-site.in-reach {
+  border-color: var(--line-strong);
+}
+.jobs-site-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: stretch;
+}
+.jobs-bonus {
+  margin-left: 0.4rem;
+}
+.jobs-picker {
+  margin: 0 0 0.4rem;
+}
+.jobs-recipes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 13rem;
+  overflow-y: auto;
+  margin-bottom: 0.6rem;
+  padding-right: 0.2rem;
+}
+.jobs-recipe {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--tap);
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.jobs-recipe.can {
+  color: var(--text);
+}
+.jobs-recipe.locked {
+  opacity: 0.6;
+}
+.jobs-recipe.selected {
+  border-color: var(--gold);
+  background: rgba(217, 184, 103, 0.1);
+}
+.jobs-recipe:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+.jobs-recipe-meta {
+  font-size: 0.74rem;
+  color: var(--text-faint);
+}
+.jobs-recipe-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.jobs-inputs {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.jobs-inputs li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+}
+.jobs-craft-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.4rem 0;
+}
+.jobs-qty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+@media (max-width: 760px) {
+  .jobs-site {
+    flex-wrap: wrap;
+  }
+  .jobs-site-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .jobs-recipes {
+    max-height: 40vh;
+  }
+}

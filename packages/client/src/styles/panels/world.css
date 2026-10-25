@@ -1,0 +1,255 @@
+/* World panel */
+.world-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+.world-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.world-status .btn {
+  margin-left: auto;
+}
+.world-map-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0b141d;
+}
+.world-map-canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+.world-map-canvas:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.world-map-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.world-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+.world-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.lg {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 2px;
+  flex: none;
+}
+.lg-self {
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px #2c6cff;
+}
+.lg-set {
+  background: var(--gold);
+  transform: rotate(45deg) scale(0.85);
+}
+.lg-siege {
+  border: 2px solid #ff5a3c;
+  border-radius: 50%;
+  background: transparent;
+}
+.lg-fallen {
+  background: linear-gradient(45deg, transparent 42%, #ff4a3a 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, #ff4a3a 42% 58%, transparent 58%);
+}
+.lg-blight {
+  background: rgba(170, 40, 210, 0.75);
+}
+.lg-heart {
+  background: #d58aff;
+}
+.lg-fac {
+  border-radius: 50%;
+}
+
+.world-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.world-filter-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.world-imp {
+  max-width: 12rem;
+}
+.world-chip {
+  cursor: pointer;
+  font: inherit;
+  min-height: 1.7rem;
+}
+.world-chip[aria-pressed='false'] {
+  opacity: 0.8;
+}
+.world-chron {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.world-day {
+  margin-top: 0.4rem;
+  font-family: var(--font-serif);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border-bottom: 1px solid var(--line-faint);
+  padding-bottom: 0.15rem;
+}
+.world-entry {
+  display: flex;
+  gap: 0.55rem;
+  padding: 0.35rem 0.45rem;
+  border-left: 3px solid var(--line-faint);
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+.world-entry.imp-2 {
+  border-left-color: var(--gold);
+}
+.world-entry.imp-3 {
+  border-left-color: var(--cinnabar-hi);
+  background: rgba(200, 69, 45, 0.1);
+}
+.world-entry.imp-3 .world-entry-text {
+  font-weight: 600;
+}
+.world-entry-glyph {
+  font-family: var(--font-glyph);
+  color: var(--text-dim);
+  width: 1.3rem;
+  text-align: center;
+  flex: none;
+}
+.world-entry-body {
+  min-width: 0;
+}
+.world-entry-text {
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+.world-link {
+  background: none;
+  border: 0;
+  padding: 0 0.1rem;
+  color: var(--info);
+  font: inherit;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+.world-link:hover,
+.world-link:focus-visible {
+  color: var(--gold-hi);
+}
+.world-end {
+  text-align: center;
+}
+
+.world-faction,
+.world-settle {
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  border-left: 3px solid var(--fac, var(--st, var(--line)));
+}
+.world-fac-head,
+.world-set-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.world-fac-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.world-fac-seal {
+  color: #fff;
+}
+.world-fac-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.world-fac-holds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  align-items: baseline;
+}
+.world-rep {
+  font-size: 0.82rem;
+}
+.world-set-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.world-ctrl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.world-set-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.world-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.world-sort .select {
+  max-width: 11rem;
+}
+
+@media (max-width: 760px) {
+  .world-map-canvas {
+    aspect-ratio: auto;
+    height: min(70vw, 55vh);
+  }
+}
+
+/* Tab strips with 4+ tabs: on phones only the active tab shows its label */
+@media (max-width: 760px) {
+  .tabs-tight .tab {
+    padding-left: 0.55rem;
+    padding-right: 0.55rem;
+    min-width: 0;
+  }
+  .tabs-tight .tab[aria-selected='false'] .tab-label {
+    display: none;
+  }
+}

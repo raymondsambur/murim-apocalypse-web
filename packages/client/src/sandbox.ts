@@ -1,0 +1,468 @@
+/**
+ * Standalone render sandbox (no server): generates the world locally, spawns fake entities and exposes a control panel.
+ * Run: npx vite packages/client --port 5201 --strictPort  ->  http://localhost:5201/sandbox.html
+ * URL params: seed, season, hour, weather (clear|cloudy|rain|storm|fog|snow), tp (settlement id), zoom, panel=0, blight=1.
+ */
+import {
+  FACTIONS,
+  Rng,
+  WEAPON_TYPES,
+  findPath,
+  generateWorld,
+  isPassable,
+  worldPathGrid,
+  type CombatEvent,
+  type EntityView,
+  type FxKind,
+  type Look,
+  type NpcRole,
+  type SettlementView,
+  type TimeView,
+  type WeatherKind,
+  type WorldPayload,
+} from '@murim/shared';
+import type { DecodedWorld } from './render/api';
+import { createGameView } from './render/index';
+import type { GameView } from './render/view';
+
+function encode(bytes: Uint8Array): string {
+  let bin = '';
+  const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CH)));
+  return btoa(bin);
+}
+
+const params = new URLSearchParams(location.search);
+const seed = Number(params.get('seed') ?? 1337);
+const wd = generateWorld(seed);
+const payload: WorldPayload = {
+  seed: wd.seed,
+  w: wd.w,
+  h: wd.h,
+  terrain: encode(wd.terrain),
+  objects: encode(wd.objects),
+  settlements: wd.settlements,
+  buildings: wd.buildings,
+  nodes: wd.nodes,
+  roads: wd.roads,
+};
+const decoded: DecodedWorld = { payload, terrain: wd.terrain, objects: wd.objects };
+const grid = worldPathGrid(wd);
+const rng = new Rng(seed * 31 + 7);
+
+const canvas = document.getElementById('game') as HTMLCanvasElement;
+const view = createGameView(canvas) as GameView;
+(window as unknown as { view: GameView; wd: unknown }).view = view;
+(window as unknown as { wd: unknown }).wd = wd;
+view.loadWorld(decoded);
+
+const state = {
+  hours: Number(params.get('hour') ?? 11),
+  season: Number(params.get('season') ?? 1),
+  weather: (params.get('weather') ?? 'clear') as WeatherKind,
+  cycle: false,
+  cursorBlight: false,
+  blightScale: 1,
+};
+
+function pushTime(): void {
+  const tv: TimeView = { hours: state.hours, day: state.season * 30 + 3, season: state.season, year: 1, hourMs: 1e12, t: Date.now(), weather: [state.weather, state.weather, state.weather] };
+  view.setTime(tv);
+}
+pushTime();
+
+// ---- blight ----------------------------------------------------------------------
+const hearts = wd.nodes.filter((n) => n.kind === 'heart');
+function blightFromHearts(scale: number): Uint8Array {
+  const out = new Uint8Array(wd.w * wd.h);
+  if (scale <= 0) return out;
+  for (let y = 0; y < wd.h; y++)
+    for (let x = 0; x < wd.w; x++) {
+      let v = 0;
+      for (const hh of hearts) {
+        const d = Math.hypot(x - hh.x, y - hh.y);
+        const R = 30 * scale;
+        if (d < R) v = Math.max(v, 255 * Math.pow(1 - d / R, 1.1));
+      }
+      out[y * wd.w + x] = Math.min(255, v | 0);
+    }
+  return out;
+}
+view.setBlight(blightFromHearts(1));
+
+// ---- settlements ------------------------------------------------------------------
+const factionIds = FACTIONS.map((f) => f.id);
+const settleView: SettlementView[] = wd.settlements.map((s, i) => ({
+  id: s.id,
+  controller: s.kind === 'ruin' ? null : factionIds[i % factionIds.length],
+  status: s.kind === 'ruin' ? 'fallen' : 'thriving',
+  prosperity: 60,
+  population: s.population,
+  defense: 50,
+  blight: 0,
+  siege: false,
+  flags: [],
+}));
+view.setSettlements(settleView);
+
+// ---- entities ------------------------------------------------------------------------
+let nextId = 100;
+const SELF = 1;
+const spawn = wd.settlements[0].spawn;
+const ents = new Map<number, EntityView>();
+interface Walker {
+  id: number;
+  path: [number, number][];
+  i: number;
+  nextAt: number;
+  wander: boolean;
+  center: [number, number];
+  radius: number;
+  stepMs: number;
+  pauseUntil: number;
+}
+const walkers = new Map<number, Walker>();
+
+function randLook(): Look {
+  return { gender: rng.int(0, 1) as 0 | 1, skin: rng.int(0, 5), hairStyle: rng.int(0, 6), hairColor: rng.int(0, 7), outfit: rng.int(0, 3), outfitColor: rng.int(0, 9), sashColor: rng.int(0, 7), accessory: rng.int(0, 4) };
+}
+
+function nearPassable(cx: number, cy: number, r: number): [number, number] {
+  for (let i = 0; i < 200; i++) {
+    const x = Math.round(cx + rng.float(-r, r));
+    const y = Math.round(cy + rng.float(-r, r));
+    if (isPassable(wd, x, y) && wd.objects[y * wd.w + x] === 0) return [x, y];
+  }
+  return [cx, cy];
+}
+
+function spawnEnt(v: Omit<EntityView, 'id'> & { id?: number }, walker?: Partial<Walker>): EntityView {
+  const id = v.id ?? nextId++;
+  const e = { ...v, id } as EntityView;
+  ents.set(id, e);
+  view.applyEntities({ add: [e] });
+  if (walker) walkers.set(id, { id, path: [], i: 0, nextAt: 0, wander: true, center: [e.x, e.y], radius: 8, stepMs: 420, pauseUntil: 0, ...walker });
+  return e;
+}
+
+const [sx0, sy0] = nearPassable(spawn.x, spawn.y, 2);
+spawnEnt({ id: SELF, kind: 'player', name: 'You', x: sx0, y: sy0, face: 0, state: 'idle', look: { gender: 0, skin: 2, hairStyle: 1, hairColor: 0, outfit: 3, outfitColor: 3, sashColor: 1, accessory: 0 }, weapon: 'sword', rank: 3, online: true, tag: 'Azure Cloud', lv: 12, hp: 220, maxHp: 260 }, { wander: false, stepMs: 380 });
+view.setSelf(SELF);
+
+const ROLES: NpcRole[] = ['villager', 'villager', 'guard', 'merchant', 'smith', 'alchemist', 'innkeeper', 'master', 'elder', 'physician', 'legend', 'wanderer'];
+const names = ['Lin', 'Mo', 'Ren', 'Hua', 'Jae', 'Soo', 'Tae', 'Wei', 'Yun', 'Bao', 'Chen', 'Dae', 'Fen', 'Gu', 'Han', 'Jin'];
+for (let i = 0; i < 16; i++) {
+  const [x, y] = nearPassable(spawn.x, spawn.y, 9);
+  const role = ROLES[i % ROLES.length];
+  spawnEnt(
+    { kind: 'npc', name: `${names[i % names.length]} ${role}`, x, y, face: rng.int(0, 3) as 0, state: 'idle', look: randLook(), role, faction: factionIds[i % 5], lv: rng.int(5, 40), tag: role === 'master' ? 'Master' : undefined },
+    { center: [spawn.x, spawn.y], radius: 9, stepMs: 520 },
+  );
+}
+for (let i = 0; i < 14; i++) {
+  const [x, y] = nearPassable(spawn.x, spawn.y, 11);
+  spawnEnt(
+    { kind: 'player', name: `${names[(i * 3) % names.length]}${rng.int(1, 99)}`, x, y, face: 0, state: 'idle', look: randLook(), weapon: rng.pick(WEAPON_TYPES), rank: rng.int(1, 8), online: i % 5 !== 4, lv: rng.int(3, 60), tag: i % 3 === 0 ? 'Crimson Lotus' : undefined },
+    { center: [spawn.x, spawn.y], radius: 11, stepMs: 400 },
+  );
+}
+const MONSTERS = ['boar', 'wolf', 'snake', 'bear', 'tiger', 'bandit', 'bandit_boss', 'hollow', 'wolf_blight', 'hollow_monk', 'hollow_brute', 'hollow_lord'];
+MONSTERS.forEach((m, i) => {
+  const ang = (i / MONSTERS.length) * Math.PI * 2;
+  const mx = Math.round(spawn.x + Math.cos(ang) * 14);
+  const my = Math.round(spawn.y + Math.sin(ang) * 11);
+  const [x, y] = nearPassable(mx, my, 4);
+  spawnEnt(
+    { kind: 'monster', name: m.replace('_', ' '), sprite: m, x, y, face: rng.int(0, 3) as 0, state: 'idle', lv: 4 + i * 3, hp: 80, maxHp: 120, elite: m === 'tiger' ? 1 : m === 'bandit_boss' || m === 'hollow_lord' ? 2 : 0 },
+    { center: [x, y], radius: 3, stepMs: 700 },
+  );
+});
+for (const nk of ['herb', 'herb', 'herb', 'rareHerb', 'rareHerb', 'ore', 'ore', 'shrine', 'heart'] as const) {
+  const [x, y] = nearPassable(spawn.x - 3 + rng.int(-6, 6), spawn.y + 6 + rng.int(-2, 6), 3);
+  spawnEnt({ kind: 'node', name: nk === 'herb' ? 'Herb' : nk === 'rareHerb' ? 'Rare Herb' : nk === 'ore' ? 'Iron Vein' : nk === 'shrine' ? 'Wayside Shrine' : 'Blight Heart', nodeKind: nk, sprite: nk, x, y, face: 0, state: 'idle' });
+}
+// a fighting pair
+const [fx0, fy0] = nearPassable(spawn.x + 2, spawn.y + 3, 2);
+const fighterA = spawnEnt({ kind: 'player', name: 'Duelist', x: fx0, y: fy0, face: 0, state: 'fight', look: randLook(), weapon: 'sword', rank: 4, online: true, hp: 150, maxHp: 200, lv: 22 });
+const wolfFoe = spawnEnt({ kind: 'monster', name: 'Gray Wolf', sprite: 'wolf', x: fx0 + 1, y: fy0, face: 2, state: 'fight', lv: 9, hp: 60, maxHp: 140 });
+setInterval(() => {
+  const ev: CombatEvent[] = [];
+  const crit = Math.random() < 0.25;
+  ev.push({ k: 'hit', s: fighterA.id, d: wolfFoe.id, a: Math.floor(30 + Math.random() * 40) * (crit ? 2 : 1), c: crit ? 1 : undefined, sk: 'sword_basic' });
+  ev.push(Math.random() < 0.3 ? { k: 'miss', s: wolfFoe.id, d: fighterA.id, sk: 'm_bite' } : { k: 'hit', s: wolfFoe.id, d: fighterA.id, a: Math.floor(8 + Math.random() * 20), sk: 'm_bite' });
+  if (Math.random() < 0.25) ev.push({ k: 'status', s: fighterA.id, d: wolfFoe.id, st: 'bleed' });
+  if (Math.random() < 0.2) ev.push({ k: 'dot', d: wolfFoe.id, a: 6, st: 'poison' });
+  if (Math.random() < 0.15) ev.push({ k: 'heal', s: fighterA.id, d: fighterA.id, a: 24 });
+  view.combatEvents(ev);
+  const hp = Math.max(10, (wolfFoe.hp ?? 100) - 8 + (Math.random() < 0.3 ? 20 : 0));
+  wolfFoe.hp = Math.min(wolfFoe.maxHp ?? 140, hp);
+  view.applyEntities({ upd: [{ id: wolfFoe.id, hp: wolfFoe.hp }] });
+}, 1000);
+
+// ---- movement simulation ---------------------------------------------------------------------
+function dirOf(dx: number, dy: number): 0 | 1 | 2 | 3 {
+  const s = dx - dy;
+  const t = dx + dy;
+  return t >= 0 ? (s >= 0 ? 0 : 1) : s >= 0 ? 3 : 2;
+}
+
+function pickWander(w: Walker, e: EntityView): void {
+  const [tx, ty] = nearPassable(w.center[0], w.center[1], w.radius);
+  const p = findPath(grid, e.x, e.y, tx, ty, 800);
+  w.path = (p ?? []).map((q) => [q.x, q.y] as [number, number]);
+  w.i = 0;
+}
+
+function stepWalkers(now: number): void {
+  for (const w of walkers.values()) {
+    const e = ents.get(w.id)!;
+    if (now < w.nextAt) continue;
+    if (e.state === 'fight') continue;
+    if (w.i >= w.path.length) {
+      if (e.nx !== undefined) {
+        // arrive: settle
+        e.state = 'idle';
+        view.applyEntities({ upd: [{ id: w.id, x: e.x, y: e.y, state: 'idle' }] });
+        e.nx = undefined;
+        e.ny = undefined;
+      }
+      if (w.wander && now >= w.pauseUntil) {
+        if (w.pauseUntil === 0 || now > w.pauseUntil) {
+          w.pauseUntil = now + 800 + Math.random() * 3500;
+          continue;
+        }
+      }
+      if (w.wander && now >= w.pauseUntil) pickWander(w, e);
+      if (w.i >= w.path.length) continue;
+    }
+    const [nx, ny] = w.path[w.i++];
+    const step = w.stepMs;
+    const face = dirOf(nx - e.x, ny - e.y);
+    // announce the step: we are at (x,y) and moving to (nx,ny)
+    view.applyEntities({ upd: [{ id: w.id, x: e.x, y: e.y, nx, ny, step, face, state: 'walk' }] });
+    e.state = 'walk';
+    e.nx = nx;
+    e.ny = ny;
+    e.face = face;
+    w.nextAt = now + step;
+    // we arrive at next tile after `step`: commit position then
+    setTimeout(() => {
+      e.x = nx;
+      e.y = ny;
+    }, step);
+  }
+}
+setInterval(() => stepWalkers(performance.now()), 50);
+// stagger initial wandering
+for (const w of walkers.values()) if (w.wander) w.pauseUntil = performance.now() + Math.random() * 2500;
+
+view.onPick((p, g) => {
+  if (g === 'hover') {
+    hoverTile = p;
+    return;
+  }
+  if (g === 'tap') {
+    if (p.entityId !== null && p.entityId !== SELF) {
+      view.setSelected(p.entityId);
+      const t = ents.get(p.entityId);
+      if (t) say(`Selected ${t.name}`);
+    } else {
+      view.setSelected(null);
+      const self = ents.get(SELF)!;
+      const path = findPath(grid, self.x, self.y, p.x, p.y, 6000);
+      if (path && path.length) {
+        const w = walkers.get(SELF)!;
+        w.path = path.map((q) => [q.x, q.y] as [number, number]);
+        w.i = 0;
+        w.nextAt = 0;
+        view.setMoveTarget({ x: p.x, y: p.y });
+      }
+    }
+  } else if (g === 'context') {
+    if (p.entityId !== null) view.say(p.entityId, `Context menu on #${p.entityId}`);
+    else view.setMoveTarget({ x: p.x, y: p.y });
+  }
+});
+let hoverTile: { x: number; y: number } | null = null;
+
+function say(t: string): void {
+  const el = document.getElementById('info');
+  if (el) el.textContent = t;
+}
+
+// ---- panel -------------------------------------------------------------------------------------
+const panel = document.getElementById('panel')!;
+const seasonNames = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const weathers: WeatherKind[] = ['clear', 'cloudy', 'rain', 'storm', 'fog', 'snow'];
+const fxKinds: FxKind[] = ['levelup', 'breakthrough', 'death', 'loot', 'heal', 'learn', 'gather', 'purify'];
+panel.innerHTML = `
+<div class="head"><b>Render sandbox</b> <span id="fps">-</span> <button id="collapse" title="hide panel">-</button></div>
+<div id="body">
+<h4>Time</h4>
+<label>hour <input id="hour" type="range" min="0" max="24" step="0.05" value="${state.hours}"><span id="hourv">${state.hours}</span></label>
+<label>day cycle <input id="cycle" type="checkbox"></label>
+<h4>Season</h4><div class="row" id="seasons"></div>
+<h4>Weather</h4><div class="row" id="weathers"></div>
+<h4>Blight</h4>
+<label>reach <input id="bl" type="range" min="0" max="2" step="0.05" value="1"></label>
+<label>corrupt at cursor <input id="blc" type="checkbox"></label>
+<div class="row"><button id="blclear">clear</button><button id="blall">all hearts</button></div>
+<h4>Camera</h4>
+<div class="row"><button id="zin">zoom +</button><button id="zout">zoom -</button><button id="recenter">recenter</button><span id="zv"></span></div>
+<h4>Teleport</h4><div class="row" id="tele"></div>
+<h4>Settlement 0..7</h4><div class="row" id="settle"></div>
+<h4>FX on you</h4><div class="row" id="fxs"></div>
+<div class="row"><button id="sayb">say</button><button id="combat">combat burst</button></div>
+</div>`;
+const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const mk = (parent: HTMLElement, label: string, fn: () => void): void => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.onclick = fn;
+  parent.appendChild(b);
+};
+seasonNames.forEach((n, i) => mk(el('seasons'), n, () => ((state.season = i), pushTime())));
+weathers.forEach((w) => mk(el('weathers'), w, () => ((state.weather = w), pushTime())));
+const hourEl = el<HTMLInputElement>('hour');
+hourEl.oninput = () => {
+  state.hours = Number(hourEl.value);
+  el('hourv').textContent = state.hours.toFixed(1);
+  pushTime();
+};
+el<HTMLInputElement>('cycle').onchange = (e) => (state.cycle = (e.target as HTMLInputElement).checked);
+el<HTMLInputElement>('bl').oninput = (e) => view.setBlight(blightFromHearts(Number((e.target as HTMLInputElement).value)));
+el<HTMLInputElement>('blc').onchange = (e) => (state.cursorBlight = (e.target as HTMLInputElement).checked);
+el('blclear').onclick = () => view.setBlight(new Uint8Array(wd.w * wd.h));
+el('blall').onclick = () => view.setBlight(blightFromHearts(Number(el<HTMLInputElement>('bl').value)));
+el('zin').onclick = () => view.setZoom(view.getZoom() + 0.5);
+el('zout').onclick = () => view.setZoom(view.getZoom() - 0.5);
+el('recenter').onclick = () => {
+  const s = ents.get(SELF)!;
+  view.centerOn(s.x, s.y);
+};
+function teleport(x: number, y: number): void {
+  const [tx, ty] = nearPassable(x, y, 3);
+  const self = ents.get(SELF)!;
+  self.x = tx;
+  self.y = ty;
+  self.nx = undefined;
+  self.ny = undefined;
+  const w = walkers.get(SELF)!;
+  w.path = [];
+  w.i = 0;
+  view.applyEntities({ upd: [{ id: SELF, x: tx, y: ty, state: 'idle' }] });
+  view.centerOn(tx, ty, true);
+}
+for (const s of wd.settlements) mk(el('tele'), `${s.id} ${s.name.split(' ')[0]}`, () => teleport(s.spawn.x, s.spawn.y));
+const statuses: SettlementView['status'][] = ['thriving', 'struggling', 'besieged', 'fallen'];
+wd.settlements.forEach((s, i) => {
+  mk(el('settle'), `${i}`, () => {
+    const v = settleView[i];
+    const cur = statuses.indexOf(v.status);
+    v.status = statuses[(cur + 1) % statuses.length];
+    v.siege = v.status === 'besieged';
+    if (v.status === 'thriving') v.controller = factionIds[(factionIds.indexOf(v.controller ?? '') + 1) % factionIds.length];
+    view.setSettlements([v]);
+    say(`${s.name}: ${v.status} (${v.controller})`);
+  });
+});
+fxKinds.forEach((k) => mk(el('fxs'), k, () => view.fx(k, SELF, k === 'loot' ? '+3 Silver' : undefined)));
+el('sayb').onclick = () => view.say(SELF, 'The Blight is spreading east of the ford. Stay close to the road and carry a purifying pill!');
+el('combat').onclick = () => {
+  const evs: CombatEvent[] = [];
+  const self = SELF;
+  for (let i = 0; i < 4; i++) evs.push({ k: 'hit', s: self, d: wolfFoe.id, a: 50 + i * 7, c: i === 2 ? 1 : undefined, sk: i % 2 ? 'sword_cloud' : 'fist_iron' });
+  evs.push({ k: 'use', s: self, sk: 'sword_azure' }, { k: 'guard', s: self }, { k: 'stun', s: wolfFoe.id });
+  view.combatEvents(evs);
+};
+el('collapse').onclick = () => {
+  const b = el('body');
+  b.style.display = b.style.display === 'none' ? '' : 'none';
+};
+if (params.get('panel') === '0') panel.style.display = 'none';
+if (innerWidth < 640) el('body').style.display = 'none';
+
+// ---- minimap ---------------------------------------------------------------------------------------
+const mm = document.getElementById('minimap') as HTMLCanvasElement;
+mm.onclick = (e) => {
+  const r = mm.getBoundingClientRect();
+  const t = view.minimapToTile(mm, ((e.clientX - r.left) * mm.width) / r.width, ((e.clientY - r.top) * mm.height) / r.height);
+  teleport(t.x, t.y);
+};
+
+// ---- main tick for the panel -------------------------------------------------------------------------
+let lastT = performance.now();
+canvas.addEventListener('pointermove', () => {
+  if (!state.cursorBlight || !hoverTile) return;
+  const idx: number[] = [];
+  const val: number[] = [];
+  const R = 6;
+  for (let dy = -R; dy <= R; dy++)
+    for (let dx = -R; dx <= R; dx++) {
+      const x = hoverTile.x + dx;
+      const y = hoverTile.y + dy;
+      if (x < 0 || y < 0 || x >= wd.w || y >= wd.h) continue;
+      const d = Math.hypot(dx, dy);
+      if (d > R) continue;
+      const i = y * wd.w + x;
+      const v = Math.round(255 * (1 - d / R));
+      if (v > view.world!.blight[i]) {
+        idx.push(i);
+        val.push(v);
+      }
+    }
+  if (idx.length) view.patchBlight(idx, val);
+});
+setInterval(() => {
+  const now = performance.now();
+  const dt = now - lastT;
+  lastT = now;
+  if (state.cycle) {
+    state.hours = (state.hours + dt / 1000 / 2.5) % 24;
+    hourEl.value = String(state.hours);
+    el('hourv').textContent = state.hours.toFixed(1);
+    pushTime();
+  }
+  const f = el('fps');
+  const st = view.stats;
+  f.textContent = `${st.fps.toFixed(0)} fps  ${st.frameMs.toFixed(1)}ms  ents ${st.entities}/${st.drawn}  chunks ${st.chunksBuilt}`;
+  el('zv').textContent = `x${view.getZoom().toFixed(2)}`;
+}, 250);
+setInterval(() => view.drawMinimap(mm), 200);
+setTimeout(() => view.drawMinimap(mm), 50);
+
+window.addEventListener('resize', () => view.resize());
+view.start();
+const tp = params.get('tp');
+if (tp !== null) {
+  const s = wd.settlements[Number(tp)];
+  if (s) teleport(s.spawn.x, s.spawn.y);
+}
+const zoom = params.get('zoom');
+if (zoom) view.setZoom(Number(zoom));
+
+// ---- look preview (character creation widget test) ---------------------------------------------------
+import { drawLookPreview } from './render/index';
+{
+  const pv = document.createElement('canvas');
+  pv.width = 150;
+  pv.height = 220;
+  pv.title = 'drawLookPreview: click to reroll';
+  pv.style.cssText = 'position:fixed;left:8px;bottom:8px;border:1px solid #5a4a33;border-radius:6px;image-rendering:pixelated;cursor:pointer;background:#17121d';
+  document.body.appendChild(pv);
+  if (innerWidth < 640) pv.style.display = 'none';
+  let look = randLook();
+  let dir = 0;
+  pv.onclick = () => {
+    look = randLook();
+    dir = (dir + 1) % 4;
+  };
+  const wps = ['sword', 'blade', 'spear', 'staff', 'fist'] as const;
+  let wi = 0;
+  setInterval(() => (wi = (wi + 1) % 5), 4000);
+  const tick = (t: number): void => {
+    drawLookPreview(pv, look, { time: t, dir: dir as 0, weapon: wps[wi], scale: 5, state: wi % 2 ? 'walk' : 'idle' });
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}

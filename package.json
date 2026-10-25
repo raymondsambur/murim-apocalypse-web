@@ -1,0 +1,35 @@
+{
+  "name": "murim-apocalypse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Murim Apocalypse - a browser-based, persistent, isometric wuxia MMO where the world lives on without you.",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c yellow,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch --tsconfig packages/server/tsconfig.json --clear-screen=false --disable-warning=ExperimentalWarning packages/server/src/main.ts",
+    "dev:client": "vite packages/client",
+    "build": "vite build packages/client && esbuild packages/server/src/main.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist/server.mjs",
+    "start": "node --disable-warning=ExperimentalWarning dist/server.mjs",
+    "typecheck": "tsc -p packages/shared && tsc -p packages/server && tsc -p packages/client",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "concurrently": "^10.0.6",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@fastify/static": "^10.1.7",
+    "fastify": "^5.12.7",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
+  }
+}

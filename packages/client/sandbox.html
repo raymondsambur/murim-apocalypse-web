@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>Murim Apocalypse - render sandbox</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #0d1823; color: #e9dcc0; font: 12px/1.35 ui-monospace, Consolas, monospace; overflow: hidden; }
+      #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; }
+      #panel { position: fixed; top: 8px; left: 8px; width: 236px; max-height: calc(100% - 16px); overflow: auto; background: rgba(18, 14, 22, 0.88); border: 1px solid #5a4a33; border-radius: 6px; padding: 8px 10px; box-sizing: border-box; }
+      #panel h4 { margin: 8px 0 4px; color: #d9b867; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+      #panel label { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin: 3px 0; }
+      #panel input[type='range'] { width: 120px; }
+      #panel select, #panel button { background: #2b2230; color: #e9dcc0; border: 1px solid #5a4a33; border-radius: 3px; font: inherit; padding: 2px 5px; cursor: pointer; }
+      #panel button:hover { background: #3d3042; }
+      .row { display: flex; flex-wrap: wrap; gap: 3px; }
+      #fps { color: #8fd18b; font-weight: bold; }
+      #minimap { position: fixed; right: 8px; top: 8px; border: 1px solid #5a4a33; border-radius: 4px; background: #0d1823; width: 240px; height: 160px; cursor: crosshair; }
+      #info { position: fixed; right: 8px; bottom: 8px; background: rgba(18, 14, 22, 0.8); padding: 4px 8px; border-radius: 4px; pointer-events: none; }
+      #toggle { position: fixed; top: 8px; left: 8px; z-index: 5; display: none; }
+      @media (max-width: 640px) { #panel { width: 180px; font-size: 11px; } #minimap { width: 150px; height: 100px; } #panel input[type='range'] { width: 80px; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+    <canvas id="minimap" width="240" height="160"></canvas>
+    <div id="panel"></div>
+    <div id="info"></div>
+    <script type="module" src="/src/sandbox.ts"></script>
+  </body>
+</html>

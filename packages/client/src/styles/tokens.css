@@ -1,0 +1,280 @@
+/* ==========================================================================
+   Murim Apocalypse - design tokens and base.
+   Ink-wash dark UI, aged-parchment panels, gold + cinnabar accents.
+   No image files: every texture is a gradient or an inline SVG data URI.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* ink */
+  --ink-0: #0a0908;
+  --ink-1: #11100d;
+  --ink-2: #181510;
+  --ink-3: #211c15;
+  --ink-4: #2b2419;
+  --ink-5: #3a3023;
+
+  /* parchment (dark paper) surfaces */
+  --paper-0: #17130e;
+  --paper-1: #1d1812;
+  --paper-2: #251f16;
+  --paper-3: #2e2619;
+  --paper-hi: #ddd0b0;
+  --paper-hi-2: #cbbd98;
+  --paper-ink: #2b2118;
+
+  /* text */
+  --text: #ece1c6;
+  --text-dim: #b0a487;
+  --text-faint: #867b63;
+  --text-on-paper: #2b2118;
+
+  /* accents */
+  --gold: #d9b867;
+  --gold-hi: #f0d58a;
+  --gold-lo: #9c7f3c;
+  --cinnabar: #c8452d;
+  --cinnabar-hi: #e8604a;
+  --cinnabar-lo: #8c2a19;
+
+  /* semantic */
+  --good: #7ec26b;
+  --warn: #f0a43a;
+  --bad: #e8574a;
+  --info: #6bb0e8;
+  --qi: #4aa3c9;
+  --hp: #c8452d;
+  --xp: #d9b867;
+
+  --line: rgba(217, 184, 103, 0.26);
+  --line-strong: rgba(217, 184, 103, 0.55);
+  --line-faint: rgba(236, 225, 198, 0.1);
+  --shade: rgba(0, 0, 0, 0.55);
+
+  --font-serif: 'Palatino Linotype', 'Book Antiqua', Georgia, 'Noto Serif CJK SC', 'Source Han Serif SC', 'Songti SC', SimSun, 'Microsoft YaHei', serif;
+  --font-ui: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+  --font-glyph: 'Noto Serif CJK SC', 'Source Han Serif SC', 'Songti SC', SimSun, 'Microsoft YaHei', 'PingFang SC', serif;
+
+  --radius: 6px;
+  --radius-lg: 10px;
+  --tap: 2.5rem; /* minimum touch target: 40px at scale 1 */
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 18px 50px rgba(0, 0, 0, 0.7), 0 2px 6px rgba(0, 0, 0, 0.6);
+
+  --ease: cubic-bezier(0.22, 0.8, 0.28, 1);
+  --t-fast: 120ms;
+  --t-med: 220ms;
+
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+
+  /* subtle paper grain (inline SVG turbulence) and brush-ink wash */
+  --grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .93  0 0 0 0 .84  0 0 0 0 .62  1.1 0 0 0 -.42'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>");
+  --fibers: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><filter id='f' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='.012 .5' numOctaves='3' seed='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .9  0 0 0 0 .8  0 0 0 0 .55  0 1.2 0 0 -.5'/></filter><rect width='300' height='300' filter='url(%23f)'/></svg>");
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: calc(16px * var(--ui-scale, 1));
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--ink-0);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gold-hi);
+}
+
+p {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+kbd {
+  font-family: var(--font-ui);
+}
+
+a {
+  color: var(--gold);
+}
+
+::selection {
+  background: rgba(217, 184, 103, 0.35);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* focus ring: always visible for keyboard users, never for mouse clicks */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--gold-hi);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(217, 184, 103, 0.35) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(217, 184, 103, 0.3);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 184, 103, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* CJK glyph icons */
+.glyph {
+  font-family: var(--font-glyph);
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* cinnabar seal stamp */
+.seal {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 4px;
+  background: radial-gradient(circle at 30% 25%, var(--cinnabar-hi), var(--cinnabar) 55%, var(--cinnabar-lo));
+  color: #f7e6c8;
+  font-family: var(--font-glyph);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(255, 220, 190, 0.28), 0 1px 3px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  transform: rotate(-3deg);
+}
+
+/* semantic text tones (tooltips, logs, toasts) */
+.tone-good {
+  color: var(--good);
+}
+.tone-bad {
+  color: var(--bad);
+}
+.tone-warn {
+  color: var(--warn);
+}
+.tone-info {
+  color: var(--info);
+}
+.tone-gold {
+  color: var(--gold);
+}
+.tone-dim {
+  color: var(--text-dim);
+}
+.tone-affix {
+  color: #9fc4ff;
+}
+.tone-neutral {
+  color: var(--text);
+}
+
+.empty-note {
+  padding: 0.9rem 0.6rem;
+  text-align: center;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* respect the motion preference (OS or the in-game setting) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

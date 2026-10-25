@@ -1,0 +1,7 @@
+/* Murim Apocalypse - client styles. Partials live in ./styles/.
+   Panel authors: put panel-specific CSS in src/styles/panels/<name>.css and import it from your panel file. */
+@import './styles/tokens.css';
+@import './styles/components.css';
+@import './styles/screens.css';
+@import './styles/hud.css';
+@import './styles/panels.css';
