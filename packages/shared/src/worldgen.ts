@@ -92,11 +92,11 @@ function makeTerrain(c: Ctx): void {
 function carveRivers(c: Ctx): void {
   const { w, h, rng } = c;
   const sources: { x: number; y: number }[] = [];
-  for (let tries = 0; tries < 600 && sources.length < 4; tries++) {
+  for (let tries = 0; tries < 1200 && sources.length < 6; tries++) {
     const x = rng.int(8, w - 9);
     const y = rng.int(8, h - 9);
     const t = c.terrain[ix(c, x, y)];
-    if ((t === T.Rock || t === T.Hill) && sources.every((s) => dist(s.x, s.y, x, y) > 30)) sources.push({ x, y });
+    if ((t === T.Rock || t === T.Hill) && sources.every((s) => dist(s.x, s.y, x, y) > 40)) sources.push({ x, y });
   }
   for (const s of sources) {
     let x = s.x;
@@ -236,8 +236,9 @@ function pickSites(c: Ctx, cands: Cand[], count: number): Cand[] {
     }
   }
   const chosen = [start];
-  let sep = 36;
-  while (chosen.length < count && sep >= 16) {
+  // Minimum distance between settlements (tiles); relaxed in steps only if the map cannot hold them all.
+  let sep = 60;
+  while (chosen.length < count && sep >= 30) {
     const scored = cands
       .map((k) => ({ k, d: Math.min(...chosen.map((s) => dist(s.x, s.y, k.x, k.y))) }))
       .filter((e) => e.d >= sep)
@@ -704,26 +705,29 @@ function placeSpawnsAndNodes(c: Ctx, world: WorldData): { spawns: SpawnPointDef[
     return false;
   };
 
-  for (let tries = 0; tries < 6000 && spawns.length < 56; tries++) {
+  // Pack count scales with area (the original 192x128 world used 56).
+  const maxSpawns = Math.round((56 * c.w * c.h) / (192 * 128));
+  for (let tries = 0; tries < 16000 && spawns.length < maxSpawns; tries++) {
     const x = rng.int(4, c.w - 5);
     const y = rng.int(4, c.h - 5);
     const t = c.terrain[ix(c, x, y)];
     if (t !== T.Grass && t !== T.Plains && t !== T.Forest && t !== T.Hill && t !== T.Snow && t !== T.Sand) continue;
     if (!okTile(x, y)) continue;
     if (!farFromSettlements(x, y, 6)) continue;
-    if (spawns.some((s) => dist(s.x, s.y, x, y) < 10)) continue;
+    if (spawns.some((s) => dist(s.x, s.y, x, y) < 11)) continue;
     const dStart = dist(x, y, start.x, start.y);
-    if (dStart < 14) continue;
+    if (dStart < 16) continue;
     const dRuin = ruin ? dist(x, y, ruin.x, ruin.y) : 999;
     let family: MonsterFamily = 'beast';
-    if (dRuin < 38 && rng.chance(0.6)) family = 'blight';
-    else if (dStart > 24 && nearRoad(x, y, 8) && rng.chance(0.7)) family = 'bandit';
-    const danger = 1 + Math.floor(dStart / 9) + (family === 'blight' ? 2 : 0);
+    if (dRuin < 56 && rng.chance(0.6)) family = 'blight';
+    else if (dStart > 34 && nearRoad(x, y, 8) && rng.chance(0.7)) family = 'bandit';
+    // Danger grows with distance from the starting village (about +1 per 13 tiles on the larger map).
+    const danger = 1 + Math.floor(dStart / 13) + (family === 'blight' ? 2 : 0);
     spawns.push({ id: spawns.length, x, y, family, radius: 4, danger, packSize: Math.min(4, 1 + Math.floor(danger / 4) + rng.int(0, 1)) });
   }
 
   // Guarantee bandit country: convert the beast packs closest to roads (far enough from the start) if too few formed.
-  const wantBandits = 8;
+  const wantBandits = Math.round((10 * c.w * c.h) / (192 * 128));
   let banditCount = spawns.filter((s) => s.family === 'bandit').length;
   if (banditCount < wantBandits) {
     const roadDist = (x: number, y: number) => {
@@ -749,7 +753,7 @@ function placeSpawnsAndNodes(c: Ctx, world: WorldData): { spawns: SpawnPointDef[
   const nodes: ResourceNodeDef[] = [];
   const addNode =(kind: NodeKind, x: number, y: number) => nodes.push({ id: c.nextNodeId++, kind, x, y });
   const spread = (kind: NodeKind, count: number, accept: (x: number, y: number, t: number) => boolean) => {
-    for (let tries = 0, got = 0; tries < 8000 && got < count; tries++) {
+    for (let tries = 0, got = 0; tries < 20000 && got < count; tries++) {
       const x = rng.int(3, c.w - 4);
       const y = rng.int(3, c.h - 4);
       if (!okTile(x, y)) continue;
@@ -760,9 +764,10 @@ function placeSpawnsAndNodes(c: Ctx, world: WorldData): { spawns: SpawnPointDef[
       got++;
     }
   };
-  spread('herb', 70, (_x, _y, t) => t === T.Grass || t === T.Forest || t === T.Plains);
-  spread('rareHerb', 16, (x, y, t) => (t === T.Forest || t === T.Hill) && dist(x, y, start.x, start.y) > 30);
-  spread('ore', 40, (x, y, t) => {
+  const areaK = (c.w * c.h) / (192 * 128);
+  spread('herb', Math.round(70 * areaK), (_x, _y, t) => t === T.Grass || t === T.Forest || t === T.Plains);
+  spread('rareHerb', Math.round(16 * areaK), (x, y, t) => (t === T.Forest || t === T.Hill) && dist(x, y, start.x, start.y) > 45);
+  spread('ore', Math.round(40 * areaK), (x, y, t) => {
     if (t !== T.Hill && t !== T.Grass && t !== T.Plains && t !== T.Snow) return false;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) if (inB(c, x + dx, y + dy) && c.terrain[ix(c, x + dx, y + dy)] === T.Rock) return true;
     return false;
@@ -834,6 +839,39 @@ export function generateWorld(seed: number, w = WORLD_W, h = WORLD_H): WorldData
   const sx = sites[0].x;
   const sy = sites[0].y;
   const ordered = [...sites].sort((a, b) => dist(a.x, a.y, sx, sy) - dist(b.x, b.y, sx, sy));
+  // The fallen capital is the last settlement (the Blight's source). With widely spaced towns the farthest
+  // site can be completely isolated, so pick, among the three farthest, the one closest to a living town:
+  // the Blight then has a real frontier to press against instead of spreading into empty country.
+  if (ordered.length >= 5) {
+    const far = ordered.slice(-3);
+    const nearestOther = (s: Cand) => Math.min(...ordered.filter((o) => o !== s).map((o) => dist(o.x, o.y, s.x, s.y)));
+    const isolated = far.reduce((best, s) => (nearestOther(s) < nearestOther(best) ? s : best), far[far.length - 1]);
+    // The 7 living towns; the isolated site is dropped and replaced by a ruin site much closer to one of them:
+    // the Blight only spreads about 40 tiles, so a ruin 60+ tiles from everyone would never threaten anything.
+    // Aim for 26-34 tiles from the nearest living town (the other towns stay 50+ tiles away from it and from each
+    // other): the frontier town is genuinely threatened while the rest of the map stays spacious.
+    const living = ordered.filter((o) => o !== isolated);
+    const frontier = living.reduce((best, s) => (dist(s.x, s.y, isolated.x, isolated.y) < dist(best.x, best.y, isolated.x, isolated.y) ? s : best), living[0]);
+    let ruinSite: Cand = isolated;
+    const tryRanges: [number, number, number][] = [
+      [26, 34, 50],
+      [24, 40, 42],
+    ];
+    for (const [lo, hi, minOther] of tryRanges) {
+      const options = cands.filter((k) => {
+        const dF = dist(k.x, k.y, frontier.x, frontier.y);
+        if (dF < lo || dF > hi) return false;
+        if (dist(k.x, k.y, sx, sy) < 80) return false;
+        return living.every((o) => o === frontier || dist(k.x, k.y, o.x, o.y) >= minOther);
+      });
+      if (options.length) {
+        ruinSite = options.reduce((best, k) => (dist(k.x, k.y, sx, sy) > dist(best.x, best.y, sx, sy) ? k : best), options[0]);
+        break;
+      }
+    }
+    ordered.length = 0;
+    ordered.push(...living, ruinSite);
+  }
   const kinds = kindsFor(ordered.length);
   const used = new Set<string>();
   const nameRng = c.rng.fork(777);

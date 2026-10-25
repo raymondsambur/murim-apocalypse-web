@@ -26,12 +26,16 @@ export const BLIGHT = {
   /** Fraction of the gap to the neighbour mean closed per hour (4-neighbour mean form). */
   diffusion: 0.5,
   /** Proportional decay per hour (divided by the growth multiplier, so winter decays faster). */
-  decayRate: 0.0006,
+  // Retuned for the 288x192 map (towns ~1.5x further apart): slower decay and stronger hearts let the Blight
+  // travel far enough to threaten the frontier town.
+  decayRate: 0.00014,
+  /** Decay is divided by (season x weather multiplier)^this: >1 makes winter recede clearly. */
+  decaySeasonPow: 2,
   /** Constant decay per hour, cuts the long faint tail. */
-  decayConst: 0.006,
+  decayConst: 0.0005,
   /** Emission per cell per hour at the centre of an active heart with strength 100. */
-  heartEmit: 4.5,
-  heartRadius: 4,
+  heartEmit: 10,
+  heartRadius: 5,
   /** Daily regrowth of unsealed hearts (strength points). */
   heartRegen: 0.8,
   /** Strength a heart restarts at when its seal breaks. */
@@ -48,7 +52,7 @@ export const BLIGHT = {
   fallenFadeDays: 45,
   ruinEmit: 0.35,
   /** Suppression per cell per hour at the centre of a settlement with defense 100. */
-  suppress: 0.9,
+  suppress: 0.6,
   /** Suppression radius = settlement radius + this. */
   suppressExtra: 6,
   /** Blight average radius = settlement radius + this (centre weighted). */
@@ -56,7 +60,7 @@ export const BLIGHT = {
   /** Weight falloff exponent of that average (lower = the whole disc counts more evenly). */
   avgPow: 0.6,
   /** Growth multipliers (emission x, decay /). Spring, Summer, Autumn, Winter. */
-  season: [1.0, 1.2, 1.0, 0.6] as [number, number, number, number],
+  season: [1.0, 1.25, 1.05, 0.35] as [number, number, number, number],
   weather: { clear: 1, cloudy: 1, fog: 1.05, rain: 0.75, storm: 0.7, snow: 0.85 } as Record<WeatherKind, number>,
   /** A tile is reported changed when value >> bucketShift changes (or it crosses zero). */
   bucketShift: 3,
@@ -69,7 +73,7 @@ export const BLIGHT = {
   killElite: [0, 8, 30] as [number, number, number],
   /** Initial seeding around hearts. */
   initPeak: 200,
-  initRadius: 16,
+  initRadius: 32,
   initRuinPeak: 70,
 };
 
@@ -86,8 +90,8 @@ export const SETTLE = {
   /** Defense relaxes toward its target this fraction per hour. */
   defenseRelax: 0.04,
   /** Blight siege trigger: chance per day = (blight - threshold) / span, capped. */
-  siegeBlight: 14,
-  siegeBlightSpan: 50,
+  siegeBlight: 8,
+  siegeBlightSpan: 40,
   siegeDailyCap: 0.45,
   siegeHours: [16, 30] as [number, number],
   siegeCooldownDays: 6,
@@ -114,21 +118,21 @@ export const SETTLE = {
 export const ECON = {
   /** Consumption per inhabitant per day. */
   cons: { grain: 0.02, meat: 0.006, herb: 0.002, ore_iron: 0.0025, hide: 0.002, cloth: 0.003, wine: 0.003, pill_heal_s: 0.0012 } as Record<string, number>,
-  farmGrain: 6,
+  farmGrain: 4.4,
   /** Grain per inhabitant from gardens, by settlement kind (forts and sects live off tribute). */
   gardenByKind: { village: 0.004, hamlet: 0.008, town: 0.004, fort: 0.013, sectHall: 0.014, ruin: 0 } as Record<string, number>,
   huntMeat: 0.0066,
   farmhouseMeat: 2,
-  herbHut: 5,
+  herbHut: 3,
   forageHerb: 0.0008,
   /** Herb gardens kept by sects and forts. */
   gardenHerb: { sectHall: 2.4, fort: 0.9 } as Record<string, number>,
-  mineOre: 5,
+  mineOre: 3,
   hideBase: 0.0026,
-  marketCloth: 2.2,
-  innWine: 1.6,
-  teaWine: 0.8,
-  alchemyPills: 1.5,
+  marketCloth: 1.2,
+  innWine: 0.95,
+  teaWine: 0.5,
+  alchemyPills: 0.75,
   /** Season multipliers (Spring..Winter). */
   grainSeason: [1, 1.2, 1.5, 0.25],
   herbSeason: [1.2, 1.1, 1, 0.5],

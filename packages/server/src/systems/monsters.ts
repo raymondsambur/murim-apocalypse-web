@@ -133,6 +133,7 @@ export function register(ctx: GameContext, opts: MonsterOptions = {}): void {
       despawnWhenFree: false,
       lastSeen: now,
       returnTries: 0,
+      controlled: spec.controlled,
     });
     monsters.add(e);
     return e;
@@ -417,6 +418,7 @@ export function register(ctx: GameContext, opts: MonsterOptions = {}): void {
       const st = MONSTER.get(e);
       if (!st || e.hidden || !ctx.entities.has(e.id)) continue;
       st.lastSeen = now;
+      if (st.controlled) continue; // war party of the siege module: it decides what the unit does
       try {
         if (st.mode === 'idle') thinkIdle(e, st, now, night, budget);
         else if (st.mode === 'chase') thinkChase(e, st, now, budget);
@@ -475,6 +477,7 @@ export function register(ctx: GameContext, opts: MonsterOptions = {}): void {
       return;
     }
     st.mode = 'idle';
+    if (st.controlled) return; // handed back to its war party
     startReturn(e, st);
   }
 
@@ -554,7 +557,16 @@ export function register(ctx: GameContext, opts: MonsterOptions = {}): void {
     sieges.delete(siege.id);
   }
 
+  let siegesDelegated = false;
+
+  /** Another module (siege battles) owns the siege waves from now on: dismantle ours. */
+  function delegateSieges(): void {
+    siegesDelegated = true;
+    for (const siege of [...sieges.values()]) endSiege(siege);
+  }
+
   function checkSieges(): void {
+    if (siegesDelegated) return;
     const total = ctx.sim.clock().totalHours;
     for (const s of ctx.sim.state.settlements) {
       const on = s.siegeUntil > total;
@@ -691,6 +703,7 @@ export function register(ctx: GameContext, opts: MonsterOptions = {}): void {
     think,
     checkPacks,
     checkSieges,
+    delegateSieges,
   } satisfies MonsterApi);
 
   if (opts.population !== false) {

@@ -116,3 +116,7 @@ ctx.events.on('npcChat', ({ a, b, settlementId }) => ...)   // once per conversa
 * Eating costs no goods (no hook into the economy); the innkeeper does not run out of food during a famine.
 * Hidden NPCs sit on their door tile; other systems that query `entities.near` should filter `hidden`.
 * The first minutes after boot place all NPCs at 06:00-ish breakfast (everyone starts with the same hunger band); the schedule spreads out within about an hour.
+
+## Hooks for the siege battles
+
+`getNpcLife(ctx)` also offers `seize(npcId)` / `release(npcId, at?)` (take an NPC off its routine: no decisions, no walking, no cue changes; the siege battle hides it and fights with a clone, then gives it back), `celebrate(settlementId, ms)` (festival mood at any hour, used after a victory) and `grieve(settlementId)` (survivors gather on the plaza to mourn after a defeat). See `siege-battles.md`.

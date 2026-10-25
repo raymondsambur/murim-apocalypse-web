@@ -281,7 +281,9 @@ describe('lives, deaths and succession', () => {
   it('a fallen settlement kills or scatters its people and is restaffed when retaken', () => {
     const sim = makeSim();
     const st = stateOf(sim);
-    const sid = 6;
+    const world = worldFor(PROD_SEED);
+    // Any living town (derived from the world, not a magic id).
+    const sid = world.settlements.find((d) => d.kind === 'town')!.id;
     const before = sim.npcs(sid).length;
     expect(before).toBeGreaterThan(8);
     // Force a Blight fall by a decisive siege.
@@ -297,9 +299,7 @@ describe('lives, deaths and succession', () => {
     const departed = ev.filter((e) => e.k === 'npcDied' || e.k === 'npcMoved').length;
     expect(departed).toBeGreaterThanOrEqual(before - 2);
     // Retake and restaff.
-    st.blight.fill(0);
-    s.population = 0;
-    for (let d = 0; d < 80 && (s.status as string) === 'fallen'; d++) runDays(sim, 1);
+    for (let d = 0; d < 200 && (s.status as string) === 'fallen'; d++) runDays(sim, 1);
     expect(s.status as string).not.toBe('fallen');
     runDays(sim, 3);
     expect(sim.npcs(sid).length).toBeGreaterThan(5);

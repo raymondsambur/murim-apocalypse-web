@@ -121,6 +121,7 @@ export const ACT_STATE: Record<NpcAct, { state: CharState; tool?: ToolKind }> = 
   shelter: { state: 'shelter' },
   mourn: { state: 'mourn' },
   celebrate: { state: 'cheer' },
+  loot: { state: 'loot' },
 };
 
 /** Nearest friendly entity within `r` tiles (cached per entity for ~1.2 s). Returns its id or -1. */

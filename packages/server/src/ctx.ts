@@ -159,6 +159,10 @@ export interface EntityExtras {
   /** NPC activity cue sent to clients (set by the NPC life system). */
   act?: NpcAct;
   rank?: number;
+  /** Battle side while a raid / siege is fought in the open (siege module). */
+  side?: 'raid' | 'def';
+  /** 1 = carries the war banner of its side. */
+  flag?: 1;
 }
 
 export interface Entity extends EntityExtras {

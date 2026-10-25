@@ -82,6 +82,8 @@ export class SceneRenderer {
   private smokeNext = new Map<number, number>();
   private emitters: SmokeEmitter[] = [];
   private bannerColor = new Map<number, string | null>();
+  /** Settlements whose buildings burn (a town being sacked after the raiders won). */
+  private readonly burning = new Set<number>();
   private wallFallen = new Map<number, boolean>();
   private shadows = new Map<number, HTMLCanvasElement>();
   private mist: HTMLCanvasElement[] = [];
@@ -133,6 +135,11 @@ export class SceneRenderer {
       this.bannerColor.set(idx, c);
     }
     return c ?? undefined;
+  }
+
+  setBurning(sid: number, on: boolean): void {
+    if (on) this.burning.add(sid);
+    else this.burning.delete(sid);
   }
 
   /** Forget cached controller-dependent data (after a settlement update). */
@@ -403,13 +410,15 @@ export class SceneRenderer {
     if (spr.spr.glow) this.glowLayers.push({ cv: spr.spr.glow, x: px, y: py });
     for (const l of spr.lights) this.lights.push({ x: px + l.x, y: py + l.y, r: l.r, c: l.c });
     const st = this.world.status.get(b.sid);
-    const besieged = st?.siege === true || st?.status === 'besieged';
+    const burning = this.burning.has(b.sid);
+    const besieged = st?.siege === true || st?.status === 'besieged' || burning;
     for (let i = 0; i < spr.smoke.length; i++) {
       const sm = spr.smoke[i];
-      this.emitters.push({ wx: px + sm.x + ax0, wy: py + sm.y + ay0, kind: besieged && i === 0 ? 'fire' : sm.kind });
+      this.emitters.push({ wx: px + sm.x + ax0, wy: py + sm.y + ay0, kind: (besieged && i === 0) || burning ? 'fire' : sm.kind });
       if (besieged && i === 0) this.emitters.push({ wx: px + sm.x + ax0 + 6, wy: py + sm.y + ay0 + 4, kind: 'fire' });
     }
     if (besieged && spr.smoke.length === 0) this.emitters.push({ wx: px + spr.spr.w / 2 + ax0, wy: py + spr.spr.h * 0.45 + ay0, kind: 'fire' });
+    if (burning) this.emitters.push({ wx: px + spr.spr.w * 0.32 + ax0, wy: py + spr.spr.h * 0.3 + ay0, kind: 'fire' }, { wx: px + spr.spr.w * 0.66 + ax0, wy: py + spr.spr.h * 0.5 + ay0, kind: 'fire' });
     void now;
   }
 
@@ -638,6 +647,7 @@ export class SceneRenderer {
     const dy = ay - spr.ay;
     s.drawImage(spr.cv, dx, dy);
     if (v.id === this.selfId) this.xray = { spr, dx, dy };
+    if (v.flag === 1 && v.state !== 'dead' && (human || beast)) this.drawBanner(s, e, ax, ay, spr, now);
     if (human && pk.blink && spr.eyes) {
       // blink: close the eyes with a tiny overlay instead of regenerating the sprite
       for (const ey of spr.eyes) {
@@ -669,6 +679,39 @@ export class SceneRenderer {
     e.halfW = Math.max(6, Math.min(spr.w, v.kind === 'node' ? spr.w : 18) / 2);
     e.depth = e.x + e.y;
     this.drawnEnts.push(e);
+  }
+
+  /** The war banner a unit carries: a pole beside it with a waving cloth in its faction colour (Hollows: Blight violet). */
+  private drawBanner(s: CanvasRenderingContext2D, e: Ent, ax: number, ay: number, spr: FlashSprite, now: number): void {
+    const v = e.v;
+    const fac = v.faction && FACTION_BY_ID[v.faction] ? FACTION_BY_ID[v.faction].color : null;
+    const hollow = !!v.sprite && v.sprite.startsWith('hollow');
+    const col = fac ?? (hollow || (v.side === 'raid' && !fac) ? '#8a3fc8' : '#d8c070');
+    const top = Math.round(Math.min(50, spr.ay + 16));
+    const poleX = ax + (v.face === 1 || v.face === 2 ? -7 : 7);
+    const dirX = v.face === 1 || v.face === 2 ? -1 : 1;
+    s.fillStyle = '#4a3422';
+    s.fillRect(poleX, ay - top, 1, top);
+    s.fillStyle = '#e8c860';
+    s.fillRect(poleX - 1, ay - top - 2, 3, 2);
+    const w = 14;
+    const h = 10;
+    const t = motion.reduced ? 0 : now / 170 + e.seed * 6;
+    for (let i = 0; i < w; i++) {
+      const wob = Math.round(Math.sin(t + i * 0.55) * (0.4 + i * 0.12));
+      const x = poleX + dirX * (i + 1) - (dirX < 0 ? 0 : 0);
+      s.fillStyle = col;
+      s.fillRect(x, ay - top + wob, 1, h - (i > w - 4 ? i - (w - 4) : 0));
+      s.fillStyle = 'rgba(0,0,0,0.28)';
+      s.fillRect(x, ay - top + wob + h - 1 - (i > w - 4 ? i - (w - 4) : 0), 1, 1);
+      if (i > 0 && i < w - 1) {
+        s.fillStyle = 'rgba(255,255,255,0.22)';
+        s.fillRect(x, ay - top + wob, 1, 1);
+      }
+    }
+    // a small emblem square on the cloth
+    s.fillStyle = 'rgba(255,255,255,0.55)';
+    s.fillRect(poleX + dirX * 4, ay - top + 3, 2, 2);
   }
 
   /** Wind bucket for this frame. */

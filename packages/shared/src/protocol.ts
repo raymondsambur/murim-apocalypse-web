@@ -136,6 +136,10 @@ export interface EntityView {
   act?: NpcAct;
   /** Rank 1..8, shown as a name colour. */
   rank?: number;
+  /** Battle side while a raid or siege is being fought in the open: 'raid' = attacker, 'def' = defender of the town. */
+  side?: 'raid' | 'def';
+  /** 1 = this unit carries the war banner of its side (drawn in the faction colour, Blight violet for Hollows). */
+  flag?: 1;
 }
 
 export type EntityPatch = Partial<Omit<EntityView, 'id' | 'kind'>> & { id: number };
@@ -165,7 +169,9 @@ export type NpcAct =
   | 'train'
   | 'shelter'
   | 'mourn'
-  | 'celebrate';
+  | 'celebrate'
+  /** Raiders ransacking a fallen town (crouching over loot). */
+  | 'loot';
 
 // ---------------------------------------------------------------------------
 // Views sent to the client
@@ -516,6 +522,13 @@ export type InviteKind = 'friend' | 'sect' | 'master' | 'duel';
 
 export type FxKind = 'levelup' | 'breakthrough' | 'death' | 'loot' | 'heal' | 'learn' | 'gather' | 'purify';
 
+/**
+ * Stage of a visible raid / siege battle (siege module). 'alarm' = the war party was sighted (bell and drums),
+ * 'march' = it approaches the gate, 'melee' = fighting at the gate, 'hold' = the town won (raiders rout),
+ * 'fall' = the raiders won (sack, fires), 'end' = everything is over and the fires die down.
+ */
+export type SiegePhase = 'alarm' | 'march' | 'melee' | 'hold' | 'fall' | 'end';
+
 export type S2C =
   | {
       t: 'hello';
@@ -548,6 +561,8 @@ export type S2C =
   | { t: 'pong'; t0: number; now: number }
   | { t: 'invite'; kind: InviteKind; fromId: number; from: string; data?: Record<string, unknown> }
   | { t: 'fx'; kind: FxKind; entity?: number; text?: string }
+  /** State of a visible battle at a settlement; re-sent every few seconds to players near it (idempotent). `x,y` = the gate. */
+  | { t: 'siege'; sid: number; phase: SiegePhase; by: string; x: number; y: number }
   | { t: 'mission'; update: ActiveMission }
   | { t: 'kick'; reason: string };
 

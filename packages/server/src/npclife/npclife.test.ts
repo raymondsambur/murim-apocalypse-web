@@ -277,7 +277,8 @@ describe('reactions of the settlement', () => {
     for (const g of guards) {
       expect(g.act, `guard ${g.npcId}`).toBe('muster');
       expect(g.place?.kind).toBe('gate');
-      expect(ent(h, g).act).toBe('patrol');
+      // a guard that is between two muster spots (it re-picks its spot every 1-2 world hours) shows no cue while walking
+      if (g.ph === 'doing') expect(ent(h, g).act).toBe('patrol');
       expect(ent(h, g).hidden).toBe(false);
     }
     const folk = civilians(h, 0);

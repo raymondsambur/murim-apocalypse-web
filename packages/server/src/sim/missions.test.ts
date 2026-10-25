@@ -223,7 +223,7 @@ describe('boards', () => {
           if (o.type !== 'purify') continue;
           found++;
           const def = worldFor(PROD_SEED).settlements[s.id];
-          expect(Math.hypot(o.target.x! - def.x, o.target.y! - def.y)).toBeLessThanOrEqual(28);
+          expect(Math.hypot(o.target.x! - def.x, o.target.y! - def.y)).toBeLessThanOrEqual(38);
         }
       }
       runDays(sim, 1);

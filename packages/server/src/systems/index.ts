@@ -28,6 +28,7 @@ import { register as registerFriends } from './friends';
 import { register as registerDuels } from './duels';
 import { register as registerNpcMemory } from './npcmemory';
 import { register as registerNpcLife } from './npclife';
+import { register as registerSiege } from './siege';
 
 export const systems: SystemModule[] = [
   registerNodes,
@@ -45,4 +46,5 @@ export const systems: SystemModule[] = [
   registerDuels,
   registerNpcLife,
   registerNpcMemory,
+  registerSiege,
 ];

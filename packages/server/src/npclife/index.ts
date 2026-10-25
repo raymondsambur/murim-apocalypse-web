@@ -67,6 +67,13 @@ export interface NpcLifeApi {
   needsOf(npcId: number): Readonly<Needs> | undefined;
   /** Cost counters (visits / decisions per tick, snaps, pairs). */
   stats(): Readonly<NpcLife['stats']>;
+  /** Siege battles: take an NPC off its routine (guards and militia are cloned into the fight) / give it back. */
+  seize(npcId: number): boolean;
+  release(npcId: number, at?: { x: number; y: number }): void;
+  /** Siege battles: the settlement's people celebrate for `ms` real ms. */
+  celebrate(settlementId: number, ms: number): void;
+  /** Siege battles: after a defeat the survivors gather on the plaza to mourn. */
+  grieve(settlementId: number): void;
 }
 
 const controllers = new WeakMap<GameContext, NpcLife>();
@@ -124,6 +131,10 @@ export function getNpcLife(ctx: GameContext): NpcLifeApi {
     stats() {
       return life.stats;
     },
+    seize: (npcId) => life.seize(npcId),
+    release: (npcId, at) => life.release(npcId, at),
+    celebrate: (sid, ms) => life.celebrate(sid, ms),
+    grieve: (sid) => life.grieve(sid),
   };
   apis.set(ctx, api);
   return api;

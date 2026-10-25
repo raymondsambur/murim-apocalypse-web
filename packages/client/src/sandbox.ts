@@ -34,6 +34,7 @@ import { referenceItems, type RefItem } from './art/scaleRef';
 import { pbToCanvas } from './art/canvas';
 import { PERSON_PX } from './art/scale';
 import type { GameView } from './render/view';
+import { startSiegeDemo, stopSiegeDemo } from './siegedemo';
 
 function encode(bytes: Uint8Array): string {
   let bin = '';
@@ -321,6 +322,7 @@ panel.innerHTML = `
 <div class="row"><button id="zin">zoom +</button><button id="zout">zoom -</button><button id="recenter">recenter</button><span id="zv"></span></div>
 <h4>Teleport</h4><div class="row" id="tele"></div>
 <h4>Settlement 0..7</h4><div class="row" id="settle"></div>
+<h4>Siege demo</h4><div class="row" id="siegedemo"></div>
 <h4>FX on you</h4><div class="row" id="fxs"></div>
 <div class="row"><button id="sayb">say</button><button id="combat">combat burst</button></div>
 <h4>Gear and animation lab (applies to you)</h4>
@@ -378,6 +380,26 @@ wd.settlements.forEach((s, i) => {
     say(`${s.name}: ${v.status} (${v.controller})`);
   });
 });
+// a scripted raid: war party marches in, guards run out, melee, then the town holds or falls (fake entities)
+const demoSid = (): number => {
+  const self = ents.get(SELF)!;
+  let best = 0;
+  let bd = Infinity;
+  for (const st of wd.settlements) {
+    if (st.kind === 'ruin') continue;
+    const dd = Math.hypot(st.x - self.x, st.y - self.y);
+    if (dd < bd) {
+      bd = dd;
+      best = st.id;
+    }
+  }
+  return best;
+};
+const autoSiege = params.get('siege');
+if (autoSiege === 'hold' || autoSiege === 'fall') window.setTimeout(() => startSiegeDemo({ view, wd, grid, rng, settleView, say }, autoSiege, params.get('sid') !== null ? Number(params.get('sid')) : demoSid()), 800);
+mk(el('siegedemo'), 'raid: town holds', () => startSiegeDemo({ view, wd, grid, rng, settleView, say }, 'hold', demoSid()));
+mk(el('siegedemo'), 'raid: town falls', () => startSiegeDemo({ view, wd, grid, rng, settleView, say }, 'fall', demoSid()));
+mk(el('siegedemo'), 'stop', () => stopSiegeDemo());
 fxKinds.forEach((k) => mk(el('fxs'), k, () => view.fx(k, SELF, k === 'loot' ? '+3 Silver' : undefined)));
 el('sayb').onclick = () => view.say(SELF, 'The Blight is spreading east of the ford. Stay close to the road and carry a purifying pill!');
 el('combat').onclick = () => {
@@ -406,7 +428,7 @@ const lab = {
   dir: Number(params.get('dir') ?? 0),
 };
 const STATES: (CharState | 'auto')[] = ['auto', 'idle', 'walk', 'run', 'draw', 'fight', 'attack', 'hit', 'block', 'dodge', 'die', 'dead', 'meditate', 'work', 'craft', 'cheer', 'loot', 'stretch', 'sweep', 'chat', 'fan', 'wipe', 'form', 'eat', 'pray', 'rest', 'trade', 'shelter', 'mourn'];
-const ACTS = ['none', 'farm', 'forge', 'brew', 'gather', 'mine', 'guard', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate'] as const;
+const ACTS = ['none', 'farm', 'forge', 'brew', 'gather', 'mine', 'guard', 'eat', 'chat', 'pray', 'sweep', 'rest', 'patrol', 'trade', 'train', 'shelter', 'mourn', 'celebrate', 'loot'] as const;
 let labAct: (typeof ACTS)[number] = 'none';
 function labGear(): GearLook | undefined {
   const g: GearLook = {};

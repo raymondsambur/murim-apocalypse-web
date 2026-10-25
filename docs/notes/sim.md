@@ -135,3 +135,7 @@ largest holding 4 of 7, roster 81-99 NPCs). Crimson Lotus and Black Wind are the
 * `settle` events are emitted daily and on change, so a client's `blight` / `defense` numbers lag by up to a day between changes.
 * Deliver offers do not check that the player carries the item; the server owns that.
 * Faction landlessness for the two weakest factions is long; tune `exileRaidBonus`, `ideologyDef` and `revoltHeirChance` if you want them stronger.
+
+## Visible battles (siege system)
+
+Since the siege system (`systems/siege.ts`, `docs/notes/siege-battles.md`) the siege events are also shown: while a player is near a besieged settlement a war party marches to the gate and the guards fight it, steered by `defense` against `siegeStrength` (player kills lower the strength, with an extra tilt of at most 22 per siege through `sim.state` - the only place game code writes `siegeStrength` besides `recordKill` and defend missions), and the sim's real roll at the siege end is played out as the finale. The sim itself is unchanged.

@@ -338,6 +338,21 @@ export class Fx {
         case 'purify':
           this.drawPurify(s, px, py, e, t);
           break;
+        case 'alarm':
+          // bell: three widening rings, the first one brightest
+          for (let k = 0; k < 3; k++) {
+            const u = t * 1.6 - k * 0.22;
+            if (u > 0 && u < 1) ring(s, px, py, 14 + u * 92, (14 + u * 92) / 2, e.color, (1 - u) * (0.9 - k * 0.2));
+          }
+          break;
+        case 'drum': {
+          // a drum beat: one pulse, then a smaller echo
+          const u = t * 1.3;
+          if (u < 1) ring(s, px, py, 8 + u * 54, (8 + u * 54) / 2, e.color, (1 - u) * 0.7);
+          const u2 = t * 1.3 - 0.35;
+          if (u2 > 0 && u2 < 1) ring(s, px, py, 6 + u2 * 36, (6 + u2 * 36) / 2, e.color, (1 - u2) * 0.5);
+          break;
+        }
       }
     }
   }

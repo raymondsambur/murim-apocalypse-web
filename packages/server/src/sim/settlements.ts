@@ -169,7 +169,7 @@ function blightSiegeStrength(ctx: Ctx, s: SettlementState): number {
   for (const h of ctx.st.hearts) {
     if (!heartActive(h, now)) continue;
     const d = Math.hypot(h.x - def.x, h.y - def.y);
-    if (d < 40) hearts += (6 * h.strength) / 100;
+    if (d < 55) hearts += (6 * h.strength) / 100;
   }
   return 8 + s.blight * 0.55 + hearts + ctx.rng.float(0, 8);
 }
@@ -397,7 +397,7 @@ function dailyFallen(ctx: Ctx, s: SettlementState): void {
         near = Math.min(near, Math.hypot(od.x - def.x, od.y - def.y));
       }
       const exiled = !Number.isFinite(near);
-      const score = f.power - (exiled ? 10 : near * 0.4) + (exiled ? 25 : 0);
+      const score = f.power - (exiled ? 10 : near * 0.28) + (exiled ? 25 : 0);
       if (!best || score > best.score) best = { id: f.id, score };
     }
     if (best && best.score > 15 && ctx.rng.chance(0.2)) {

@@ -102,6 +102,11 @@ export interface MonsterState {
   /** Last time a player was seen nearby (heart bosses despawn when abandoned). */
   lastSeen: number;
   returnTries: number;
+  /**
+   * Driven by another module (the siege module's war parties): the AI think skips it, and a fight that ends
+   * without its death hands it back (mode 'idle', no walk home) instead of sending it to its home tile.
+   */
+  controlled?: boolean;
 }
 
 export const MONSTER = new DataKey<MonsterState>('monster');
@@ -121,6 +126,8 @@ export interface SpawnSpec {
   wanderRadius?: number;
   /** Corpse is removed instead of hidden (siege, bounty, boss and test spawns). Default true. */
   ephemeral?: boolean;
+  /** See MonsterState.controlled. */
+  controlled?: boolean;
 }
 
 /** Internal API of the monster module (used by the combat manager, other modules may use it too). */
@@ -151,6 +158,11 @@ export interface MonsterApi {
   checkPacks(): void;
   /** Evaluate sieges immediately (tests). */
   checkSieges(): void;
+  /**
+   * Hand the ownership of siege waves to another module (the siege module): the built-in ring of siege monsters is
+   * dismantled and never spawned again. Without a delegate this module keeps spawning its own wave.
+   */
+  delegateSieges(): void;
 }
 
 const apis = new WeakMap<GameContext, MonsterApi>();

@@ -3,7 +3,7 @@
  * The renderer owns the canvas; the UI never draws into it directly.
  */
 import type { CharState, ToolKind } from '../art/anim';
-import type { CombatEvent, Dir, EntityPatch, EntityView, FxKind, GearLook, Look, SettlementView, TimeView, WeaponType, WorldPayload } from '@murim/shared';
+import type { CombatEvent, Dir, EntityPatch, EntityView, FxKind, GearLook, Look, SettlementView, SiegePhase, TimeView, WeaponType, WorldPayload } from '@murim/shared';
 
 /** World payload with its grids decoded from base64. */
 export interface DecodedWorld {
@@ -31,6 +31,15 @@ export interface MinimapOptions {
   entities?: boolean;
 }
 
+/** Stage of a visible raid / siege battle at a settlement (server message 'siege'); x, y = the gate. */
+export interface BattleInfo {
+  sid: number;
+  phase: SiegePhase;
+  by: string;
+  x: number;
+  y: number;
+}
+
 export interface GameViewApi {
   /** Begin the render loop (requestAnimationFrame). */
   start(): void;
@@ -56,6 +65,8 @@ export interface GameViewApi {
   fx(kind: FxKind, entityId?: number, text?: string): void;
   /** Speech bubble above an entity (chat). */
   say(entityId: number, text: string): void;
+  /** A visible battle changed stage: alarm drums, fires on the buildings of a town that fell. Optional (stand-ins may ignore it). */
+  setBattle?(b: BattleInfo): void;
 
   /** Show a pulsing marker on the tile the player was ordered to. null clears it. */
   setMoveTarget(tile: { x: number; y: number } | null): void;

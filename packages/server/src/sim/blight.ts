@@ -139,8 +139,9 @@ export function blightHour(ctx: Ctx): void {
   }
 
   const D = BLIGHT.diffusion;
-  const kBand = [BLIGHT.decayRate / g[0], BLIGHT.decayRate / g[1], BLIGHT.decayRate / g[2]];
-  const cBand = [BLIGHT.decayConst / g[0], BLIGHT.decayConst / g[1], BLIGHT.decayConst / g[2]];
+  const dp = BLIGHT.decaySeasonPow;
+  const kBand = g.map((x) => BLIGHT.decayRate / Math.pow(x, dp));
+  const cBand = g.map((x) => BLIGHT.decayConst / Math.pow(x, dp));
   let rs = hash32(st.seed, now, 0xb119) | 0;
   const out: number[] = [];
   for (let y = 0; y < h; y++) {

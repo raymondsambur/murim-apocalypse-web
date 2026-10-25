@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS, type SimEvent } from '@murim/shared';
+import { GOODS, WORLD_W, type SimEvent } from '@murim/shared';
 import { HOUR_MS, PROD_SEED, makeSim, runDays, runHours, stateOf, worldFor } from './testkit';
 
 /** A scripted sequence of calls used for determinism checks. */
@@ -192,7 +192,7 @@ describe('views and chronicle', () => {
     expect(buf.length).toBe(st.blight.length);
     expect(buf.equals(Buffer.from(st.blight))).toBe(true);
     const h = st.hearts[0];
-    expect(sim.blightAt(h.x, h.y)).toBe(st.blight[h.y * 192 + h.x]);
+    expect(sim.blightAt(h.x, h.y)).toBe(st.blight[h.y * WORLD_W + h.x]);
     expect(sim.blightAt(-3, 4)).toBe(0);
     expect(sim.blightAt(9999, 4)).toBe(0);
   });

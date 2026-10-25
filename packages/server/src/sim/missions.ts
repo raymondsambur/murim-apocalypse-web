@@ -143,7 +143,7 @@ function familyWeights(ctx: Ctx, sid: number): [MonsterFamily, number][] {
   const has = (f: MonsterFamily) => spawns.some((sp) => sp.family === f);
   const out: [MonsterFamily, number][] = [['beast', has('beast') || spawns.length === 0 ? 6 : 2]];
   if (has('blight') || s.blight > 25) out.push(['blight', 1.5 + s.blight / 30 + (has('blight') ? 1 : 0)]);
-  const bandits = ctx.st.settlements.some((o) => o.controller === 'blackwind' && Math.hypot(ctx.S.defs[o.id].x - ctx.S.defs[sid].x, ctx.S.defs[o.id].y - ctx.S.defs[sid].y) < 90);
+  const bandits = ctx.st.settlements.some((o) => o.controller === 'blackwind' && Math.hypot(ctx.S.defs[o.id].x - ctx.S.defs[sid].x, ctx.S.defs[o.id].y - ctx.S.defs[sid].y) < 130);
   if (has('bandit') || bandits) out.push(['bandit', has('bandit') ? 3 : 1.2]);
   return out;
 }
@@ -290,7 +290,7 @@ function genPurify(ctx: Ctx, sid: number): MissionOffer | null {
   const B = ctx.st.blight;
   const w = ctx.S.w;
   const spots: { x: number; y: number; v: number }[] = [];
-  const R = 26;
+  const R = 36;
   for (let y = Math.max(0, def.y - R); y <= Math.min(ctx.S.h - 1, def.y + R); y += 3) {
     for (let x = Math.max(0, def.x - R); x <= Math.min(w - 1, def.x + R); x += 3) {
       const dd = Math.hypot(x - def.x, y - def.y);
@@ -360,7 +360,7 @@ function genBounty(ctx: Ctx, sid: number): MissionOffer | null {
     const fwt = fw.find((f) => f[0] === m.family)?.[1] ?? 0;
     if (fwt <= 0) continue;
     if (m.boss) {
-      const nearHeart = ctx.st.hearts.some((h) => heartActive(h, now) && Math.hypot(h.x - def.x, h.y - def.y) < 50);
+      const nearHeart = ctx.st.hearts.some((h) => heartActive(h, now) && Math.hypot(h.x - def.x, h.y - def.y) < 70);
       if (!nearHeart || level0 < 11 || s.blight < 40) continue;
       cands.push([m, 0.25] as const);
     } else if (m.minLevel <= level0 + 6) {
@@ -416,8 +416,8 @@ function genInvestigate(ctx: Ctx, sid: number): MissionOffer | null {
   const spots: (readonly [Spot, number])[] = [];
   for (const n of ctx.world.nodes) {
     const d = Math.hypot(n.x - def.x, n.y - def.y);
-    if (n.kind === 'shrine' && d <= 55 && d >= 3) spots.push([{ x: n.x, y: n.y, kind: 'shrine', lvl: level0, name: 'a wayside shrine' }, 2] as const);
-    else if (n.kind === 'heart' && d <= 60 && level0 >= 7) {
+    if (n.kind === 'shrine' && d <= 80 && d >= 3) spots.push([{ x: n.x, y: n.y, kind: 'shrine', lvl: level0, name: 'a wayside shrine' }, 2] as const);
+    else if (n.kind === 'heart' && d <= 80 && level0 >= 7) {
       const h = ctx.st.hearts.find((x) => x.id === n.id);
       if (!h || !heartActive(h, now)) continue;
       const k = d > 0 ? 12 / d : 0;
@@ -429,7 +429,7 @@ function genInvestigate(ctx: Ctx, sid: number): MissionOffer | null {
     if (o.status !== 'fallen' || o.id === sid) continue;
     const od = ctx.S.defs[o.id];
     const d = Math.hypot(od.x - def.x, od.y - def.y);
-    if (d > 65 || (o.id === ctx.S.ruinId && level0 < 8)) continue;
+    if (d > 95 || (o.id === ctx.S.ruinId && level0 < 8)) continue;
     spots.push([{ x: od.spawn.x, y: od.spawn.y, kind: o.id === ctx.S.ruinId ? 'ruin' : 'fallen', lvl: level0 + (o.id === ctx.S.ruinId ? 3 : 1), name: `the ruins of ${od.name}` }, 1.5] as const);
   }
   if (spots.length === 0) return null;

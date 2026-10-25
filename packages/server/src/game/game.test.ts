@@ -72,10 +72,12 @@ describe('connect / hello', () => {
 
   it('logout removes the entity, saves, and a later login restores the position', () => {
     const a = h.join('Hero');
-    const target = { x: a.p.entity.x + 3, y: a.p.entity.y };
+    // Walk along the town's main road (the spawn tile is on it), which is always clear.
+    const target = { x: a.p.entity.x, y: a.p.entity.y + 3 };
     h.say(a.p, { t: 'move', x: target.x, y: target.y });
     h.tick(40);
     expect(a.p.entity.x).toBe(target.x);
+    expect(a.p.entity.y).toBe(target.y);
     const entityId = a.p.entity.id;
     h.game.disconnect(a.conn);
     expect(h.game.entities.has(entityId)).toBe(false);
@@ -216,7 +218,7 @@ describe('movement over the wire', () => {
     h.tick(1);
     conn.clear();
     const start = { x: p.entity.x, y: p.entity.y };
-    const goal = { x: start.x + 4, y: start.y };
+    const goal = { x: start.x, y: start.y + 4 }; // along the town's main road, always clear
     h.say(p, { t: 'move', x: goal.x, y: goal.y });
     h.tick(40);
     expect(p.entity.x).toBe(goal.x);

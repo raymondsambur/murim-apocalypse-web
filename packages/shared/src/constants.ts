@@ -1,5 +1,6 @@
-export const WORLD_W = 192;
-export const WORLD_H = 128;
+/** World size in tiles. Towns are spread out so that travelling between them takes a while. */
+export const WORLD_W = 288;
+export const WORLD_H = 192;
 
 /** Isometric tile footprint in screen pixels (2:1 diamond). */
 export const TILE_W = 64;

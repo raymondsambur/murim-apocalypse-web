@@ -160,6 +160,10 @@ export class NpcLife {
   private started = false;
   private firstTick = true;
   private decisionsLeft = 0;
+  /** NPCs taken off their routine by another module (the siege battles use clones of guards and militia). */
+  private readonly seized = new Set<number>();
+  /** Settlements whose people are made to celebrate until this time (a victory over raiders). */
+  private readonly cheering = new Map<number, number>();
 
   constructor(readonly ctx: GameContext) {
     this.wp = worldPlaces(ctx.world, ctx.grid);
@@ -376,7 +380,7 @@ export class NpcLife {
           siege: v.siege || v.status === 'besieged',
           blightAlarm: v.blight >= TUNE.blightAlarm,
           famine: flags.includes('famine'),
-          festival: (flags.includes('festival') || this.festivalDay === clock.day) && festivalHours,
+          festival: ((flags.includes('festival') || this.festivalDay === clock.day) && festivalHours) || (this.cheering.get(sid) ?? 0) > now,
           rain: TUNE.weather[sim.weatherAt(s.x, s.y)] ?? 0,
         };
       } catch {
@@ -424,6 +428,7 @@ export class NpcLife {
   }
 
   private visit(st: LifeState, now: number): void {
+    if (this.seized.has(st.npcId)) return;
     const e = this.entityOf(st);
     if (!e) return;
     const nd = NPC_DATA.get(e);
@@ -464,6 +469,70 @@ export class NpcLife {
           this.decideAndGo(st, e, now, near);
         } else if (near) this.idleLook(st, e, now);
         return;
+    }
+  }
+
+  // ---- hooks for the siege battles ---------------------------------------------------------------
+
+  /** Take an NPC off its routine (no decisions, no walking, no cue changes) until `release`. The caller hides / moves it. */
+  seize(npcId: number): boolean {
+    const st = this.states.get(npcId);
+    if (!st || this.seized.has(npcId)) return false;
+    this.seized.add(npcId);
+    st.token++;
+    const e = this.ctx.npcEntity(npcId);
+    if (e) {
+      if (st.ph === 'doing') this.endDoing(st, e, this.ctx.now(), true);
+      this.ctx.movement.stop(e, true);
+    }
+    st.ph = 'idle';
+    st.act = null;
+    st.interruptAt = 0;
+    return true;
+  }
+
+  /** Give a seized NPC back to its routine; it reappears (optionally at `at`) and decides again at its next visit. */
+  release(npcId: number, at?: Point): void {
+    if (!this.seized.delete(npcId)) return;
+    const st = this.states.get(npcId);
+    const e = this.ctx.npcEntity(npcId);
+    if (st) {
+      st.token++;
+      st.ph = 'idle';
+      st.act = null;
+      st.inside = false;
+    }
+    if (!e) return;
+    if (at && (e.x !== at.x || e.y !== at.y)) this.ctx.movement.teleport(e, at.x, at.y);
+    e.hidden = false;
+    e.act = undefined;
+    if (!e.move) e.state = 'idle';
+    this.ctx.entities.touch(e);
+  }
+
+  isSeized(npcId: number): boolean {
+    return this.seized.has(npcId);
+  }
+
+  /** The people of a settlement celebrate (festival mood, any hour) for `ms` real milliseconds. */
+  celebrate(sid: number, ms: number): void {
+    const now = this.ctx.now();
+    this.cheering.set(sid, now + ms);
+    this.moods.delete(sid);
+    this.interruptSettlement(sid, now);
+  }
+
+  /** After a defeat the survivors of a settlement gather on the plaza to mourn (daytime). */
+  grieve(sid: number): void {
+    const sp = this.wp.settlements.get(sid);
+    if (!sp) return;
+    const now = this.ctx.now();
+    const folk = [...this.states.values()].filter((s) => s.sid === sid && s.role !== 'legend' && s.role !== 'wanderer' && !this.seized.has(s.npcId)).sort((a, b) => a.npcId - b.npcId);
+    const [lo, hi] = TUNE.interruptDelayMs;
+    for (const s of folk.slice(0, TUNE.mourners + 3)) {
+      s.mourn = { placeId: sp.plaza.id, expires: now + TUNE.mournCallHours * this.hourMs };
+      if (s.ph === 'doing' && s.act === 'sleep') continue;
+      s.interruptAt = now + this.ctx.rng.int(lo, hi);
     }
   }
 

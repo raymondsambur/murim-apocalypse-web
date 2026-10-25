@@ -381,7 +381,7 @@ function raidTargets(ctx: Ctx, f: FactionState): RaidChoice[] {
       dmin = Infinity;
       for (const o of owned) dmin = Math.min(dmin, Math.hypot(ctx.S.defs[o].x - sd.x, ctx.S.defs[o].y - sd.y));
     }
-    w *= Math.exp(-dmin / 75);
+    w *= Math.exp(-dmin / 160);
     // Everyone gangs up on a faction that grows too large.
     if (s.controller) {
       const share = ownedCount(ctx, s.controller) / Math.max(1, livingCount(ctx));
@@ -434,7 +434,7 @@ function fightTarget(ctx: Ctx, f: FactionState, owned: number[]): { sid: number;
       const d = ctx.S.defs[s.id];
       let dmin = owned.length ? Infinity : 0;
       for (const o of owned) dmin = Math.min(dmin, Math.hypot(ctx.S.defs[o].x - d.x, ctx.S.defs[o].y - d.y));
-      if (dmin <= 50) n = s.blight * 0.8;
+      if (dmin <= 75) n = s.blight * 0.8;
     }
     if (n > need) {
       need = n;
@@ -453,7 +453,7 @@ function expeditionHeart(ctx: Ctx, owned: number[]): number {
     if (!heartActive(h, now)) continue;
     for (const o of owned) {
       const d = Math.hypot(ctx.S.defs[o].x - h.x, ctx.S.defs[o].y - h.y);
-      if (d <= 34 && d < bd) {
+      if (d <= 50 && d < bd) {
         bd = d;
         best = h.id;
       }
@@ -628,7 +628,7 @@ function annexTargets(ctx: Ctx, f: FactionState): number[] {
     const d = ctx.S.defs[s.id];
     let dmin = Infinity;
     for (const o of owned) dmin = Math.min(dmin, Math.hypot(ctx.S.defs[o].x - d.x, ctx.S.defs[o].y - d.y));
-    if (owned.length === 0 || dmin <= 55) out.push(s.id);
+    if (owned.length === 0 || dmin <= 80) out.push(s.id);
   }
   return out;
 }

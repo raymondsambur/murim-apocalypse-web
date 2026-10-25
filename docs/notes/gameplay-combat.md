@@ -94,3 +94,7 @@ Normal level-ups (kill XP, missions, training) go through `lib.grantXp` (not cha
 - Monster state is not persisted: a restart re-populates the world and sieges are reconciled from the sim.
 - Passive internal / movement arts do not gain proficiency (only active skill uses do).
 - `integration.test.ts` (server-core) asserts that `alloc` answers `not_implemented`; that is now implemented here, so that expectation needs another still-unimplemented command.
+
+## Siege waves moved to the siege system
+
+`systems/siege.ts` (see `siege-battles.md`) now owns the siege waves: it calls `MonsterApi.delegateSieges()` when it registers, after which this module dismantles its ring of siege monsters and never spawns one again (without the siege system it behaves as described above). The siege system spawns its raiders through `MonsterApi.spawn({..., siege, controlled: true})`: a `controlled` monster is skipped by the AI think, and a fight that ends without its death hands it back to its war party instead of sending it home. Everything else (aggro by players, `startFight` with pack mates of the same siege, `monsterKilled.siege`, `sim.recordKill`, rewards) is unchanged.

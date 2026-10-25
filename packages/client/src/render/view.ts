@@ -4,7 +4,7 @@
  * Text overlays (name plates, floating numbers, speech bubbles) are drawn at device resolution on top.
  */
 import { TILE_H, TILE_W, type CombatEvent, type EntityPatch, type EntityView, type FxKind, type SettlementView, type TimeView } from '@murim/shared';
-import type { DecodedWorld, GameViewApi, MinimapOptions, PickGesture, PickResult } from './api';
+import type { BattleInfo, DecodedWorld, GameViewApi, MinimapOptions, PickGesture, PickResult } from './api';
 import type { CharState, ToolKind } from '../art/anim';
 import { Camera } from './camera';
 import { ChunkManager } from './chunks';
@@ -286,6 +286,34 @@ export class GameView implements GameViewApi {
     this.fxs.fx(kind, e ? e.id : 0, x, y, now, text);
   }
 
+  /** A battle at a settlement changed stage: drums, and the buildings burn while a fallen town is being sacked. */
+  setBattle(b: BattleInfo): void {
+    const now = performance.now();
+    if (b.phase === 'end') {
+      this.battles.delete(b.sid);
+      this.sceneR?.setBurning(b.sid, false);
+      return;
+    }
+    const prev = this.battles.get(b.sid);
+    this.battles.set(b.sid, { phase: b.phase, x: b.x, y: b.y, seen: now });
+    this.sceneR?.setBurning(b.sid, b.phase === 'fall');
+    if (b.phase === 'alarm') this.fxs.addEffect('alarm', 0, b.x, b.y, now, 2200, '#ff6a4a');
+    else if (b.phase === 'march' || b.phase === 'melee') {
+      if (!prev || now - prev.seen > 1500) this.fxs.addEffect('drum', 0, b.x, b.y, now, 1300, b.phase === 'melee' ? '#ff8a5a' : '#e0b070');
+    } else if (b.phase === 'hold') this.fxs.addEffect('alarm', 0, b.x, b.y, now, 2200, '#ffe9a0');
+  }
+
+  /** Forget battles the server stopped telling us about (the player left, a dropped message): the fires go out. */
+  private expireBattles(now: number): void {
+    for (const [sid, b] of this.battles) {
+      if (now - b.seen > 26000) {
+        this.battles.delete(sid);
+        this.sceneR?.setBurning(sid, false);
+      }
+    }
+  }
+  private battles = new Map<number, { phase: string; x: number; y: number; seen: number }>();
+
   say(entityId: number, text: string): void {
     const e = this.ents.map.get(entityId);
     if (e && text) this.overlay.setBubble(e, text, performance.now());
@@ -492,6 +520,7 @@ export class GameView implements GameViewApi {
       this.weather.setTarget(this.clock.weather[band] ?? 'clear', this.frameNo < 4);
       this.weather.update(dt, now, xf.bw, xf.bh);
       this.sceneR.wind = this.weather.out.wind;
+      if (this.battles.size) this.expireBattles(now);
       const hours = this.clock.hours(now);
       this.stats.hours = hours;
       const amb = ambientAt(hours, this.ambient);

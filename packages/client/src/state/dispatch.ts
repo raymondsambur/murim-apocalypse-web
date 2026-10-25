@@ -9,7 +9,7 @@ import type { CombatResult, Invite, Store } from './store';
 
 export type ViewSink = Pick<
   GameViewApi,
-  'clearEntities' | 'setSelf' | 'setTime' | 'setSettlements' | 'setBlight' | 'patchBlight' | 'applyEntities' | 'combatEvents' | 'fx' | 'say'
+  'clearEntities' | 'setSelf' | 'setTime' | 'setSettlements' | 'setBlight' | 'patchBlight' | 'applyEntities' | 'combatEvents' | 'fx' | 'say' | 'setBattle'
 >;
 
 export interface DispatchHooks {
@@ -107,6 +107,9 @@ export function dispatchServerMessage(store: Store, view: ViewSink | null, msg: 
     }
     case 'fx':
       view?.fx(msg.kind, msg.entity, msg.text);
+      return;
+    case 'siege':
+      view?.setBattle?.(msg);
       return;
     case 'mission':
       store.applyMission(msg.update);

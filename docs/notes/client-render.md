@@ -249,3 +249,7 @@ blight lord, elites, bush, boulder, reeds and lantern, with a 1-tile diamond und
 
 ### Performance after the rescale (sandbox crowd = 114 entities on screen, front tab, `view.frame()` loop)
 Zoom 1: 2.3-3.0 ms per frame (scene 1.5 ms, overlay 0.2 ms incl. occlusion); zoom 0.5: 28 ms, of which 21-22 ms is chunk compositing (unchanged, software pane), scene 3-5 ms.
+
+## Battle visuals (siege battles)
+
+`EntityView.side` (`raid` | `def`) and `EntityView.flag` (1 = carries a banner): the banner is a pole with a waving cloth in the faction colour (Hollows: Blight violet, defenders: their faction or gold), drawn by `SceneRenderer.drawBanner`. `NpcAct 'loot'` crouches over loot (raiders sacking a town). The `siege` server message reaches `GameView.setBattle`: `alarm` = three bell rings at the gate, `march` / `melee` = a drum ring on every message, `fall` = fires on all buildings of that settlement (`SceneRenderer.setBurning`, also cleared 26 s after the last message), `hold` = a gold ring, `end` clears everything. The sandbox panel has a "Siege demo" section (town holds / town falls / stop; `?siege=hold|fall&sid=3` starts one on load) driven by `siegedemo.ts` with fake entities.

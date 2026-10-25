@@ -26,11 +26,18 @@ describe('Blight field', () => {
     let changedEvents = 0;
     let startVillageMax = 0;
     let frontierMax = 0;
+    // The two living towns nearest the fallen capital are the Blight's frontier (town ids depend on the map).
+    const ruinTown = world.settlements[world.settlements.length - 1];
+    const frontierIds = world.settlements
+      .slice(0, -1)
+      .sort((a, b) => Math.hypot(a.x - ruinTown.x, a.y - ruinTown.y) - Math.hypot(b.x - ruinTown.x, b.y - ruinTown.y))
+      .slice(0, 2)
+      .map((s) => s.id);
     runDays(sim, 90, (_d, ev) => {
       samples.push(coverage(sim, world));
       changedEvents += ev.filter((e) => e.k === 'blight').length;
       startVillageMax = Math.max(startVillageMax, sim.settlementView(0).blight);
-      for (const id of [2, 6]) frontierMax = Math.max(frontierMax, stateOf(sim).settlements[id].blight);
+      for (const id of frontierIds) frontierMax = Math.max(frontierMax, stateOf(sim).settlements[id].blight);
     });
     const min = Math.min(...samples);
     const max = Math.max(...samples);
