@@ -62,7 +62,15 @@ describe('long-run behaviour', () => {
     const everOwned: Record<string, Set<number>> = {};
     const lost: Record<string, Set<number>> = {};
     let ownerPrev = st.settlements.map((s) => s.controller);
+    // The chronicle is a ring buffer: read every line as it is written, not what is left after a year.
+    const texts: string[] = [];
+    let lastId = 0;
     runDays(sim, 360, () => {
+      for (const c of st.chronicle) {
+        if (c.id <= lastId) continue;
+        lastId = c.id;
+        texts.push(c.text);
+      }
       const living = st.settlements.filter((s) => s.status !== 'fallen').length;
       let warCount = 0;
       for (const f of st.factions) {
@@ -90,7 +98,7 @@ describe('long-run behaviour', () => {
       ownerPrev = st.settlements.map((s) => s.controller);
     });
     void peace;
-    return { seed, sim, st, landDays, wars, everAtWar, warEnded, captures, maxShare, boundsOk, lossAndRecovery };
+    return { seed, sim, st, texts, landDays, wars, everAtWar, warEnded, captures, maxShare, boundsOk, lossAndRecovery };
   });
 
   it('wars start and end', () => {
@@ -100,7 +108,7 @@ describe('long-run behaviour', () => {
       expect(r.wars.size).toBeGreaterThanOrEqual(2);
       expect(r.st.chronicle.length).toBeGreaterThan(50);
     }
-    const lines = runs.flatMap((r) => r.st.chronicle.map((c) => c.text));
+    const lines = runs.flatMap((r) => r.texts);
     expect(lines.some((t) => /declared war/.test(t))).toBe(true);
     expect(lines.some((t) => /truce/.test(t))).toBe(true);
   });
@@ -110,7 +118,7 @@ describe('long-run behaviour', () => {
       expect(r.captures).toBeGreaterThanOrEqual(3);
       expect(r.st.ext.stats.raids).toBeGreaterThanOrEqual(10);
     }
-    const lines = runs.flatMap((r) => r.st.chronicle.map((c) => c.text));
+    const lines = runs.flatMap((r) => r.texts);
     expect(lines.some((t) => /seized .* from the/.test(t))).toBe(true);
     expect(lines.some((t) => /drove .* from the gates/.test(t))).toBe(true);
   });
