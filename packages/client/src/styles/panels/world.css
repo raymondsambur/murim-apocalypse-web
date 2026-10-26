@@ -241,13 +241,14 @@
   }
 }
 
-/* Tab strips with 4+ tabs: on phones only the active tab shows its label */
+/* Tab strips with 4+ tabs: tighter padding, and on phones only the active tab shows its label */
+.tabs-tight .tab {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  gap: 0.3rem;
+  min-width: 0;
+}
 @media (max-width: 760px) {
-  .tabs-tight .tab {
-    padding-left: 0.55rem;
-    padding-right: 0.55rem;
-    min-width: 0;
-  }
   .tabs-tight .tab[aria-selected='false'] .tab-label {
     display: none;
   }

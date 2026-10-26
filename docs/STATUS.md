@@ -28,7 +28,7 @@ Verified at the end of this session: `npm run typecheck` clean, `npm test` 719 t
 - Operations: single Node process and single SQLite connection; before a public launch add HTTPS (reverse proxy), `COOKIE_SECURE=true`, backups of `data/`, rate-limit tuning, moderation tools (mute/ban are in the DB but have no UI) and a privacy/terms page.
 
 ## Developer notes
-- Per-area handoff notes: `docs/notes/*.md` (server-core, sim, client-shell, client-render, client-panels-a/b, gameplay-*).
+- Per-area handoff notes: `docs/notes/*.md` (server-core, sim, client-shell, client-render, client-panels-a/b, gameplay-*). Town life phase 1 (gate guards, squads, hermitages, beacons): `docs/notes/town-life-phase1.md`.
 - Work was split across agents with file ownership; briefs are in `docs/briefs/`.
 - The project lives on an exFAT drive: no symlinks, so there are no npm workspaces; `@murim/shared` is a path alias (see `tsconfig.base.json`, `vite.config.ts`, `vitest.config.ts`).
 - Dev: `npm run dev` (server :3000 + Vite :5173). The Vite proxy target is `MURIM_SERVER_PORT` (default 3000).

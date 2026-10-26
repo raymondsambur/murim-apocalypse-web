@@ -17,14 +17,15 @@ Derived once per world (`WeakMap`): per settlement the buildings by kind (door t
 | Role | Home | Work |
 |---|---|---|
 | villager | house / farmhouse (family first) | farm patch (every 3rd the herb hut), else herb hut, else plaza |
-| guard | barracks, else house | patrol posts (loop), day / night shift by order in the settlement |
+| guard | barracks, else house | a gate post or a patrol squad by `planGuards`, day / night shift (see `town-life-phase1.md`) |
 | smith | house | smithy (else market) |
 | alchemist, physician | house | alchemy (else herb hut, market) |
 | merchant | house | market (else warehouse, plaza) |
 | innkeeper | inn | inn (else teahouse) |
 | master | house (overflow: hall / dojo) | dojo, hall or pagoda |
 | elder | house | hall, pagoda, teahouse, else plaza |
-| legend, wanderer | inn, else house | plaza |
+| legend | hermitage outside the town, else inn | hermitage, else dojo, else plaza |
+| wanderer | inn, else house | plaza |
 
 If every dwelling is full the NPC bunks in a teahouse / hall / dojo / pagoda / barracks / inn before doubling up.
 
