@@ -1,7 +1,8 @@
 node_modules/
 dist/
-data/
-data_*/
+# Runtime database folders at the repo root only (packages/shared/src/data holds source code).
+/data/
+/data_*/
 *.log
 .env
 .env.local
