@@ -85,6 +85,21 @@ describe('NPC masters', () => {
     expect(buildNpcMenu(r.ctx, w.p, npc).disciple).toBeUndefined();
   });
 
+  it('tells the player how many disciples train under a master in the compound', () => {
+    rig = makeSocialRig();
+    const r = rig;
+    const w = r.join('Novice', { level: 3 });
+    const { npc } = npcMaster(r, w);
+    expect(buildNpcMenu(r.ctx, w.p, npc).students).toBeUndefined();
+    const base = r.h.game.sim.npc(1)!;
+    const add = (id: number, title: string, mentor: number) => r.h.game.sim.state.npcs.push({ ...base, id, role: 'disciple', title, mentor, alive: true, settlementId: npc.settlementId, disciples: 0 });
+    add(9001, 'Outer Disciple', NPC_ID);
+    add(9002, 'Outer Disciple', NPC_ID);
+    add(9003, 'Inner Disciple', NPC_ID);
+    add(9004, 'Inner Disciple', NPC_ID + 100); // somebody else's student
+    expect(buildNpcMenu(r.ctx, w.p, npc).students).toEqual({ outer: 2, inner: 1 });
+  });
+
   it('releases disciples when the NPC master dies and on login', () => {
     rig = makeSocialRig();
     const r = rig;

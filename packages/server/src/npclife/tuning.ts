@@ -21,6 +21,8 @@ export const NPCLIFE_TUNING = {
   /** NPCs per ordinary house / farmhouse. */
   houseCapacity: 4,
   barracksCapacity: 8,
+  /** Disciples per bunkhouse. */
+  dormitoryCapacity: 6,
   /** Standing spots kept per place. */
   spotsPerPlace: 10,
 

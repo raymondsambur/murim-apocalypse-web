@@ -32,7 +32,7 @@ export function surname(npc: NpcState): string {
 export type HomeBook = Map<string, Set<number>>;
 
 function capacity(p: Place): number {
-  return p.kind === 'barracks' ? NPCLIFE_TUNING.barracksCapacity : p.kind === 'inn' ? 6 : p.kind === 'hermitage' ? NPCLIFE_TUNING.hermitageCapacity : NPCLIFE_TUNING.houseCapacity;
+  return p.kind === 'barracks' ? NPCLIFE_TUNING.barracksCapacity : p.kind === 'dormitory' ? NPCLIFE_TUNING.dormitoryCapacity : p.kind === 'inn' ? 6 : p.kind === 'hermitage' ? NPCLIFE_TUNING.hermitageCapacity : NPCLIFE_TUNING.houseCapacity;
 }
 
 function load(book: HomeBook, p: Place): number {
@@ -49,6 +49,11 @@ export function chooseHome(sp: SettlementPlaces, npc: NpcState, book: HomeBook, 
   const inns = sp.byKind('inn');
   if ((npc.role === 'innkeeper' || npc.role === 'legend' || npc.role === 'wanderer') && inns.length) {
     return inns.reduce((best, p) => (load(book, p) < load(book, best) ? p : best));
+  }
+  // Disciples sleep in the bunkhouses of their compound, the emptiest first.
+  if (npc.role === 'disciple') {
+    const dorms = sp.byKind('dormitory').filter((p) => load(book, p) < capacity(p));
+    if (dorms.length) return dorms.reduce((best, p) => (load(book, p) < load(book, best) ? p : best));
   }
   if (npc.role === 'guard') {
     const barracks = sp.byKind('barracks').filter((p) => load(book, p) < capacity(p));
@@ -109,6 +114,9 @@ export function chooseWork(sp: SettlementPlaces, npc: NpcState, rank: number): W
       return { work: sp.posts[rank % Math.max(1, sp.posts.length)] ?? sp.plaza, posts: sp.posts };
     case 'master':
       return { work: first('dojo', 'hall', 'pagoda') ?? sp.plaza, posts: [] };
+    case 'disciple':
+      // the drill yard of the compound, else the training hall
+      return { work: first('yard', 'dojo', 'hall') ?? sp.plaza, posts: [] };
     case 'elder':
       return { work: first('hall', 'pagoda', 'teahouse') ?? sp.plaza, posts: [] };
     case 'legend':

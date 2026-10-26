@@ -26,9 +26,12 @@ export type ActivityId =
   | 'mourn'
   | 'celebrate'
   | 'mope'
-  | 'muster';
+  | 'muster'
+  | 'meditate'
+  | 'spar'
+  | 'serve';
 
-export const ACTIVITY_IDS: readonly ActivityId[] = ['sleep', 'eat', 'work', 'socialise', 'pray', 'sweep', 'train', 'trade', 'patrol', 'wander', 'rest', 'shelter', 'hide', 'mourn', 'celebrate', 'mope', 'muster'];
+export const ACTIVITY_IDS: readonly ActivityId[] = ['sleep', 'eat', 'work', 'socialise', 'pray', 'sweep', 'train', 'trade', 'patrol', 'wander', 'rest', 'shelter', 'hide', 'mourn', 'celebrate', 'mope', 'muster', 'meditate', 'spar', 'serve'];
 
 export interface Needs {
   hunger: number;
@@ -75,9 +78,13 @@ export const ACTIVITIES: Record<ActivityId, ActivityDef> = {
   celebrate: { id: 'celebrate', cue: 'celebrate', state: 'idle', hours: [0.7, 1.6], net: { company: -1, duty: -0.2 } },
   mope: { id: 'mope', cue: 'rest', state: 'idle', hours: [1, 2], net: { company: -0.25 } },
   muster: { id: 'muster', cue: 'patrol', state: 'work', hours: [1, 2], net: { duty: -0.5 } },
+  // The compound's day (disciples): sitting meditation before the pavilion, sparring in pairs in the yard, waiting on the masters.
+  meditate: { id: 'meditate', cue: 'meditate', state: 'meditate', hours: [0.8, 1.6], net: { rest: -0.12, devotion: -1.2, duty: -0.15 } },
+  spar: { id: 'spar', cue: 'spar', state: 'work', hours: [0.4, 0.8], net: { duty: -0.4, rest: 0.1 } },
+  serve: { id: 'serve', cue: 'serve', state: 'work', hours: [0.3, 0.7], net: { duty: -0.2 } },
 };
 
-export type ScheduleKey = 'villager' | 'guardDay' | 'guardNight' | 'artisan' | 'merchant' | 'innkeeper' | 'master' | 'elder' | 'legend' | 'wanderer';
+export type ScheduleKey = 'villager' | 'guardDay' | 'guardNight' | 'artisan' | 'merchant' | 'innkeeper' | 'master' | 'elder' | 'legend' | 'wanderer' | 'disciple';
 
 export function scheduleKey(role: NpcRole, shift: 0 | 1): ScheduleKey {
   switch (role) {
@@ -99,6 +106,8 @@ export function scheduleKey(role: NpcRole, shift: 0 | 1): ScheduleKey {
       return 'legend';
     case 'wanderer':
       return 'wanderer';
+    case 'disciple':
+      return 'disciple';
     default:
       return 'villager';
   }
@@ -218,6 +227,24 @@ export const SCHEDULE: Record<ScheduleKey, readonly Seg[]> = {
     [21.5, 22, { sleep: 1.0, socialise: 0.3 }],
     [22, 24, { sleep: 1.6 }],
   ],
+  // A disciple's day: dawn drills, breakfast, chores and errands for the masters, sitting meditation at midday, sparring in the
+  // afternoon, evening chores and prayer, a little company before the bell.
+  disciple: [
+    [0, 4.5, { sleep: 1.7 }],
+    [4.5, 5.5, { sleep: 0.7, train: 0.9, sweep: 0.3 }],
+    [5.5, 7.5, { train: 1.9, eat: 0.4 }],
+    [7.5, 8.5, { eat: 1.2, sweep: 0.6 }],
+    [8.5, 10, { sweep: 1.4, serve: 0.8, work: 0.3 }],
+    [10, 12, { meditate: 1.8, serve: 0.3 }],
+    [12, 13, { eat: 1.2, socialise: 0.5, rest: 0.3 }],
+    [13, 14.5, { serve: 1.2, sweep: 0.5, socialise: 0.2 }],
+    [14.5, 17, { spar: 1.9, train: 0.6 }],
+    [17, 18.5, { sweep: 0.8, pray: 0.5, serve: 0.5 }],
+    [18.5, 19.5, { eat: 1.2, socialise: 0.5 }],
+    [19.5, 21, { meditate: 0.9, socialise: 0.7, pray: 0.3, rest: 0.4 }],
+    [21, 22, { sleep: 1.2 }],
+    [22, 24, { sleep: 1.7 }],
+  ],
   wanderer: [
     [0, 5, { sleep: 1.6 }],
     [5, 6, { pray: 0.6, train: 0.6, sleep: 0.4 }],
@@ -296,7 +323,7 @@ export function scoreAll(i: ScoreInput, noise: () => number): Record<ActivityId,
   const R = m.rain;
   const alarm = m.siege || m.blightAlarm;
   const civilian = CIVILIAN_HIDERS.has(i.role);
-  const fighter = i.role === 'guard' || i.role === 'master' || i.role === 'legend';
+  const fighter = i.role === 'guard' || i.role === 'master' || i.role === 'legend' || i.role === 'disciple';
   const outdoor = R * (0.9 - 0.3 * i.hardy);
   const out = {} as Record<ActivityId, number>;
 
@@ -310,6 +337,9 @@ export function scoreAll(i: ScoreInput, noise: () => number): Record<ActivityId,
   out.sweep = s('sweep') - (t('weary') ? 0.1 : 0) + (t('kind') ? 0.05 : 0) - outdoor;
   out.train = s('train') + (t('boastful') ? 0.15 : 0) + (t('stern') ? 0.1 : 0) - outdoor * 0.5;
   out.patrol = s('patrol') + n.duty * 0.3 - outdoor * 0.25;
+  out.meditate = s('meditate') + n.devotion * 0.35 + (t('devout') ? 0.2 : 0) - outdoor * 0.3;
+  out.spar = s('spar') + (t('boastful') ? 0.2 : 0) + (t('stern') ? 0.1 : 0) - outdoor * 0.5;
+  out.serve = s('serve') - outdoor * 0.3;
   out.wander = 0.15 + s('wander') + (t('cheerful') ? 0.05 : 0) - outdoor * 1.2;
   out.rest = s('rest') + n.rest * 0.5 + (t('weary') ? 0.2 : 0) + (i.old ? 0.2 : 0) - outdoor * 0.5;
 
@@ -317,7 +347,7 @@ export function scoreAll(i: ScoreInput, noise: () => number): Record<ActivityId,
   const guardish = i.role === 'guard';
   out.shelter = R > 0.2 ? R * (1.5 - 0.9 * i.hardy) * (guardish ? 0.3 : i.role === 'innkeeper' ? 0.2 : i.role === 'merchant' ? 0.5 : 1) : -9;
   out.hide = alarm && civilian ? (m.siege ? 4 : i.roll < NPCLIFE_TUNING.blightHideShare ? 2.2 : -9) : -9;
-  out.muster = alarm ? (guardish ? 4.2 : i.role === 'master' || i.role === 'legend' ? (m.siege ? 2.6 : 1.5) : -9) : -9;
+  out.muster = alarm ? (guardish ? 4.2 : i.role === 'master' || i.role === 'legend' ? (m.siege ? 2.6 : 1.5) : i.role === 'disciple' ? (m.siege ? 2.2 : 1.2) : -9) : -9;
   out.celebrate = m.festival && !alarm ? (guardish ? 0.5 : 1.6) + (t('cheerful') ? 0.2 : 0) + (t('boastful') ? 0.15 : 0) - (t('stern') ? 0.2 : 0) - (t('gruff') ? 0.1 : 0) : -9;
   out.mope = m.famine && !alarm && !fighter && i.role !== 'innkeeper' && i.hour >= 8 && i.hour < 20 ? 1.35 + (t('weary') ? 0.1 : 0) - (t('cheerful') ? 0.1 : 0) : -9;
   out.mourn = i.mournPending ? 3 : -9;
@@ -337,7 +367,7 @@ export function scoreAll(i: ScoreInput, noise: () => number): Record<ActivityId,
 
 /** Hour of day at which this NPC wakes (personal), for the length of a sleep. */
 export function wakeHour(key: ScheduleKey, traits: ReadonlySet<string>, old: boolean, phase: number): number {
-  const base = key === 'guardNight' ? 15 : key === 'innkeeper' ? 6.5 : key === 'elder' ? 5.5 : 5.4;
+  const base = key === 'guardNight' ? 15 : key === 'innkeeper' ? 6.5 : key === 'elder' ? 5.5 : key === 'disciple' ? 4.6 : 5.4;
   return base + phase + (traits.has('devout') ? -0.4 : 0) + (traits.has('weary') ? 0.4 : 0) + (old ? -0.4 : 0);
 }
 

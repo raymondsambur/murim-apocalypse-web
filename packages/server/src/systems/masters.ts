@@ -400,6 +400,9 @@ export function register(ctx: GameContext): void {
 
   npcMenuDecorators.push((p, npc: NpcState, menu: NpcMenu) => {
     if (npc.role !== 'master') return;
+    // the disciples of the compound who train under this master (named NPCs, see sim/disciples.ts)
+    const mine = ctx.sim.npcs(npc.settlementId).filter((n) => n.role === 'disciple' && n.mentor === npc.id);
+    if (mine.length) menu.students = { outer: mine.filter((n) => n.title !== 'Inner Disciple').length, inner: mine.filter((n) => n.title === 'Inner Disciple').length };
     const already = p.save.masterId === -npc.id;
     if (already) {
       menu.disciple = { ok: false, already: true, reason: 'You are already their disciple.' };

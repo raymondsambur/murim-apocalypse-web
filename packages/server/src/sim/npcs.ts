@@ -31,6 +31,7 @@ import { dayOf } from './clock';
 import { factionName } from './factions';
 import type { Ctx, SuccessionTask } from './types';
 import { besieged, clamp, emit, hasFlag, settlementName } from './util';
+import { disciplesDaily, hashChance, initDisciples } from './disciples';
 
 const TRAITS = ['stern', 'kind', 'greedy', 'boastful', 'weary', 'devout', 'cunning', 'honest', 'gruff', 'cheerful', 'superstitious', 'scholarly'];
 const ALL_SCHOOLS: SkillSchool[] = ['sword', 'blade', 'spear', 'staff', 'fist', 'internal', 'movement', 'medicine', 'poison'];
@@ -47,6 +48,7 @@ const HOME_KINDS: Record<string, BuildingKind[]> = {
   villager: ['house', 'farmhouse', 'herbHut', 'teahouse'],
   wanderer: ['market', 'inn', 'teahouse'],
   physician: ['alchemy'],
+  disciple: ['dormitory', 'dojo', 'hall'],
 };
 
 const SHOP_BY_ROLE: Partial<Record<NpcRole, string>> = { merchant: 'general', smith: 'weapons', alchemist: 'medicine', innkeeper: 'food', physician: 'medicine' };
@@ -132,7 +134,7 @@ function pickHome(ctx: Ctx, sid: number, role: string, used: Set<number>, minRin
 // Creation
 // ---------------------------------------------------------------------------
 
-interface NpcSpec {
+export interface NpcSpec {
   role: NpcRole;
   sid: number;
   level: number;
@@ -166,7 +168,7 @@ function pickTraits(ctx: Ctx): string[] {
   return ctx.rng.chance(0.7) && a !== b ? [a, b] : [a];
 }
 
-function createNpc(ctx: Ctx, spec: NpcSpec): NpcState {
+export function createNpc(ctx: Ctx, spec: NpcSpec): NpcState {
   const st = ctx.st;
   const day = dayOf(st.clock.totalHours);
   const used = spec.used ?? usedHomes(ctx, spec.sid);
@@ -407,6 +409,7 @@ export function initNpcs(ctx: Ctx): void {
   rng.shuffle(cand);
   const n = Math.min(cand.length, Math.ceil(living.length / 2));
   for (let i = 0; i < n; i++) spawnLegend(ctx, cand[i], false);
+  initDisciples(ctx);
 }
 
 function spawnLegend(ctx: Ctx, sid: number, announce: boolean): NpcState {
@@ -575,7 +578,7 @@ function relocate(ctx: Ctx, npc: NpcState, dest: number): void {
   emit(ctx, { k: 'npcMoved', id: npc.id });
 }
 
-const FALL_DEATH: Partial<Record<NpcRole, number>> = { villager: 0.7, guard: 0.85, merchant: 0.55, smith: 0.5, alchemist: 0.5, innkeeper: 0.55, elder: 0.5, master: 0.4, legend: 0.15, wanderer: 0.2, physician: 0.5 };
+const FALL_DEATH: Partial<Record<NpcRole, number>> = { disciple: 0.55, villager: 0.7, guard: 0.85, merchant: 0.55, smith: 0.5, alchemist: 0.5, innkeeper: 0.55, elder: 0.5, master: 0.4, legend: 0.15, wanderer: 0.2, physician: 0.5 };
 
 export function onNpcSettlementFallen(ctx: Ctx, sid: number): void {
   const name = settlementName(ctx, sid);
@@ -583,7 +586,9 @@ export function onNpcSettlementFallen(ctx: Ctx, sid: number): void {
   let fled = 0;
   let died = 0;
   for (const n of aliveAt(ctx, sid)) {
-    if (ctx.rng.chance(FALL_DEATH[n.role] ?? 0.6) || dest < 0) {
+    // disciples roll on their own hash so the sim's stream is the one it had before they existed
+    const doomed = n.role === 'disciple' ? hashChance(ctx, n.id, FALL_DEATH.disciple ?? 0.55, 1) : ctx.rng.chance(FALL_DEATH[n.role] ?? 0.6);
+    if (doomed || dest < 0) {
       killNpc(ctx, n, 'blight', n.role === 'master' || n.role === 'legend' ? `perished in the fall of ${name}` : undefined, n.role !== 'master' && n.role !== 'legend');
       died++;
     } else {
@@ -708,7 +713,8 @@ function wanderDaily(ctx: Ctx, npc: NpcState): void {
 export function npcsDaily(ctx: Ctx): void {
   const st = ctx.st;
   const rng = ctx.rng;
-  const roster = st.npcs.filter((n) => n.alive);
+  // disciples live in `disciples.ts`, on a stream of their own
+  const roster = st.npcs.filter((n) => n.alive && n.role !== 'disciple');
   for (const npc of roster) {
     if (!npc.alive) continue;
     const s = st.settlements[npc.settlementId];
@@ -753,6 +759,7 @@ export function npcsDaily(ctx: Ctx): void {
     if (cand.length) spawnLegend(ctx, rng.pick(cand).id, true);
   }
   for (const s of living) ensureRoster(ctx, s.id);
+  disciplesDaily(ctx);
   // Prune old graves.
   const day = dayOf(st.clock.totalHours);
   if (st.npcs.some((n) => !n.alive && n.diedDay !== null && day - n.diedDay > NPC.pruneDays)) {
@@ -775,6 +782,7 @@ const ROLE_LINES: Record<string, string[]> = {
   master: ['Your stance is crooked, {p}. Come, let us begin there.', 'Strength is borrowed; discipline is owned. Are you ready to learn, {p}?', 'The martial path is long, {p}. Do not rush it, and do not abandon it.', 'I teach those who will carry the lesson further than I can, {p}.'],
   legend: ['So you are the one the whispers speak of, {p}. Walk with care.', 'Few seek me out these days, {p}. Fewer leave unchanged.', 'I have seen empires fall, {p}. Tell me you bring something better.', 'Do not mistake my stillness for age, {p}.'],
   villager: ['Oh, hello, {p}. The harvest was thin, but we get by.', 'Have you come far, {p}? The roads frighten us lately.', 'Good day to you, {p}. Mind the mud by the well.', 'They say a stranger with a sword is worth ten guards, {p}. Is it true?'],
+  disciple: ['Forgive me, {p}, I should be at the yard. A visitor is welcome, though.', 'Our master says a guest is a lesson in courtesy. Welcome, {p}.', 'Dawn drills, chores, then more drills. It is a good life, {p}, if you like bruises.', 'Do not mind the dummies, {p}. They have heard all my complaints.'],
   wanderer: ['The road has been long, {p}. I have seen things best not described near the fire.', 'I go where the wind sends me, {p}. Today it sent me here.', 'Rumours travel faster than caravans, {p}. Want to hear one?'],
 };
 
