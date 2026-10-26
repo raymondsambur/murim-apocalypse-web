@@ -127,6 +127,7 @@ addStrings({
   'sk.act.flee': 'Flee',
   'sk.act.basic': 'Basic strike',
   'sk.bar.dirty': 'Unsaved changes',
+  'sk.bar.closeDirty': 'Your build changes are not saved yet. Open Skills (K) and press Apply, or your old build keeps being used in battle.',
   'sk.bar.clean': 'Build saved',
   'sk.bar.saving': 'Saving...',
   'sk.bar.apply': 'Apply',
@@ -548,8 +549,11 @@ registerPanel({
   order: 30,
   width: 480,
   watch: ['me'],
-  onClose: () => {
+  onClose: (ui) => {
     picking = null;
+    // Closing does not save: the server (and so combat) keeps using the last applied build.
+    const me = ui.state.get('me');
+    if (me && draft && draftChar === me.c.id && !applying && !draftEquals(draft, draftFromSave(me.c))) ui.toast(t('sk.bar.closeDirty'), 'warn');
   },
   render(root, ui) {
     const me = ui.state.get('me');

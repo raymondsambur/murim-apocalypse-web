@@ -257,9 +257,12 @@ export class PanelManager {
     const vh = window.innerHeight;
     const w = p.el.offsetWidth || 420;
     const x = Math.max(8 - w + 120, Math.min(vw - 120, pos.x));
-    const y = Math.max(8, Math.min(vh - 56, pos.y));
+    const y = Math.max(8, Math.min(vh - 160, pos.y));
     p.el.style.left = `${x}px`;
     p.el.style.top = `${y}px`;
+    // The window may only be as tall as the room below it, so its bottom edge (and a sticky action bar there) is
+    // always on screen; the body scrolls instead.
+    p.el.style.maxHeight = `${Math.max(160, vh - y - 12)}px`;
     return { x, y };
   }
 
@@ -268,6 +271,7 @@ export class PanelManager {
       if (isNarrow()) {
         p.el.style.left = '';
         p.el.style.top = '';
+        p.el.style.maxHeight = '';
         continue;
       }
       const r = p.el.getBoundingClientRect();
