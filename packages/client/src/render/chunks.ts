@@ -21,6 +21,12 @@ export interface ChunkEntry {
 
 const keyOf = (cx: number, cy: number): number => (cx + 64) * 256 + (cy + 64);
 
+/** Smallest cache, and the most chunks ever kept (a chunk is 0.5-2 MB of pixels). */
+const MIN_ENTRIES = 44;
+const MAX_ENTRIES = 140;
+/** Art px of ground beyond the screen edge that is built ahead of scrolling. */
+const PREFETCH_MARGIN = 300;
+
 export class ChunkManager {
   private cache = new Map<number, ChunkEntry>();
   private src: TerrainSource;
@@ -29,7 +35,8 @@ export class ChunkManager {
   season = 1;
   /** Number of chunk repaints, for diagnostics. */
   built = 0;
-  maxEntries = 44;
+  /** Cache size; grows each frame to hold everything on screen plus the prefetch ring (see `draw`). */
+  maxEntries = MIN_ENTRIES;
   private frame = 0;
 
   constructor(private world: WorldModel) {
@@ -113,14 +120,20 @@ export class ChunkManager {
     return e;
   }
 
+  /** Drop the least recently used chunks, never one that was used this frame or last (on screen or prefetched). */
   private evict(): void {
-    if (this.cache.size <= this.maxEntries) return;
-    for (const [k, e] of this.cache) {
-      if (this.cache.size <= this.maxEntries) break;
-      if (e.lastUsed < this.frame - 1) {
-        this.cache.delete(k);
-        for (const f of e.frames) if (typeof ImageBitmap !== 'undefined' && f instanceof ImageBitmap) f.close();
-      }
+    while (this.cache.size > this.maxEntries) {
+      let oldKey = -1;
+      let oldUsed = this.frame - 1;
+      for (const [k, e] of this.cache)
+        if (e.lastUsed < oldUsed) {
+          oldUsed = e.lastUsed;
+          oldKey = k;
+        }
+      if (oldKey < 0) return;
+      const e = this.cache.get(oldKey)!;
+      this.cache.delete(oldKey);
+      for (const f of e.frames) if (typeof ImageBitmap !== 'undefined' && f instanceof ImageBitmap) f.close();
     }
   }
 
@@ -167,6 +180,11 @@ export class ChunkManager {
    */
   draw(ctx: CanvasRenderingContext2D, ax0: number, ay0: number, ax1: number, ay1: number, waterFrame: number, veinPulse: number, buildMs: number, centerCx: number, centerCy: number): void {
     const list = this.visible(ax0, ay0, ax1, ay1, centerCx, centerCy);
+    // Zoomed out, the screen plus the prefetch ring needs far more chunks than a fixed cache holds; a too-small
+    // cache would evict and repaint chunks every frame.
+    const ring = this.visible(ax0 - PREFETCH_MARGIN, ay0 - PREFETCH_MARGIN, ax1 + PREFETCH_MARGIN, ay1 + PREFETCH_MARGIN, centerCx, centerCy);
+    this.maxEntries = Math.min(MAX_ENTRIES, Math.max(MIN_ENTRIES, ring.length + 10));
+    const builtBefore = this.built;
     const t0 = performance.now();
     for (const c of list) {
       let e = this.cache.get(keyOf(c.cx, c.cy));
@@ -186,16 +204,14 @@ export class ChunkManager {
         ctx.globalAlpha = 1;
       }
     }
-    // Prefetch one chunk just outside the screen so scrolling rarely meets an unbuilt chunk.
-    if (performance.now() - t0 < buildMs * 0.4) {
-      const m = 300;
-      const ring = this.visible(ax0 - m, ay0 - m, ax1 + m, ay1 + m, centerCx, centerCy);
-      for (const c of ring) {
-        if (!this.cache.has(keyOf(c.cx, c.cy))) {
-          this.get(c.cx, c.cy, true);
-          break;
-        }
-      }
+    // Keep the ring warm, and prefetch one missing ring chunk so scrolling rarely meets an unbuilt chunk. Only on a
+    // frame that needed no repaint otherwise, and every other frame, so a prefetch never stacks on a repaint.
+    let missing: { cx: number; cy: number } | null = null;
+    for (const c of ring) {
+      const e = this.cache.get(keyOf(c.cx, c.cy));
+      if (e) e.lastUsed = this.frame;
+      else if (!missing) missing = c;
     }
+    if (missing && this.built === builtBefore && (this.frame & 1) === 0 && performance.now() - t0 < buildMs * 0.4) this.get(missing.cx, missing.cy, true);
   }
 }

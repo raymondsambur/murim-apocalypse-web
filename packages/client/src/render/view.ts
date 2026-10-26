@@ -473,7 +473,7 @@ export class GameView implements GameViewApi {
 
   private frame(now: number): void {
     const t0 = performance.now();
-    const dt = Math.min(100, now - this.last);
+    const dt = Math.max(0, Math.min(100, now - this.last));
     this.last = now;
     this.frameNo++;
     this.fpsAcc += dt;
