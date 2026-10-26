@@ -65,8 +65,16 @@ COOKIE_SECURE and TRUST_PROXY are for when the game sits behind an HTTPS reverse
 
 ## Backups
 
-Everything worth keeping is in `/var/lib/murim/`. Copy it somewhere else regularly, for example nightly:
+Everything worth keeping is in `/var/lib/murim/`. Two kinds of backup run on the same disk:
 
-```bash
-sudo systemctl stop murim-apocalypse && sudo cp -a /var/lib/murim /var/backups/murim-$(date +%F) && sudo systemctl start murim-apocalypse
-```
+- **Nightly (04:00 server time):** the `murim-backup` systemd timer takes a consistent snapshot while the game
+  keeps running, checks it, and keeps the newest 14 in `/var/backups/murim-nightly/` as `murim-<UTC time>.db.gz`.
+  Run one by hand with `sudo systemctl start murim-backup`; see the schedule with `systemctl list-timers murim-backup.timer`.
+  `npm run deploy` installs and updates the timer.
+- **Before every deploy:** a full copy of the data folder in `/var/backups/murim/<timestamp>/` (newest 10 kept).
+
+These protect against mistakes and bad deploys, not against the disk dying. Copy `/var/backups/murim-nightly/` to
+another machine now and then.
+
+To restore a nightly backup: `sudo systemctl stop murim-apocalypse`, remove `/var/lib/murim/murim.db*`, run
+`gunzip -c /var/backups/murim-nightly/<file>.db.gz | sudo -u murim tee /var/lib/murim/murim.db >/dev/null`, then start the game.

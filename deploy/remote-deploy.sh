@@ -108,6 +108,18 @@ if ! cmp -s "$APP/deploy/murim-apocalypse.service" "$UNIT"; then
   sudo systemctl daemon-reload
 fi
 
+# Nightly backup job (timer + service). The folder is separate from the per-deploy backups on purpose.
+sudo install -d -o murim -g murim /var/backups/murim-nightly
+units_changed=0
+for u in murim-backup.service murim-backup.timer; do
+  if ! cmp -s "$APP/deploy/$u" "/etc/systemd/system/$u"; then
+    sudo cp "$APP/deploy/$u" "/etc/systemd/system/$u"
+    units_changed=1
+  fi
+done
+[ "$units_changed" = 1 ] && sudo systemctl daemon-reload
+sudo systemctl enable --now murim-backup.timer >/dev/null 2>&1 || true
+
 log "starting the game"
 sudo systemctl start "$SERVICE"
 wait_healthy

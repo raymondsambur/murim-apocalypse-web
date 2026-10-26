@@ -1,0 +1,15 @@
+# Backs up the game database. Started by murim-backup.timer; can also be run by hand: sudo systemctl start murim-backup
+[Unit]
+Description=Back up the Murim Apocalypse database
+
+[Service]
+Type=oneshot
+User=murim
+Group=murim
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /opt/murim-apocalypse/deploy/backup.mjs
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# The database folder must be writable because SQLite keeps its lock file there even when only reading.
+ReadWritePaths=/var/lib/murim /var/backups/murim-nightly
