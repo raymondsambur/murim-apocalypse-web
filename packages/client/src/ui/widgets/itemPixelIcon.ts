@@ -1,16 +1,11 @@
 /**
  * The pixel-art item icon (art/itemicons.ts) as a DOM element for slots and tooltips. The icon is 40 x 40 art px and is shown
- * at 1:1 with nearest-neighbour scaling, so it needs a slot of at least 44 px; small slots keep the vector icon.
+ * at 1:1 with nearest-neighbour scaling, so every slot is at least 44 px (40 px icon plus the 2 px borders).
  */
 import type { ItemDef } from '@murim/shared';
 import { genItemIcon, ICON_PX } from '../../art/itemicons';
 import { pbToCanvas } from '../../art/canvas';
 import { h } from '../dom';
-
-/** Slot sizes (see `.slot-sm / .slot-md / .slot-lg` in components.css) that are big enough for the 40 px icon. */
-export function usesPixelIcon(size: 'sm' | 'md' | 'lg' | undefined): boolean {
-  return size !== 'sm';
-}
 
 const composed = new Map<string, HTMLCanvasElement>();
 
