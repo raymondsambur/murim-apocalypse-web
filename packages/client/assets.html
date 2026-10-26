@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Murim Apocalypse - asset gallery</title>
+    <style>
+      html, body { margin: 0; background: #0d1823; color: #e9dcc0; font: 12px/1.4 ui-monospace, Consolas, monospace; }
+      body { padding: 12px 16px 40px; }
+      h1 { font-size: 15px; margin: 0 0 4px; color: #d9b867; }
+      h2 { font-size: 13px; margin: 22px 0 6px; color: #d9b867; border-bottom: 1px solid #3d3042; padding-bottom: 3px; }
+      p.note { margin: 2px 0 8px; color: #b3a98f; max-width: 900px; }
+      .bar { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 8px 0; }
+      .bar label { cursor: pointer; }
+      .asset { margin: 10px 0 18px; }
+      .head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+      .head b { color: #f0e6cc; font-size: 13px; }
+      .pass { color: #8fd18b; font-weight: bold; }
+      .fail { color: #ff7a66; font-weight: bold; }
+      .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+      .cell { display: flex; flex-direction: column; gap: 2px; }
+      .cell span { color: #8a8070; }
+      canvas { image-rendering: pixelated; background: #46683a; border: 1px solid #2c2630; }
+      table { border-collapse: collapse; margin: 6px 0; }
+      td, th { border: 1px solid #3d3042; padding: 2px 8px; text-align: left; }
+      th { color: #d9b867; font-weight: normal; }
+    </style>
+  </head>
+  <body>
+    <h1>Asset gallery</h1>
+    <p class="note">Dev only (the production build has just index.html). Every procedural and imported sprite at zoom 1, 2 and 3 with nearest-neighbour scaling, next to a standing person, a house and a tree. The table checks each measured height against its scale target.</p>
+    <div class="bar" id="bar"></div>
+    <div id="summary"></div>
+    <div id="out"></div>
+    <script type="module" src="/src/assetGallery.ts"></script>
+  </body>
+</html>
