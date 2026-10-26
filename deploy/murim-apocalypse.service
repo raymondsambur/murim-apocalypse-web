@@ -1,0 +1,34 @@
+# systemd unit for the Murim Apocalypse game server.
+# Install: see deploy/README.md. Assumes the game lives in /opt/murim-apocalypse and Node.js 22+ is at /usr/bin/node.
+[Unit]
+Description=Murim Apocalypse game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=murim
+Group=murim
+WorkingDirectory=/opt/murim-apocalypse
+Environment=NODE_ENV=production
+Environment=PORT=3000
+# StateDirectory creates /var/lib/murim owned by the service user; the database and its backups live there.
+StateDirectory=murim
+Environment=DB_PATH=/var/lib/murim/murim.db
+# Put ADMIN_USERS, WORLD_SEED, COOKIE_SECURE=1, TRUST_PROXY=1 etc. in this optional file.
+EnvironmentFile=-/etc/murim-apocalypse.env
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning dist/server.mjs
+# Come back after a crash, and give the server time to save everyone on a normal stop.
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+# Keep a bug in the game away from the rest of the machine.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -13,6 +13,7 @@
     "dev:client": "vite packages/client",
     "build": "vite build packages/client && esbuild packages/server/src/main.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist/server.mjs",
     "start": "node --disable-warning=ExperimentalWarning dist/server.mjs",
+    "deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1",
     "typecheck": "tsc -p packages/shared && tsc -p packages/server && tsc -p packages/client",
     "test": "vitest run"
   },
