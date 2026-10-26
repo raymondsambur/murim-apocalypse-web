@@ -11,6 +11,7 @@ export * from './worldgen';
 export * from './townlayout';
 export * from './guardplan';
 export * from './landmarks';
+export * from './crowd';
 export * from './combat';
 export * from './character';
 export * from './progression';

@@ -250,3 +250,36 @@ describe('performance', () => {
     }
   });
 });
+
+describe('settlement population is the head-count of residents', () => {
+  it('lands on the on-screen targets and never drops below the named people', () => {
+    const sim = makeSim();
+    const world = worldFor(PROD_SEED);
+    for (const s of world.settlements) {
+      const view = sim.settlementView(s.id);
+      const named = sim.npcs(s.id).length;
+      if (s.kind === 'ruin') {
+        expect(view.population).toBe(0);
+        continue;
+      }
+      expect(view.population, s.name).toBeGreaterThanOrEqual(named);
+      if (s.kind === 'hamlet') { expect(view.population, s.name).toBeGreaterThanOrEqual(10); expect(view.population).toBeLessThanOrEqual(14); }
+      if (s.kind === 'village') { expect(view.population, s.name).toBeGreaterThanOrEqual(25); expect(view.population).toBeLessThanOrEqual(35); }
+      if (s.kind === 'town') { expect(view.population, s.name).toBeGreaterThanOrEqual(60); expect(view.population).toBeLessThanOrEqual(80); }
+    }
+  });
+
+  it('follows the economy: a plague or a fall shrinks it, and the sim value behind it is unchanged', () => {
+    const sim = makeSim();
+    const world = worldFor(PROD_SEED);
+    const town = world.settlements.find((s) => s.kind === 'town')!;
+    const before = sim.settlementView(town.id).population;
+    const st = stateOf(sim).settlements[town.id];
+    const raw = st.population;
+    st.population = raw * 0.5;
+    expect(sim.settlementView(town.id).population).toBeLessThan(before);
+    expect(sim.settlementView(town.id).population).toBeGreaterThanOrEqual(sim.npcs(town.id).length);
+    st.population = 0;
+    expect(sim.settlementView(town.id).population).toBe(sim.npcs(town.id).length);
+  });
+});

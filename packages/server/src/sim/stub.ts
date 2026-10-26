@@ -11,6 +11,7 @@ import {
   nearestWalkable,
   personName,
   randomLook,
+  residentsOf,
   worldPathGrid,
   type ChronicleEntry,
   type MissionOffer,
@@ -172,7 +173,9 @@ export const createStubSim: CreateSim = (world: WorldData, opts: SimOptions): Si
   const settlementView = (id: number): SettlementView => {
     const s = state.settlements[id];
     if (!s) throw new Error(`stub sim: no settlement ${id}`);
-    return { id: s.id, controller: s.controller, status: s.status, prosperity: s.prosperity, population: s.population, defense: s.defense, blight: s.blight, siege: s.siegeUntil > state.clock.totalHours, flags: [...s.flags] };
+    const def = world.settlements[id];
+    const population = residentsOf(def.kind, s.population, def.population, state.npcs.filter((n) => n.alive && n.settlementId === id).length);
+    return { id: s.id, controller: s.controller, status: s.status, prosperity: s.prosperity, population, defense: s.defense, blight: s.blight, siege: s.siegeUntil > state.clock.totalHours, flags: [...s.flags] };
   };
 
   if (state.chronicle.length === 0) record('The stub world begins.', 2, undefined, 'season');
