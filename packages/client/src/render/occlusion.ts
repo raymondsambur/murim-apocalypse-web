@@ -116,3 +116,52 @@ export function stepOcc(cur: number, hidden: boolean, dtMs: number): number {
   const step = Math.max(0, dtMs) / 140;
   return hidden ? Math.min(1, cur + step) : Math.max(0, cur - step);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// See-through silhouettes: an entity covered by taller scenery is outlined on top of it
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** A silhouette is drawn as soon as any real part of the body (a tenth, or the head) is covered. */
+export function isVeiled(c: Coverage): boolean {
+  return c.head || c.frac >= 0.1;
+}
+
+/** At most this many silhouettes are drawn per frame (the most important, then the nearest). */
+export const MAX_GHOSTS = 24;
+
+export interface GhostCand {
+  priority: number;
+  /** Distance to the player's character (tiles); ties on priority go to the nearer one. */
+  dist: number;
+}
+
+/** Lower is more important: yourself, the selected target, other players, then fighters and notables, then the crowd. */
+export function ghostPriority(o: { self: boolean; selected: boolean; kind: string; role?: string; fighting?: boolean }): number {
+  if (o.self) return 0;
+  if (o.selected) return 1;
+  if (o.kind === 'player') return 2;
+  if (o.kind === 'monster') return o.fighting ? 3 : 4;
+  if (o.role === 'legend' || o.role === 'master') return 4;
+  return 5;
+}
+
+/** Keep the `cap` most important candidates (stable: input order breaks full ties). */
+export function pickGhosts<T extends GhostCand>(cands: T[], cap: number = MAX_GHOSTS): T[] {
+  if (cands.length <= cap) return cands;
+  return cands
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => a.c.priority - b.c.priority || a.c.dist - b.c.dist || a.i - b.i)
+    .slice(0, cap)
+    .map((x) => x.c);
+}
+
+/** Tint of a silhouette (CSS colour): readable on roofs, walls and foliage alike, and telling friend from foe. */
+export function ghostTint(o: { self: boolean; kind: string; role?: string; hostile?: boolean }): string {
+  if (o.self) return '#9fe6ff';
+  if (o.kind === 'monster') return '#ff8a7a';
+  if (o.kind === 'player') return '#b8f0c8';
+  if (o.role === 'legend') return '#ff9ad2';
+  if (o.role === 'master') return '#ffd98a';
+  if (o.role === 'guard') return '#a8c4ff';
+  return '#f2e6c0';
+}

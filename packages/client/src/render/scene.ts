@@ -6,7 +6,7 @@
 import { O, T, FACTION_BY_ID, type Dir, type NodeKind } from '@murim/shared';
 import { BEAST_KEYS, type BeastKey } from '../art/beasts';
 import { sizeMult, type CharSpec, type SpecialStyle } from '../art/character';
-import { coverage, isHidden, stepOcc, type Coverage, type Occluder, type RowSpans } from './occlusion';
+import { coverage, ghostPriority, ghostTint, isHidden, isVeiled, pickGhosts, stepOcc, type Coverage, type GhostCand, type Occluder, type RowSpans } from './occlusion';
 import type { ToolKind } from '../art/anim';
 import { gearFor, rarityCol } from '../art/gear';
 import { newBeastPick, newPick, pickBeast, pickChar, reactionOffset, windLevel, motion, type AnimPick, type BeastPick, type PickEnv } from './life';
@@ -64,6 +64,8 @@ export class SceneRenderer {
   private occl: Occluder[] = [];
   private nOcc = 0;
   private cov: Coverage = { frac: 0, head: false };
+  /** Entities covered by scenery this frame that qualify for a see-through silhouette. */
+  private ghosts: (GhostCand & { e: Ent })[] = [];
   /** Your own sprite of this frame, redrawn as an x-ray ghost when scenery covers it. */
   private xray: { spr: FlashSprite; dx: number; dy: number } | null = null;
   moveTarget: { x: number; y: number } | null = null;
@@ -345,21 +347,45 @@ export class SceneRenderer {
     o.spans = spans ?? null;
   }
 
-  /** Per entity: smoothed "hidden behind scenery" level for the overlay, and the x-ray ghost of your own character. */
+  /**
+   * Per entity: smoothed "hidden behind scenery" level for the overlay, and the see-through silhouettes: an entity covered
+   * by a taller drawable gets a faint tinted outline drawn on top of it (at most `MAX_GHOSTS` per frame, the important ones).
+   * Your own character also gets the x-ray ghost below.
+   */
   private resolveOcclusion(s: CanvasRenderingContext2D, dt: number): void {
     const list = this.drawnEnts;
     const box = { x0: 0, y0: 0, x1: 0, y1: 0 };
+    const me = this.selfId !== null ? this.ents.map.get(this.selfId) : undefined;
+    const cands = this.ghosts;
+    cands.length = 0;
     for (let i = 0; i < list.length; i++) {
       const e = list[i];
       box.x0 = e.sx - e.halfW;
       box.x1 = e.sx + e.halfW;
       box.y0 = e.sy - e.topPx;
       box.y1 = e.sy;
-      e.occ = stepOcc(e.occ, isHidden(coverage(box, e.dkey, this.occl, this.nOcc, this.cov)), dt);
+      const cov = coverage(box, e.dkey, this.occl, this.nOcc, this.cov);
+      e.occ = stepOcc(e.occ, isHidden(cov), dt);
+      e.veil = stepOcc(e.veil, isVeiled(cov), dt);
+      const v = e.v;
+      if (e.veil <= 0.04 || v.kind === 'node' || v.state === 'dead' || !e.lastSpr || !e.drawn) continue;
+      cands.push({
+        e,
+        priority: ghostPriority({ self: e.id === this.selfId, selected: e.id === this.selectedId, kind: v.kind, role: v.role, fighting: v.state === 'fight' }),
+        dist: me ? Math.hypot(me.x - e.x, me.y - e.y) : 0,
+      });
     }
+    for (const c of pickGhosts(cands)) {
+      const e = c.e;
+      const v = e.v;
+      const spr = e.lastSpr!;
+      const cv = this.bank.ghostOf(spr, ghostTint({ self: e.id === this.selfId, kind: v.kind, role: v.role }));
+      s.globalAlpha = 0.85 * e.veil;
+      s.drawImage(cv, e.sx - spr.ax - 1, e.sy - spr.ay - 1);
+    }
+    s.globalAlpha = 1;
     const x = this.xray;
     if (x && this.selfId !== null) {
-      const me = this.ents.map.get(this.selfId);
       if (me && me.occ > 0.04) {
         s.globalAlpha = 0.5 * me.occ;
         s.drawImage(x.spr.cv, x.dx, x.dy);
