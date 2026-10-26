@@ -23,6 +23,13 @@ describe('context actions', () => {
     expect(contextActions(ent({ kind: 'node', nodeKind: 'herb' }), ctx)[0].label).toBe('act.gather');
   });
 
+  it('nameless townsfolk offer nothing and read as passers-by', () => {
+    const t = ent({ kind: 'ambient', name: '', role: 'villager' });
+    expect(contextActions(t, ctx)).toEqual([]);
+    expect(quickAction(t, ctx)).toBeNull();
+    expect(entityKindKey(t)).toBe('kind.passerby');
+  });
+
   it('players get inspect / whisper / friend / duel, and sect invite only for leaders and elders', () => {
     const p = ent({ kind: 'player', online: true });
     expect(contextActions(p, ctx).map((a) => a.id)).toEqual(['inspect', 'whisper', 'friend', 'duel']);

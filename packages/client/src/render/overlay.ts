@@ -156,6 +156,7 @@ export class Overlay {
     for (let i = ents.length - 1; i >= 0; i--) {
       const e = ents[i];
       const v = e.v;
+      if (v.kind === 'ambient') continue; // nameless townsfolk have no plate
       if (v.kind === 'node') {
         const near = self ? Math.hypot(self.x - e.x, self.y - e.y) < 5 : false;
         if (!(near || selectedId === e.id || hoverId === e.id)) continue;

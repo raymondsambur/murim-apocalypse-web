@@ -457,7 +457,7 @@ export class GameView implements GameViewApi {
     const list = sr.drawnEnts;
     for (let i = list.length - 1; i >= 0; i--) {
       const e = list[i];
-      if (e.v.kind === 'node' && e.v.nodeKind !== 'heart' && false) continue;
+      if (e.v.kind === 'ambient') continue; // townsfolk cannot be targeted: clicks fall through to the ground
       const x0 = e.sx - e.halfW - tol;
       const x1 = e.sx + e.halfW + tol;
       const y0 = e.sy - e.topPx - tol;
