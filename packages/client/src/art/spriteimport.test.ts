@@ -126,6 +126,24 @@ describe('alpha and background', () => {
     expect(px(a, 10, 10)).toEqual([255, 255, 255, 255]); // the hole is part of the object
     expect(px(a, 10, 5)[3]).toBe(255);
   });
+  it('takes a soft cast shadow glued to the object, but not a neutral-looking object part away from the background', () => {
+    // pale backdrop, a dark disc object, a grey-ish shadow ellipse under it and a tan highlight inside the object
+    const a = img(40, 40, (x, y) => {
+      const d = Math.hypot(x - 20, y - 14);
+      if (d < 7) return [60, 50, 40, 255];
+      if (Math.hypot((x - 22) / 12, (y - 30) / 3) < 1) return [196, 193, 186, 255]; // shadow: darker, equally neutral
+      return [244, 241, 233, 255];
+    });
+    removeBackground(a, {});
+    expect(px(a, 22, 30)[3]).toBe(0);
+    expect(px(a, 20, 14)[3]).toBe(255);
+    const keep = img(40, 40, (x, y) => (Math.hypot(x - 20, y - 20) < 8 ? [196, 160, 110, 255] : [244, 241, 233, 255]));
+    removeBackground(keep, {});
+    expect(px(keep, 20, 20)[3]).toBe(255); // tan is not a neutral shadow
+    const off = img(40, 40, (x, y) => (Math.hypot((x - 22) / 12, (y - 30) / 3) < 1 ? [196, 193, 186, 255] : [244, 241, 233, 255]));
+    removeBackground(off, { shadows: false, tolerance: 10 });
+    expect(px(off, 22, 30)[3]).toBe(255); // switch honoured
+  });
   it('keeps an image whose border is already transparent', () => {
     const a = img(6, 6, (x, y) => (x > 1 && x < 4 && y > 1 && y < 4 ? [9, 9, 9, 255] : [0, 0, 0, 0]));
     expect(removeBackground(cloneImage(a))).toBe(0);

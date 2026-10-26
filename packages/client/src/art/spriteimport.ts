@@ -243,6 +243,19 @@ export interface BgOptions {
   colour?: [number, number, number];
   /** Flood tolerance in colour-distance units (redmean, not squared). */
   tolerance?: number;
+  /**
+   * Also take soft cast shadows: pixels touching the cleared background that are just a darker, equally neutral version of it
+   * (default on). Without this a drop shadow under a picture becomes a pale blob glued to the feet.
+   */
+  shadows?: boolean;
+}
+
+/** A darkened copy of the background: every channel between 45% and 100% of it and the same (low) colour spread. */
+export function isShadowOf(r: number, g: number, b: number, bg: readonly [number, number, number]): boolean {
+  const spread = (x: number, y: number, z: number): number => Math.max(x, y, z) - Math.min(x, y, z);
+  if (r > bg[0] + 4 || g > bg[1] + 4 || b > bg[2] + 4) return false;
+  if (r < bg[0] * 0.45 || g < bg[1] * 0.45 || b < bg[2] * 0.45) return false;
+  return Math.abs(spread(r, g, b) - spread(bg[0], bg[1], bg[2])) <= 22;
 }
 
 /**
@@ -276,7 +289,7 @@ export function removeBackground(img: RawImage, o: BgOptions = {}): number {
     const k = y * w + x;
     if (seen[k]) return;
     const i = k * 4;
-    if (data[i + 3] >= 128 && colourDist2(data[i], data[i + 1], data[i + 2], bg[0], bg[1], bg[2]) > tol) return;
+    if (data[i + 3] >= 128 && colourDist2(data[i], data[i + 1], data[i + 2], bg[0], bg[1], bg[2]) > tol && !(o.shadows !== false && isShadowOf(data[i], data[i + 1], data[i + 2], bg))) return;
     seen[k] = 1;
     stack.push(k);
   };
@@ -459,7 +472,7 @@ export function addOutline(img: RawImage, ink: Col): RawImage {
 export type AnchorMode = 'feet' | 'footprint';
 
 /**
- * Ground-contact point. 'feet': bottom row of the silhouette, horizontal centre of the bottom 3 rows (people, animals, poles).
+ * Ground-contact point. 'feet': bottom row of the silhouette, horizontal centre of its bounds (people, animals, poles; pass an explicit x,y for a lopsided pose).
  * 'footprint': the centre of the ground diamond of a w x d footprint, whose nearest corner touches the bottom row, so the
  * anchor is (w + d) * 4 px above it (a tile diamond is 32 x 16 px: half height 8 per tile of w or d... centre at (w + d) * 4).
  */
@@ -467,15 +480,7 @@ export function anchorFor(img: RawImage, mode: AnchorMode, fp: { w: number; d: n
   const b = opaqueBounds(img);
   if (!b) throw new Error('empty image');
   if (mode === 'footprint') return { ax: Math.round((b.x0 + b.x1) / 2), ay: b.y1 - Math.round((fp.w + fp.d) * 4) };
-  let sum = 0;
-  let n = 0;
-  for (let y = Math.max(b.y0, b.y1 - 2); y <= b.y1; y++)
-    for (let x = b.x0; x <= b.x1; x++)
-      if (img.data[(y * img.w + x) * 4 + 3] === 255) {
-        sum += x;
-        n++;
-      }
-  return { ax: n ? Math.round(sum / n) : Math.round((b.x0 + b.x1) / 2), ay: b.y1 };
+  return { ax: Math.round((b.x0 + b.x1) / 2), ay: b.y1 };
 }
 
 /** Packed game pixels (little-endian ImageData order) from RGBA bytes. */

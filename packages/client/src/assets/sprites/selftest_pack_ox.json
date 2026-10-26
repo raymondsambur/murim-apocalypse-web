@@ -1,0 +1,34 @@
+{
+  "id": "selftest_pack_ox",
+  "w": 41,
+  "h": 28,
+  "ax": 20,
+  "ay": 27,
+  "top": 0,
+  "footprint": {
+    "w": 1,
+    "d": 1
+  },
+  "heightPx": 28,
+  "dirs": {
+    "0": {
+      "file": "0.png"
+    },
+    "1": {
+      "from": 0,
+      "flip": true
+    },
+    "2": {
+      "from": 3,
+      "flip": true
+    },
+    "3": {
+      "file": "3.png"
+    }
+  },
+  "provenance": {
+    "tool": "pipeline self-test (no Adobe involved)",
+    "prompt": "Stand-in test picture, not generated art: the procedural sprite from art/sectprops.ts upscaled 10x with bilinear smoothing onto a light gradient backdrop with a baked soft shadow, to exercise the importer.",
+    "date": "2026-10-26"
+  }
+}

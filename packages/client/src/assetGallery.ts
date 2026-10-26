@@ -185,7 +185,7 @@ async function main(): Promise<void> {
     out.insertAdjacentHTML('beforeend', `<h2>Imported (assets/sprites, ${ids.length})</h2>${ids.length ? '' : '<p class="note">Nothing imported yet. Run scripts/art/import-sprite.ts, see docs/notes/art-adobe-trial.md.</p>'}`);
     for (const id of ids) {
       const meta = importedSprites.meta(id)!;
-      const key = keyOf.get(id);
+      const key = keyOf.get(id.replace(/^selftest_/, ''));
       const items = await importedItems(meta);
       const c = key ? check(meta.heightPx, key) : { px: meta.heightPx, persons: meta.heightPx / PERSON_PX, target: TARGETS.person, pass: false };
       await block(id, id, `imported, ${meta.provenance.tool}`, items, c, key ? `footprint ${meta.footprint.w}x${meta.footprint.d}` : 'no target row for this id');
