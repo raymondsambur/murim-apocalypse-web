@@ -5,6 +5,8 @@ import type { EntityKind, EntityView, Look, Point } from '@murim/shared';
 import type { Entity, EntityExtras, EntityInit, EntityStore, MoveState } from '../ctx';
 
 export const CELL_SIZE = 8;
+/** First id of the ambient range. */
+export const AMBIENT_ID_BASE = 1_000_000_000;
 
 /** Mutable move state owned by movement.ts. */
 export interface MoveStateImpl extends MoveState {
@@ -28,8 +30,10 @@ const EXTRA_KEYS = ['look', 'sprite', 'lv', 'hp', 'maxHp', 'tag', 'faction', 'ro
 
 export class EntityStoreImpl implements EntityStore {
   private nextId = 1;
+  /** Ambient townsfolk come and go all day: their ids live in a range of their own so they never shift the ids (and with them anything seeded by an id) of players, NPCs and monsters. */
+  private nextAmbientId = AMBIENT_ID_BASE;
   private readonly byId = new Map<number, EntityImpl>();
-  private readonly byKind: Record<EntityKind, Set<EntityImpl>> = { player: new Set(), npc: new Set(), monster: new Set(), node: new Set() };
+  private readonly byKind: Record<EntityKind, Set<EntityImpl>> = { player: new Set(), npc: new Set(), monster: new Set(), node: new Set(), ambient: new Set() };
   private readonly cells: Set<EntityImpl>[];
   private readonly cols: number;
   private readonly rows: number;
@@ -66,7 +70,7 @@ export class EntityStoreImpl implements EntityStore {
     const x = this.clampX(init.x);
     const y = this.clampY(init.y);
     const e: EntityImpl = {
-      id: this.nextId++,
+      id: init.kind === 'ambient' ? this.nextAmbientId++ : this.nextId++,
       kind: init.kind,
       name: init.name,
       x,

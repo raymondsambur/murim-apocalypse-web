@@ -96,7 +96,8 @@ export interface WorldPayload {
 // Entities
 // ---------------------------------------------------------------------------
 
-export type EntityKind = 'player' | 'npc' | 'monster' | 'node';
+/** `ambient` = nameless townsfolk the server spawns near players (see `crowd.ts`); they cannot be targeted or talked to. */
+export type EntityKind = 'player' | 'npc' | 'monster' | 'node' | 'ambient';
 export type EntityState = 'idle' | 'walk' | 'fight' | 'work' | 'meditate' | 'craft' | 'dead';
 /** 0 = facing south-east (screen down-right), 1 = south-west, 2 = north-west, 3 = north-east. */
 export type Dir = 0 | 1 | 2 | 3;
