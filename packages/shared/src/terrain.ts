@@ -85,7 +85,9 @@ export type BuildingKind =
   | 'barracks'
   | 'ruinedHouse'
   | 'warehouse'
-  | 'teahouse';
+  | 'teahouse'
+  /** A hermit's hut outside the walls where the legends of a town live. */
+  | 'hermitage';
 
 export interface BuildingDef {
   id: number;
