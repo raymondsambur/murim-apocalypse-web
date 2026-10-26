@@ -901,11 +901,12 @@ function placeSpawnsAndNodes(c: Ctx, world: WorldData): { spawns: SpawnPointDef[
     }
     return false;
   };
+  const shrineRng = rng.fork(5150);
   for (const s of c.settlements) {
     if (s.kind === 'ruin' || s.kind === 'hamlet') continue;
     for (let tries = 0; tries < 90; tries++) {
       // First on the sides facing the camera (south / east) so walls and huts do not hide the shrine, then anywhere.
-      const ang = tries < 60 ? rng.next() * Math.PI - Math.PI / 4 : rng.next() * Math.PI * 2;
+      const ang = tries < 60 ? shrineRng.next() * Math.PI - Math.PI / 4 : shrineRng.next() * Math.PI * 2;
       const x = Math.round(s.x + Math.cos(ang) * (s.radius + 3));
       const y = Math.round(s.y + Math.sin(ang) * (s.radius + 3));
       if (okTile(x, y) && c.terrain[ix(c, x, y)] !== T.Farm && !nearWallOrHut(x, y)) {

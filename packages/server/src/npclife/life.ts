@@ -10,7 +10,7 @@
  * finds the town already in the right state. NPCs are visited about once a second in a rotating slice, so the
  * per-tick cost is O(roster / 10) plus at most `maxDecisionsPerTick` decisions.
  */
-import { AOI_RADIUS, type Dir, type NpcAct, type NpcRole, type NpcState, type Point, type SimEvent } from '@murim/shared';
+import { AOI_RADIUS, planGuards, type Dir, type GuardDuty, type NpcAct, type NpcRole, type NpcState, type Point, type SimEvent } from '@murim/shared';
 import { NPC_DATA, type Entity, type GameContext } from '../ctx';
 import {
   ACTIVITIES,
@@ -19,6 +19,7 @@ import {
   isCivilianRole,
   isOldNpc,
   scheduleKey,
+  schedWeight,
   scoreAll,
   wakeHour,
   type ActivityId,
@@ -54,6 +55,8 @@ export interface LifeState {
   posts: readonly Place[];
   postIdx: number;
   shift: 0 | 1;
+  /** Guards: the gate or squad this guard serves (see `planGuards`); null for everybody else. */
+  duty: GuardDuty | null;
   traits: Set<string>;
   /** Personal schedule offset, hours. */
   phase: number;
@@ -140,10 +143,16 @@ export function workCue(role: NpcRole, kind: PlaceKind): NpcAct | undefined {
 
 const GUARD_ROLES: ReadonlySet<NpcRole> = new Set(['guard', 'master', 'legend']);
 /** Beds for people who cannot get home: buildings with a roof and a door. */
-const BED_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'house', 'farmhouse', 'hall', 'barracks', 'pagoda', 'dojo'];
+const BED_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'house', 'farmhouse', 'hall', 'barracks', 'pagoda', 'dojo', 'hermitage'];
 
 const ROUTINE: ReadonlySet<ActivityId> = new Set(['sleep', 'work', 'patrol', 'trade', 'hide', 'muster', 'mourn', 'celebrate', 'mope']);
-const SHELTER_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'market', 'shrine', 'hall', 'pagoda', 'house', 'farmhouse', 'alchemy', 'smithy', 'barracks', 'dojo'];
+const SHELTER_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'market', 'shrine', 'hall', 'pagoda', 'house', 'farmhouse', 'alchemy', 'smithy', 'barracks', 'dojo', 'hermitage'];
+
+function sameDuty(a: GuardDuty | null, b: GuardDuty | null): boolean {
+  if (!a || !b) return a === b;
+  if (a.kind !== b.kind) return false;
+  return a.kind === 'gate' && b.kind === 'gate' ? a.gate === b.gate && a.slot === b.slot : a.kind === 'squad' && b.kind === 'squad' && a.squad === b.squad && a.slot === b.slot && a.size === b.size;
+}
 
 export class NpcLife {
   readonly states = new Map<number, LifeState>();
@@ -227,6 +236,7 @@ export class NpcLife {
       posts: [],
       postIdx: 0,
       shift: 0,
+      duty: null,
       traits,
       phase: (hash01(npc.id, 11) * 2 - 1) * TUNE.phaseSpread + (traits.has('weary') ? -0.3 : 0),
       hardy: Math.min(1, Math.max(0, hash01(npc.id, 12) * 0.7 + (traits.has('gruff') || traits.has('stern') ? 0.25 : 0) - (traits.has('weary') ? 0.15 : 0))),
@@ -273,6 +283,7 @@ export class NpcLife {
     this.releaseHome(st);
     st.sid = npc.settlementId;
     st.role = npc.role;
+    st.duty = null;
     st.old = isOldNpc(npc);
     st.traits = new Set(npc.traits);
     st.ph = 'idle';
@@ -305,10 +316,22 @@ export class NpcLife {
     st.postIdx = hash32(npc.id, 3) % Math.max(1, plan.posts.length);
   }
 
-  /** Guards alternate day / night shifts by their order in the settlement. */
+  /** Guards split into day / night shifts and into gate posts and a patrol squad by `planGuards` (in id order). */
   private rebalanceShifts(sid: number): void {
     const guards = [...this.states.values()].filter((s) => s.sid === sid && s.role === 'guard').sort((a, b) => a.npcId - b.npcId);
-    guards.forEach((g, i) => (g.shift = (i % 2) as 0 | 1));
+    const def = this.ctx.world.settlements[sid];
+    const sp = this.wp.settlements.get(sid);
+    if (!def || !sp) return;
+    const plan = planGuards(def.kind, guards.length, sp.gates.length);
+    const now = this.ctx.now();
+    guards.forEach((g, i) => {
+      const { shift, duty } = plan[i];
+      const changed = !sameDuty(g.duty, duty) || g.shift !== shift;
+      g.shift = shift;
+      g.duty = duty;
+      // A guard whose post moved leaves its old one soon (staggered), rather than finishing a long stand.
+      if (changed && g.ph === 'doing' && g.act === 'patrol' && !g.interruptAt) g.interruptAt = now + this.ctx.rng.int(...TUNE.interruptDelayMs);
+    });
   }
 
   private drop(id: number): void {
@@ -630,6 +653,13 @@ export class NpcLife {
       { role: st.role, key, traits: st.traits, needs: st.needs, hour: hp, mood, hardy: st.hardy, old: st.old, roll: st.roll, mournPending },
       () => rng.float(0, TUNE.scoreNoise),
     );
+    // A guard with a post stays on it for the whole watch: no drilling, gossiping or strolling off.
+    if (st.role === 'guard' && st.duty && schedWeight(key, hp, 'patrol') >= 0.9) {
+      scores.train = -9;
+      scores.socialise = -9;
+      scores.wander = -9;
+      if (st.duty.kind === 'squad') scores.sweep = -9;
+    }
     if (st.lastAct && !ROUTINE.has(st.lastAct)) scores[st.lastAct] -= TUNE.repeatPenalty;
     const ranked = (Object.keys(scores) as ActivityId[]).sort((a, b) => scores[b] - scores[a]);
     if (sp) {
@@ -722,7 +752,9 @@ export class NpcLife {
         const t = st.traits;
         let p = TUNE.innMealShare + (t.has('cheerful') ? 0.2 : 0) + (t.has('cunning') ? 0.1 : 0) + (t.has('boastful') ? 0.1 : 0);
         if (st.role === 'guard') p += 0.35;
-        if (st.role === 'legend' || st.role === 'wanderer') p = 0.9;
+        if (st.role === 'wanderer') p = 0.9;
+        // A hermit takes the evening meal at the inn and every other meal at home.
+        if (st.role === 'legend') p = home?.kind === 'hermitage' ? (hp % 24 >= 17.5 && hp % 24 < 20 ? 0.9 : 0) : 0.9;
         if (st.role === 'innkeeper' || mood.siege) p = 0;
         if (inns.length && rng.chance(p)) return this.mk('eat', inns[st.npcId % inns.length], st, { stable: false });
         if (home) return this.mk('eat', home, st, { inside: true });
@@ -744,6 +776,16 @@ export class NpcLife {
         return work && st.role === 'merchant' && workCue(st.role, work.kind) === 'trade' ? this.mk('trade', work, st, { stable: true, cue: 'trade' }) : null;
       case 'patrol': {
         if (st.role !== 'guard') return null;
+        const duty = st.duty;
+        if (duty?.kind === 'gate') {
+          // Stand at the own gate, on the own flank of the road, for a long stretch.
+          const gates = sp.gates.length ? sp.gates : [sp.plaza];
+          const g = gates[duty.gate % gates.length];
+          if (!this.avoided(st, g, now)) return this.mk('patrol', g, st, { hours: rng.float(TUNE.gateStandHours[0], TUNE.gateStandHours[1]), spot: g.spots[duty.slot % g.spots.length] });
+        } else if (duty?.kind === 'squad') {
+          const plan = this.squadPlan(st, duty, sp, now);
+          if (plan) return plan;
+        }
         const posts = st.posts.length ? st.posts : [sp.plaza];
         for (let k = 0; k < posts.length; k++) {
           const p = posts[st.postIdx++ % posts.length];
@@ -760,10 +802,11 @@ export class NpcLife {
       case 'train': {
         const kinds: PlaceKind[] = st.role === 'master' ? ['dojo', 'hall', 'pagoda'] : ['dojo', 'barracks', 'hall'];
         const list = kinds.flatMap((k) => sp.byKind(k)).filter((p) => !this.avoided(st, p, now));
-        const p = work && (work.kind === 'dojo' || work.kind === 'hall' || work.kind === 'pagoda') ? work : list.length ? list[st.npcId % list.length] : sp.plaza;
+        const p = work && (work.kind === 'dojo' || work.kind === 'hall' || work.kind === 'pagoda' || (work.kind === 'hermitage' && st.role === 'legend')) ? work : list.length ? list[st.npcId % list.length] : sp.plaza;
         return this.mk('train', p, st, { stable: true });
       }
       case 'pray': {
+        if (st.role === 'legend' && work?.kind === 'hermitage') return this.mk('pray', work, st);
         const list = (['shrine', 'pagoda', 'hall'] as const).flatMap((k) => sp.byKind(k)).filter((p) => !this.avoided(st, p, now));
         return list.length ? this.mk('pray', list[st.npcId % list.length], st) : null;
       }
@@ -773,7 +816,7 @@ export class NpcLife {
         return p ? this.mk('sweep', p, st) : null;
       }
       case 'wander': {
-        const useHome = home && rng.chance(0.4);
+        const useHome = home && rng.chance(st.role === 'legend' && home.kind === 'hermitage' ? 0.9 : 0.4);
         return this.mk('wander', useHome ? home : sp.plaza, st);
       }
       case 'rest': {
@@ -817,6 +860,32 @@ export class NpcLife {
         return this.mk('mope', market.length ? market[st.npcId % market.length] : sp.plaza, st);
       }
     }
+  }
+
+  /**
+   * A squad moves as one: the post is a function of world time (a shared bucket of `squadBucketHours`) and a
+   * per-squad seed, so every member picks the same one, and each takes its own spot slot there. The stay ends at
+   * the bucket boundary, when all of them move on to the next point of the route.
+   */
+  private squadPlan(st: LifeState, duty: Extract<GuardDuty, { kind: 'squad' }>, sp: SettlementPlaces, now: number): Plan | null {
+    const route = sp.route.length ? sp.route : sp.posts;
+    if (route.length === 0) return null;
+    const tv = this.ctx.sim.timeView(now);
+    const abs = tv.day * 24 + tv.hours;
+    const bucket = Math.floor(abs / TUNE.squadBucketHours);
+    const seed = hash32(st.sid, 0x51 + duty.squad + 7 * st.shift);
+    let idx = -1;
+    for (let k = 0; k < route.length; k++) {
+      const i = (bucket + seed + k) % route.length;
+      if (!this.avoided(st, route[i], now)) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx < 0) return null;
+    const place = route[idx];
+    const hours = Math.max(0.08, (bucket + 1) * TUNE.squadBucketHours - abs);
+    return this.mk('patrol', place, st, { hours, spot: place.spots[duty.slot % place.spots.length] });
   }
 
   // ---- committing a plan: depart / snap / arrive -------------------------------------------------

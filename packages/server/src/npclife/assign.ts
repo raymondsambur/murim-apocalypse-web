@@ -32,7 +32,7 @@ export function surname(npc: NpcState): string {
 export type HomeBook = Map<string, Set<number>>;
 
 function capacity(p: Place): number {
-  return p.kind === 'barracks' ? NPCLIFE_TUNING.barracksCapacity : p.kind === 'inn' ? 6 : NPCLIFE_TUNING.houseCapacity;
+  return p.kind === 'barracks' ? NPCLIFE_TUNING.barracksCapacity : p.kind === 'inn' ? 6 : p.kind === 'hermitage' ? NPCLIFE_TUNING.hermitageCapacity : NPCLIFE_TUNING.houseCapacity;
 }
 
 function load(book: HomeBook, p: Place): number {
@@ -41,6 +41,11 @@ function load(book: HomeBook, p: Place): number {
 
 /** Pick a home. `peers` are the other living NPCs of the settlement (for family / surname grouping). */
 export function chooseHome(sp: SettlementPlaces, npc: NpcState, book: HomeBook, peers: readonly NpcState[]): Place {
+  // Legends live in the hermitage outside the town, if it has one.
+  if (npc.role === 'legend') {
+    const huts = sp.byKind('hermitage').filter((p) => load(book, p) < capacity(p));
+    if (huts.length) return huts.reduce((best, p) => (load(book, p) < load(book, best) ? p : best));
+  }
   const inns = sp.byKind('inn');
   if ((npc.role === 'innkeeper' || npc.role === 'legend' || npc.role === 'wanderer') && inns.length) {
     return inns.reduce((best, p) => (load(book, p) < load(book, best) ? p : best));
@@ -107,6 +112,8 @@ export function chooseWork(sp: SettlementPlaces, npc: NpcState, rank: number): W
     case 'elder':
       return { work: first('hall', 'pagoda', 'teahouse') ?? sp.plaza, posts: [] };
     case 'legend':
+      // A hermitage if there is one, else the training hall; the plaza only as a last resort.
+      return { work: first('hermitage', 'dojo') ?? sp.plaza, posts: [] };
     case 'wanderer':
       return { work: sp.plaza, posts: [] };
     default: {
