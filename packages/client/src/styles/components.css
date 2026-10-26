@@ -723,8 +723,9 @@ button.chip {
     box-shadow var(--t-fast) var(--ease);
 }
 .slot-sm {
-  width: 2.25rem;
-  height: 2.25rem;
+  /* 44 px: the 2 px borders leave exactly the 40 px of the pixel-art item icon */
+  width: 2.75rem;
+  height: 2.75rem;
 }
 .slot-lg {
   width: 3.75rem;
@@ -749,6 +750,26 @@ button.chip {
 }
 .slot-lg .slot-glyph {
   font-size: 2rem;
+}
+/* pixel-art item icon: shown 1:1 with hard edges (the icon is 40 x 40 art px) */
+.slot-glyph.slot-px {
+  font-size: 0;
+  text-shadow: none;
+}
+.px-ico {
+  display: grid;
+  place-items: center;
+  line-height: 0;
+}
+.px-icon {
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+}
+.tip-px {
+  width: 3rem;
+  height: 3rem;
 }
 .slot-ghost {
   color: rgba(217, 184, 103, 0.2) !important;
