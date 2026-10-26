@@ -55,6 +55,7 @@ export const ROLE_GEAR: Record<NpcRole, GearLook> = {
   physician: { o: { t: 2, r: 1 }, a: { k: 'vitality', t: 2, r: 0 } },
   legend: { o: { t: 5, r: 4 }, w: { t: 5, r: 4 }, a: { k: 'spirit', t: 5, r: 3 } },
   wanderer: { o: { t: 2, r: 0 }, w: { t: 2, r: 0 }, a: { k: 'agility', t: 2, r: 0 } },
+  disciple: { o: { t: 2, r: 0 }, w: { t: 1, r: 0 } },
 };
 
 /** Gear of hostile humans. */

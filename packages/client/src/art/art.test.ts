@@ -102,10 +102,11 @@ describe('vegetation, props and mountains', () => {
 });
 
 describe('buildings', () => {
-  const sizes: Record<BuildingKind, [number, number]> = { house: [3, 3], inn: [4, 4], smithy: [3, 3], alchemy: [3, 3], market: [4, 3], shrine: [2, 2], pagoda: [5, 5], hall: [4, 5], dojo: [4, 4], farmhouse: [3, 3], herbHut: [2, 2], mineEntrance: [1, 1], tower: [2, 2], gate: [4, 2], barracks: [4, 3], ruinedHouse: [3, 3], warehouse: [4, 3], teahouse: [3, 3], hermitage: [3, 3] };
+  const sizes: Record<BuildingKind, [number, number]> = { house: [3, 3], inn: [4, 4], smithy: [3, 3], alchemy: [3, 3], market: [4, 3], shrine: [2, 2], pagoda: [5, 5], hall: [4, 5], dojo: [4, 4], farmhouse: [3, 3], herbHut: [2, 2], mineEntrance: [1, 1], tower: [2, 2], gate: [4, 2], barracks: [4, 3], ruinedHouse: [3, 3], warehouse: [4, 3], teahouse: [3, 3], hermitage: [3, 3], yard: [5, 4], dormitory: [4, 3], pavilion: [3, 3], sectGate: [4, 1] };
   it('renders every kind, normal and fallen, in every season', () => {
     for (const [kind, [w, d]] of Object.entries(sizes) as [BuildingKind, [number, number]][]) {
       for (const fallen of [false, true]) {
+        if (kind === 'yard') continue; // open floor: nothing to draw
         const a = genBuilding({ id: 7, kind, w, d, door: { dx: 1, dy: d }, season: fallen ? 3 : 1, roofCss: fallen ? null : '#3f5f86', accentCss: '#5fa4e8', fallen });
         expect(opaque(a.pb), `${kind} fallen=${fallen}`).toBeGreaterThan(150);
         expect(a.ox).toBeGreaterThan(0);

@@ -328,6 +328,7 @@ export function mountNpcDialog(host: HTMLElement, ui: UiContext): { destroy(): v
       'div',
       { class: 'npc-tabbody' },
       h('div', { class: 'scroll' }, d.already ? t('npc.disciple.already', { name: menu.name }) : t('npc.disciple.text', { name: menu.name })),
+      menu.students ? h('p', { class: 'jobs-fine' }, t('npc.disciple.students', { name: menu.name, outer: String(menu.students.outer), inner: String(menu.students.inner) })) : null,
       d.ok && !d.already ? null : d.reason ? h('p', { class: 'tone-warn' }, d.reason) : null,
       h('button', { class: 'btn btn-primary', type: 'button', disabled: !d.ok || d.already, onclick: () => ui.net.send({ t: 'master', op: 'request', npc: menu.id }) }, t('npc.disciple.btn')),
     );

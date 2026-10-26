@@ -124,7 +124,7 @@ export class SpriteBank {
     const hash = ihash(x, y, 1);
     const v8 = hash % (VARIANTS * 2);
     const key = code | (v8 << 8) | (this.season << 12) | (tier << 14) | (bannerCss ? 1 << 16 : 0);
-    if (code === O.Banner && bannerCss) return this.banner(bannerCss, v8);
+    if ((code === O.Banner || code === O.Standard) && bannerCss) return this.banner(code, bannerCss, v8);
     let s = this.objects.get(key);
     if (s !== undefined) return s;
     const flip = v8 >= VARIANTS;
@@ -139,11 +139,11 @@ export class SpriteBank {
     return s;
   }
 
-  private banner(css: string, v8: number): Sprite {
-    const key = `b${css}${this.season}`;
+  private banner(code: number, css: string, v8: number): Sprite {
+    const key = `b${code}${css}${code === O.Standard ? v8 & 1 : ''}${this.season}`;
     let s = this.glows.get(key) as unknown as Sprite | undefined;
     if (!s) {
-      const g = genObject(O.Banner, v8 % VARIANTS, this.season, 0, css)!;
+      const g = genObject(code, v8 % VARIANTS, this.season, 0, css)!;
       s = makeSprite(g.pb, g.ax, g.ay);
       this.glows.set(key, s as unknown as HTMLCanvasElement);
     }

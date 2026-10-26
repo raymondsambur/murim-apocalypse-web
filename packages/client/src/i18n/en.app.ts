@@ -168,6 +168,7 @@ export const enApp: Record<string, string> = {
   'role.elder': 'Elder',
   'role.physician': 'Physician',
   'role.legend': 'Legend',
+  'role.disciple': 'Disciple',
   'role.wanderer': 'Wanderer',
   'node.herb': 'Herb patch',
   'node.rareHerb': 'Rare herb',
@@ -274,6 +275,7 @@ export const enApp: Record<string, string> = {
   'npc.disciple.text': 'Ask {name} to take you as a disciple. A master teaches, and expects loyalty in return.',
   'npc.disciple.already': 'You already study under {name}.',
   'npc.disciple.btn': 'Ask to become a disciple',
+  'npc.disciple.students': '{outer} outer and {inner} inner disciples train under {name} here.',
 
   // ---- overlays -------------------------------------------------------------------------------------------------------
   'conn.entering': 'Entering the world…',

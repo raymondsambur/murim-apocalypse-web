@@ -8,7 +8,10 @@ import { hex, mix, rgba, scale, type Col } from './color';
 import { hf } from './draw';
 import { AHW } from '../render/iso';
 import { BUILDING_ZK } from './scale';
+import { GOLD } from './palette';
+import { PixelBuffer } from './pixel';
 import { Scene3D } from './mesh';
+import { genSectGate } from './sectprops';
 import {
   GLOW_FIRE,
   GLOW_GREEN,
@@ -16,7 +19,9 @@ import {
   LACQUER,
   LACQUER_D,
   door,
+  flatShader,
   lantern,
+  pillar,
   plinth,
   roof,
   walls,
@@ -50,10 +55,14 @@ const ROOF_DEFAULT: Record<BuildingKind, string> = {
   warehouse: '#6a5546',
   teahouse: '#8a4a3a',
   hermitage: '#a09058',
+  yard: '#000000',
+  dormitory: '#55705f',
+  pavilion: '#46706a',
+  sectGate: '#a8302a',
 };
 
 /** Kinds whose roof takes the faction colour. */
-const TINTED = new Set<BuildingKind>(['house', 'inn', 'hall', 'barracks', 'tower', 'gate', 'teahouse', 'warehouse', 'dojo', 'pagoda']);
+const TINTED = new Set<BuildingKind>(['house', 'inn', 'hall', 'barracks', 'tower', 'gate', 'teahouse', 'warehouse', 'dojo', 'pagoda', 'dormitory', 'pavilion']);
 
 const MAX_Z: Record<BuildingKind, number> = {
   house: 70,
@@ -75,6 +84,10 @@ const MAX_Z: Record<BuildingKind, number> = {
   warehouse: 70,
   teahouse: 76,
   hermitage: 50,
+  yard: 8,
+  dormitory: 62,
+  pavilion: 84,
+  sectGate: 90,
 };
 
 /** Vertical stretch per kind (default `BUILDING_ZK`). */
@@ -82,7 +95,21 @@ const ZK_KIND: Partial<Record<BuildingKind, number>> = { market: 1.5, mineEntran
 
 const WALL_TONES = ['#e6dcc6', '#ddd2b8', '#e9e0cd', '#d8cbb0'];
 
+/** The paifang of a compound: drawn by `sectprops.ts`, anchored on the middle of its footprint. */
+function sectGateArt(spec: BuildingSpec): BuildingArt {
+  const { w, d } = spec;
+  const g = genSectGate(w >= d ? 0 : 1);
+  const glow = g.glow ?? new PixelBuffer(g.pb.w, g.pb.h);
+  // the sprite anchor is the footprint centre; `ox, oy` is the footprint's top vertex
+  const ox = g.ax - ((w - d) * AHW) / 2;
+  const oy = g.ay - (w + d) * 4;
+  const lights = spec.fallen ? [] : [{ x: g.ax, y: g.ay - 46, r: 38, c: GLOW_WARM }];
+  return { pb: g.pb, glow, ox, oy, lights, smoke: [], metrics: { door: 0, eave: 0 } };
+}
+
 export function genBuilding(spec: BuildingSpec): BuildingArt {
+  if (spec.kind === 'sectGate') return sectGateArt(spec);
+  if (spec.kind === 'yard') return { pb: new PixelBuffer(1, 1), glow: new PixelBuffer(1, 1), ox: 0, oy: 0, lights: [], smoke: [], metrics: { door: 0, eave: 0 } };
   const { w, d } = spec;
   const marginX = 14;
   const zk = ZK_KIND[spec.kind] ?? BUILDING_ZK;
@@ -169,6 +196,12 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
       break;
     case 'hermitage':
       hermitage(ctx);
+      break;
+    case 'dormitory':
+      dormitory(ctx);
+      break;
+    case 'pavilion':
+      pavilion(ctx);
       break;
     case 'mineEntrance':
       L.mineEntrance(ctx);
@@ -555,5 +588,70 @@ function hermitage(c: Ctx): void {
     sc.sprite(lan.pb, lan.ax, lan.ay, dp.center - 0.7, b.v1 + 0.45, 0, 4);
     addLight(c, dp.center - 0.7, b.v1 + 0.45, 16, 24, GLOW_WARM);
     addSmoke(c, b.u1 - 0.5, b.v0 + 0.5, b.zWall + 8, 'chimney');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// compound buildings
+// ---------------------------------------------------------------------------
+
+/** A long bunkhouse: plank walls, a low gabled roof with a ridge cap, a row of shuttered windows, a water barrel and a lantern at the door. */
+function dormitory(c: Ctx): void {
+  const { sc, st } = c;
+  const b = basic(c, {
+    inset: 0.36,
+    H: 19,
+    doorH: 16,
+    doorW: 0.75,
+    wallKind: 'plank',
+    wallBase: hex('#8e7a5c'),
+    post: 0,
+    timber: hex('#43301f'),
+    plinthH: 3,
+    roof: { rise: 11, over: 0.4, up: 3, color: c.roofColor, gable: 'u', curve: 1.1, ridge: scale(c.roofColor, 1.3), rows: 5 },
+    windowH: 6,
+  });
+  if (st.fallen) return;
+  const dp = doorPlacement(c.spec);
+  const at = dp.face === 'left' ? b.v1 : b.u1;
+  // a water barrel and a lantern beside the door
+  const barrel = P.barrel(1);
+  const off = dp.face === 'left' ? [dp.center + 0.75, at + 0.3] : [at + 0.3, dp.center + 0.75];
+  sc.sprite(barrel.pb, barrel.ax, barrel.ay, off[0], off[1], 0, 4);
+  const lan = P.stoneLantern();
+  const lo = dp.face === 'left' ? [dp.center - 0.7, at + 0.4] : [at + 0.4, dp.center - 0.7];
+  sc.sprite(lan.pb, lan.ax, lan.ay, lo[0], lo[1], 0, 4);
+  addLight(c, lo[0], lo[1], 16, 26, GLOW_WARM);
+  addSmoke(c, b.u1 - 0.6, b.v0 + 0.6, b.zWall + 7, 'chimney');
+}
+
+/** An open-sided meditation pavilion: a stone terrace, four lacquer pillars, a sweeping hip roof, a cushion and an incense burner. */
+function pavilion(c: Ctx): void {
+  const { sc, st, w, d } = c;
+  const top = 6;
+  plinth(sc, st, 0.18, 0.18, w - 0.18, d - 0.18, top, scale(st.stone, 1.06));
+  const u0 = 0.55;
+  const u1 = w - 0.55;
+  const v0 = 0.55;
+  const v1 = d - 0.55;
+  const pz = 38;
+  // the back pillars first, the floor items, then the front pillars so the interior reads through the posts
+  for (const [u, v] of [[u0, v0], [u1, v0]] as const) pillar(sc, st, u, v, top, pz, LACQUER, 0.1);
+  if (!st.fallen) {
+    // cushion and incense
+    sc.blob(w / 2, d / 2, top, 3.4, 2.1, (nx, ny) => (ny < -0.4 ? hex('#c0883a') : nx < 0 ? hex('#a8302a') : hex('#8a2420')));
+    const urn = P.urn();
+    sc.sprite(urn.pb, urn.ax, urn.ay, w / 2, v1 - 0.3, top, 4);
+    addLight(c, w / 2, d / 2, top + 6, 28, GLOW_FIRE);
+  }
+  for (const [u, v] of [[u0, v1], [u1, v1]] as const) pillar(sc, st, u, v, top, pz, LACQUER, 0.1);
+  // tie beams and a plaque board under the eaves
+  sc.box(u0, v1 - 0.05, pz - 6, u1, v1 + 0.05, pz - 3, flatShader(LACQUER_D, st, 0), flatShader(LACQUER, st, 0), flatShader(LACQUER_D, st, 0));
+  sc.box(u1 - 0.05, v0, pz - 6, u1 + 0.05, v1, pz - 3, flatShader(LACQUER_D, st, 0), flatShader(LACQUER, st, 0), flatShader(LACQUER_D, st, 0));
+  c.metrics.eave = pz * sc.zk;
+  roof(sc, st, 0.12, 0.12, w - 0.12, d - 0.12, { zEave: pz, rise: 17, over: 0.45, up: 8, color: c.roofColor, ridge: c.accent ?? GOLD, curve: 1.3, holes: st.fallen ? 0.3 : 0 });
+  if (!st.fallen) {
+    lantern(sc, u1, v1 + 0.02, pz - 8, LACQUER, GLOW_WARM, 3.2);
+    addLight(c, u1, v1, pz - 8, 30, GLOW_WARM);
   }
 }
