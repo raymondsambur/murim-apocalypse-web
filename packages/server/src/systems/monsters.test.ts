@@ -169,7 +169,8 @@ describe('AI', () => {
     const { p } = h.join('Kite', spot);
     powerUp(ctx, p, 15, 30);
     h.tick(2);
-    const thug = mon.spawn({ defId: 'thug', level: 4, x: spot.x + 4, y: spot.y })!;
+    const lair = nearSpot(s, 4, 0);
+    const thug = mon.spawn({ defId: 'thug', level: 4, x: lair.x, y: lair.y })!;
     const home = { x: thug.x, y: thug.y };
     thug.hp = Math.floor(thug.maxHp! / 2);
     h.tick(4);

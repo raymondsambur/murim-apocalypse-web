@@ -820,9 +820,12 @@ export class NpcLife {
         return this.mk('wander', useHome ? home : sp.plaza, st);
       }
       case 'rest': {
-        // A doorstep near home, or the edge of the plaza: never in the middle of a field or road.
-        if (home) return this.mk('rest', home, st, { spot: home.spots[this.ctx.rng.int(0, Math.min(1, home.spots.length - 1))] });
-        return this.mk('rest', sp.plaza, st, { spot: sp.plaza.spots[sp.plaza.spots.length - 1] });
+        // A doorstep near home, or the edge of the plaza: never in the middle of a field or road. The sitting ends
+        // when night falls (21:00 for this person), so nobody is still resting outdoors in the small hours.
+        const dusk = ((21 - (((hp % 24) + 24) % 24)) + 24) % 24;
+        const hours = dusk > 0 && dusk < 12 ? Math.max(0.25, Math.min(this.hoursFor('rest', st), dusk)) : undefined;
+        if (home) return this.mk('rest', home, st, { spot: home.spots[this.ctx.rng.int(0, Math.min(1, home.spots.length - 1))], hours });
+        return this.mk('rest', sp.plaza, st, { spot: sp.plaza.spots[sp.plaza.spots.length - 1], hours });
       }
       case 'socialise': {
         const mine = this.findWaiter(st, e, TUNE.chatSeekRadius);
