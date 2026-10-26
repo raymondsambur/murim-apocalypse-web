@@ -2,13 +2,15 @@
  * Dev-only asset gallery: every procedural (art/sectprops.ts) and imported (art/imported.ts) sprite at zoom 1, 2 and 3 with
  * nearest-neighbour scaling, next to a standing person, a house and a tree, and a pass/fail check of each measured height
  * against its scale target. Run: npx vite packages/client --port 5201  ->  http://localhost:5201/assets.html
- * URL params: zoom=1,2,3 (which zoom levels to draw), marks=0 (hide anchor and footprint marks).
+ * URL params: zoom=1,2,3 (which zoom levels to draw), marks=0 (hide anchor and footprint marks), izoom=3 (item icon zoom),
+ * items=0 (hide the item icons).
  */
-import { O } from '@murim/shared';
+import { ITEMS, O, type ItemDef } from '@murim/shared';
 import { genBuilding } from './art/buildings';
 import { genCharacter } from './art/character';
 import { pbToCanvas } from './art/canvas';
 import { genObject } from './art/flora';
+import { ICON_PX, genItemIcon } from './art/itemicons';
 import { importedSprites, type ImportedMeta } from './art/imported';
 import { PERSON_PX, TARGETS, type Target } from './art/scale';
 import { SECT_ASSETS, SECT_TARGETS, type SectAssetDef, type SectTargetKey } from './art/sectprops';
@@ -145,6 +147,65 @@ async function importedItems(meta: ImportedMeta): Promise<Item[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Item icons (art/itemicons.ts): every entry of data/items.ts, grouped by kind
+// ---------------------------------------------------------------------------
+
+const KIND_TITLES: Record<ItemDef['kind'], string> = { weapon: 'Weapons', outfit: 'Outfits', accessory: 'Accessories', material: 'Materials', consumable: 'Consumables', manual: 'Manuals' };
+
+function iconCanvas(d: ItemDef, zoom: number): HTMLCanvasElement {
+  const ic = genItemIcon(d);
+  const cv = document.createElement('canvas');
+  cv.width = ICON_PX * zoom;
+  cv.height = ICON_PX * zoom;
+  const g = cv.getContext('2d')!;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(pbToCanvas(ic.pb), 0, 0, cv.width, cv.height);
+  if (ic.glow) {
+    g.globalCompositeOperation = 'lighter';
+    g.drawImage(pbToCanvas(ic.glow), 0, 0, cv.width, cv.height);
+  }
+  return cv;
+}
+
+function itemIcons(out: HTMLElement): void {
+  const zoom = Math.max(1, Math.min(6, Number(params.get('izoom') ?? 3)));
+  const all = Object.values(ITEMS);
+  const sec = document.createElement('div');
+  sec.id = 'item-icons';
+  sec.innerHTML = `<h2>Item icons (art/itemicons.ts, ${all.length} items, ${ICON_PX} x ${ICON_PX} px, zoom ${zoom})</h2><p class="note">One icon per entry of data/items.ts, drawn in code. Weapons reuse the in-world weapon renderer, so tier materials match the figure holding them. Hover for the item id.</p>`;
+  for (const kind of Object.keys(KIND_TITLES) as ItemDef['kind'][]) {
+    const list = all.filter((d) => d.kind === kind);
+    sec.insertAdjacentHTML('beforeend', `<h3 style="margin:12px 0 4px;color:#b3a98f;font-size:12px">${KIND_TITLES[kind]} (${list.length})</h3>`);
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.style.gap = '6px';
+    for (const d of list) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.width = `${ICON_PX * zoom}px`;
+      cell.title = d.id;
+      cell.append(iconCanvas(d, zoom));
+      const cap = document.createElement('span');
+      cap.textContent = d.name;
+      cap.style.fontSize = '10px';
+      cap.style.lineHeight = '1.2';
+      cell.append(cap);
+      row.append(cell);
+    }
+    sec.append(row);
+  }
+  // actual size strip: how the icons look at zoom 1
+  const strip = document.createElement('div');
+  strip.className = 'row';
+  strip.style.gap = '2px';
+  strip.style.marginTop = '8px';
+  for (const d of all) strip.append(iconCanvas(d, 1));
+  sec.insertAdjacentHTML('beforeend', '<h3 style="margin:14px 0 4px;color:#b3a98f;font-size:12px">All icons at zoom 1</h3>');
+  sec.append(strip);
+  out.append(sec);
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -190,6 +251,7 @@ async function main(): Promise<void> {
       const c = key ? check(meta.heightPx, key) : { px: meta.heightPx, persons: meta.heightPx / PERSON_PX, target: TARGETS.person, pass: false };
       await block(id, id, `imported, ${meta.provenance.tool}`, items, c, key ? `footprint ${meta.footprint.w}x${meta.footprint.d}` : 'no target row for this id');
     }
+    if (params.get('items') !== '0') itemIcons(out);
     summary.innerHTML = `<table><tr><th>asset</th><th>source</th><th>height px</th><th>persons</th><th>target</th><th>result</th></tr>${rows.join('')}</table><p>${tallies.pass} pass, <span class="${tallies.fail ? 'fail' : 'pass'}">${tallies.fail} fail</span></p>`;
     document.body.dataset.ready = '1';
   }

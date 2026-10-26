@@ -20,6 +20,7 @@ Date: 2026-10-26. Branch `art-pipeline`. Nothing here is wired into the game; as
 | Palette derived from the game art | `packages/client/src/assets/palette.json` | 96 colours, sampled from every generator |
 | Runtime loader and registry | `packages/client/src/art/imported.ts` | `loadImportedSprite`, `importedSprites.get(id, dir)`, mirroring of derived facings incl. row spans; 4 tests for the pure parts |
 | Dev gallery | `packages/client/assets.html` + `src/assetGallery.ts` | renders everything, pass or fail per asset; screenshots in `docs/notes/img/` |
+| Inventory item icons, all 112 items of `data/items.ts` | `packages/client/src/art/itemicons.ts`, `itemmisc.ts`, `itemkit.ts` | 40 x 40 px, drawn in code; 9 tests; shown in the gallery (see "Item icons") |
 | One self-test import | `packages/client/src/assets/sprites/selftest_pack_ox*` | from a stand-in picture, **not Adobe art**; exercises loader and gallery |
 
 Totals: new PNGs under `docs/notes/img` and `assets` are about 0.7 MB, the largest is 187 KB (limit 300 KB each, 3 MB together). No source files, no secrets.
@@ -78,6 +79,21 @@ Only creation happened. Adobe account now contains **two empty folders both name
 ### What the self-test taught (observed)
 
 The importer was run end to end on a stand-in picture (the procedural ox upscaled 10x with bilinear smoothing, a gradient backdrop and a baked soft shadow). It found a real bug on its first run: the soft shadow stayed outside the flood-fill tolerance and became a pale blob glued to the feet, hiding the legs. That is fixed (darker, equally neutral pixels touching the backdrop are cleared, with a switch and a test), and the 'feet' anchor now uses the bounds centre. This is the kind of defect an AI render with a drop shadow will have, so it is worth knowing about. It also showed the thin-parts problem above. The stand-in is committed under `docs/notes/img/trial/` as evidence; `provenance.tool` of the imported asset says "pipeline self-test (no Adobe involved)".
+
+## Item icons (added after the Adobe trial)
+
+Because Adobe could not generate anything, the inventory icons were drawn in code too: one 40 x 40 pixel icon for each of the 112 entries in `data/items.ts` (25 weapons, 5 outfits, 24 accessories, 14 materials, 12 consumables, 32 manuals). No web assets were copied; the shapes are original and follow common pixel-art icon practice (1 px dark outline, light from the upper left, 3 to 4 tone ramps, a few highlight pixels).
+
+- `genItemIcon(def, rarity?)` returns `{ pb, glow }` (pure, node-testable); `itemIconCanvas(def)` is the cached DOM bridge. Not wired into the inventory panel yet; the panel currently uses the vector icon set in `ui/icons.ts`.
+- **Weapons** reuse `drawWeapon` from the in-world renderer at 45 degrees, so tier materials, tassels and jade tips match the figure holding the weapon; fists use `fistGear` for cloth wraps, leather, steel and gold-and-jade gauntlets. Because the in-world weapons are small, tier 1 swords and blades are small in the 40 px frame (about 14 to 25 px long); spears and staffs fill the frame.
+- **Outfits** (five tiers: hemp, leather vest, cloud robe, silk battle robe, immortal garment), **accessories** (ring, silk sash, bone charm, jade pendant, scholar's seal, lucky coin; metal, gem and glow change by tier), **materials** and **consumables** take their colours from `def.color` where the data names one. Pills show more pills per tier, breakthrough pills sit on a lotus with more petals and glow per tier.
+- **Manuals** are thread-bound books: cover colour and gold emblem by school (nine schools), one gold diamond per tier, and a ribbon colour and title marks hashed from the skill id so every manual differs.
+- Known weak spots: the iron ingot reads as two grey wedges, the stacked tier 3 and 4 lucky coins are lumpy, and the silk sash looks like a bow rather than a belt.
+- Checks: every item has an icon, only 0 or 255 alpha in the colour layer (glow may be translucent), every edge pixel is the ink colour, all 112 pictures are different, output is deterministic.
+
+Images: `docs/notes/img/item-icons.png` (the gallery section at zoom 3, plus all icons at zoom 1) and `docs/notes/img/item-icons-sheet.png` (plain contact sheet). Gallery: `assets.html` shows them under "Item icons" (`?izoom=2` to change the zoom, `?items=0` to hide). Quick dump without a browser: `npx tsx scripts/art/dump-itemicons.ts out.png 3 [weapon,outfit,...]`.
+
+![item icons](img/item-icons.png)
 
 ## The pipeline
 
