@@ -14,7 +14,7 @@ export type SettlementStatus = 'thriving' | 'stable' | 'struggling' | 'besieged'
 export const GOODS = ['grain', 'meat', 'herb', 'ore_iron', 'hide', 'cloth', 'wine', 'pill_heal_s'] as const;
 export type GoodId = (typeof GOODS)[number];
 
-export type NpcRole = 'villager' | 'guard' | 'merchant' | 'smith' | 'alchemist' | 'innkeeper' | 'master' | 'elder' | 'physician' | 'legend' | 'wanderer';
+export type NpcRole = 'villager' | 'guard' | 'merchant' | 'smith' | 'alchemist' | 'innkeeper' | 'master' | 'elder' | 'physician' | 'legend' | 'wanderer' | 'disciple';
 
 export type ChronicleKind = 'blight' | 'faction' | 'settlement' | 'npc' | 'weather' | 'economy' | 'player' | 'legend' | 'season';
 
@@ -120,8 +120,10 @@ export interface NpcState {
   homeX: number;
   homeY: number;
   traits: string[];
-  /** Disciples count for masters. */
+  /** Disciples count for masters: the resident disciples (`role: 'disciple'`) who train under them. */
   disciples: number;
+  /** Disciples: id of the master they train under (null when the master has died and none has taken them yet). */
+  mentor?: number | null;
 }
 
 export interface SimState {

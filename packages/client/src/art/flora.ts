@@ -11,6 +11,7 @@ import { branch, groundShadow, hf, rampTone, shadedBlob, trunk, bayer } from './
 import { PixelBuffer } from './pixel';
 import { ramp } from './palette';
 import { stoneLantern, well } from './props';
+import { genBanner as genSectBanner, genTrainingDummy, genWeaponRack } from './sectprops';
 
 export interface ObjSprite {
   pb: PixelBuffer;
@@ -540,6 +541,19 @@ export function genObject(code: number, variant: number, season: number, tier: n
       const p = stoneLantern();
       return { pb: p.pb, ax: p.ax, ay: p.ay, visible: true };
     }
+    // drill-yard furniture from `sectprops.ts`: one view per street axis, picked by the variant
+    case O.Dummy: {
+      const s = genTrainingDummy((variant & 1) as 0 | 1);
+      return { pb: s.pb, ax: s.ax, ay: s.ay, visible: true };
+    }
+    case O.Rack: {
+      const s = genWeaponRack((variant & 1) as 0 | 1);
+      return { pb: s.pb, ax: s.ax, ay: s.ay, visible: true };
+    }
+    case O.Standard: {
+      const s = genSectBanner(banner ?? '#a8302a', (variant & 1) as 0 | 1);
+      return { pb: s.pb, ax: s.ax, ay: s.ay, visible: true };
+    }
     default:
       return null;
   }
@@ -572,5 +586,5 @@ function witherFlowers(variant: number, season: number): ObjSprite {
   return { ...s, visible: season !== 3 };
 }
 
-export const FLORA_CODES: number[] = [O.Pine, O.Oak, O.Bamboo, O.Boulder, O.Bush, O.Reeds, O.DeadTree, O.Bones, O.Flowers, O.Banner, O.Well, O.Lantern];
+export const FLORA_CODES: number[] = [O.Pine, O.Oak, O.Bamboo, O.Boulder, O.Bush, O.Reeds, O.DeadTree, O.Bones, O.Flowers, O.Banner, O.Well, O.Lantern, O.Dummy, O.Rack, O.Standard];
 void BLIGHT_TINT;

@@ -4,7 +4,7 @@
  */
 import type { BuildingDef, BuildingKind, SettlementDef } from './terrain';
 
-export type LandmarkKind = 'inn' | 'market' | 'smithy' | 'alchemy' | 'shrine' | 'dojo' | 'hall' | 'pagoda' | 'hermitage' | 'barracks' | 'gate';
+export type LandmarkKind = 'inn' | 'market' | 'smithy' | 'alchemy' | 'shrine' | 'dojo' | 'hall' | 'pagoda' | 'hermitage' | 'barracks' | 'gate' | 'yard';
 
 export const LANDMARK_LABEL: Record<LandmarkKind, string> = {
   inn: 'Inn',
@@ -18,6 +18,7 @@ export const LANDMARK_LABEL: Record<LandmarkKind, string> = {
   hermitage: 'Hermitage',
   barracks: 'Barracks',
   gate: 'Gate',
+  yard: 'Training Yard',
 };
 
 /** Which building kinds are landmarks (everything but plain houses, huts, warehouses and mine mouths). */
@@ -33,6 +34,8 @@ const BUILDING_LANDMARK: Partial<Record<BuildingKind, LandmarkKind>> = {
   hermitage: 'hermitage',
   barracks: 'barracks',
   gate: 'gate',
+  sectGate: 'gate',
+  yard: 'yard',
 };
 
 export interface LandmarkDef {
@@ -107,10 +110,13 @@ export function landmarksOf(world: LandmarkWorld): LandmarkDef[] {
       if (b.settlementId !== s.id) continue;
       const kind = BUILDING_LANDMARK[b.kind];
       if (!kind) continue;
-      mine.push({ id: `b${b.id}`, kind, label: LANDMARK_LABEL[kind], sid: s.id, settlement: s.name, x: b.x + b.w / 2, y: b.y + b.d / 2, building: b.id });
+      mine.push({ id: `b${b.id}`, kind, label: b.kind === 'sectGate' ? 'Sect Gate' : LANDMARK_LABEL[kind], sid: s.id, settlement: s.name, x: b.x + b.w / 2, y: b.y + b.d / 2, building: b.id });
     }
-    if (!mine.some((m) => m.kind === 'gate')) {
+    {
+      // a compound's paifang stands on its south gate: the plain gate there is not listed twice
+      const real = mine.some((m) => m.kind === 'gate');
       for (const d of gateDirs(s, world.roads, world.settlements)) {
+        if (real && d.x === 0 && d.y > 0) continue;
         const t = gateTile(s, d);
         mine.push({ id: `g${s.id}_${d.x > 0 ? 'x+' : d.x < 0 ? 'x-' : d.y > 0 ? 'y+' : 'y-'}`, kind: 'gate', label: `${gateSide(d)} Gate`, sid: s.id, settlement: s.name, x: t.x, y: t.y, building: -1 });
       }

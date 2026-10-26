@@ -26,6 +26,7 @@ const TOWN: DlgGroup[] = [
   g({ role: 'villager' }, 'We get by. Fields to tend, children to feed. It is enough.', 'Neighbours help neighbours here. It is the only way anyone survives.'),
   g({ role: 'legend' }, 'A town is only walls and people. The walls matter less.'),
   g({ role: 'wanderer' }, 'I have seen worse towns. And better. {settlement} is middling, though the stew is good.', 'Folk here look at strangers twice. Not unfriendly, just careful.'),
+  g({ role: 'disciple' }, 'I rarely leave the compound, but {settlement} feeds us well, and the people are kind to students.', 'Every morning the town wakes to our drums. Nobody has complained. Out loud.', 'The market has the best rice cakes. Do not tell the masters I said so.'),
   // Traits
   g({ trait: 'stern' }, 'Order is maintained. That is all I ask of {settlement}.'),
   g({ trait: 'kind' }, 'People help each other here. It is what keeps us going.'),

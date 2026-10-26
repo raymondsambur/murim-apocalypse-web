@@ -171,6 +171,12 @@ export type NpcAct =
   | 'shelter'
   | 'mourn'
   | 'celebrate'
+  /** Sitting meditation (disciples at the pavilion). */
+  | 'meditate'
+  /** Sparring bout with a partner (disciples in the yard). */
+  | 'spar'
+  /** Waiting on a master: tea, errands, a bow. */
+  | 'serve'
   /** Raiders ransacking a fallen town (crouching over loot). */
   | 'loot';
 
@@ -302,6 +308,8 @@ export interface NpcMenu {
   restPrice?: number;
   /** For masters: can this player be accepted as a disciple? */
   disciple?: { ok: boolean; reason?: string; already: boolean };
+  /** For masters: the disciples who live and train under them in this settlement (named NPCs of the compound). */
+  students?: { outer: number; inner: number };
   /** Rule-based conversation (npc-life-memory): topics the player can ask about, and how the NPC comes across. */
   talk?: {
     topics: { id: string; label: string }[];

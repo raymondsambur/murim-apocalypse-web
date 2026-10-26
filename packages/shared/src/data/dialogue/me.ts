@@ -45,6 +45,7 @@ const ME: DlgGroup[] = [
   g({ role: 'physician' }, 'I think you are overdoing it, {player}. Rest more.'),
   g({ role: 'legend' }, 'You have a spark. Whether it becomes a flame or smoke is up to you.', 'I have met a thousand like you. Three of them were worth the time.'),
   g({ role: 'wanderer' }, 'You are a road-sort. I can smell it. We would get along.'),
+  g({ role: 'disciple' }, 'You are not of any sect I know. Which means you may teach me something the masters will not.', 'A guest with a blade and good manners. Our master would like you. Do not tell her I said that.', 'You stand like someone who has been hit often and learned. I respect that.'),
   g({ role: 'villager' }, 'You seem all right to me. Though I am a simple person.'),
   // Combined
   g({ role: 'guard', standing: 'honoured' }, 'It would be an honour to stand a watch beside you, {player}.'),

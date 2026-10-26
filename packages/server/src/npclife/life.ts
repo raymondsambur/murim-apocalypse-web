@@ -10,7 +10,7 @@
  * finds the town already in the right state. NPCs are visited about once a second in a rotating slice, so the
  * per-tick cost is O(roster / 10) plus at most `maxDecisionsPerTick` decisions.
  */
-import { AOI_RADIUS, planGuards, type Dir, type GuardDuty, type NpcAct, type NpcRole, type NpcState, type Point, type SimEvent } from '@murim/shared';
+import { AOI_RADIUS, nearestWalkable, planGuards, type Dir, type GuardDuty, type NpcAct, type NpcRole, type NpcState, type Point, type SimEvent } from '@murim/shared';
 import { NPC_DATA, type Entity, type GameContext } from '../ctx';
 import {
   ACTIVITIES,
@@ -143,10 +143,10 @@ export function workCue(role: NpcRole, kind: PlaceKind): NpcAct | undefined {
 
 const GUARD_ROLES: ReadonlySet<NpcRole> = new Set(['guard', 'master', 'legend']);
 /** Beds for people who cannot get home: buildings with a roof and a door. */
-const BED_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'house', 'farmhouse', 'hall', 'barracks', 'pagoda', 'dojo', 'hermitage'];
+const BED_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'house', 'farmhouse', 'dormitory', 'hall', 'barracks', 'pagoda', 'dojo', 'hermitage'];
 
 const ROUTINE: ReadonlySet<ActivityId> = new Set(['sleep', 'work', 'patrol', 'trade', 'hide', 'muster', 'mourn', 'celebrate', 'mope']);
-const SHELTER_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'market', 'shrine', 'hall', 'pagoda', 'house', 'farmhouse', 'alchemy', 'smithy', 'barracks', 'dojo', 'hermitage'];
+const SHELTER_KINDS: readonly PlaceKind[] = ['inn', 'teahouse', 'market', 'shrine', 'hall', 'pagoda', 'house', 'farmhouse', 'alchemy', 'smithy', 'barracks', 'dormitory', 'dojo', 'hermitage'];
 
 function sameDuty(a: GuardDuty | null, b: GuardDuty | null): boolean {
   if (!a || !b) return a === b;
@@ -755,7 +755,8 @@ export class NpcLife {
         if (st.role === 'wanderer') p = 0.9;
         // A hermit takes the evening meal at the inn and every other meal at home.
         if (st.role === 'legend') p = home?.kind === 'hermitage' ? (hp % 24 >= 17.5 && hp % 24 < 20 ? 0.9 : 0) : 0.9;
-        if (st.role === 'innkeeper' || mood.siege) p = 0;
+        // disciples take their meals at the bunkhouse table
+        if (st.role === 'innkeeper' || st.role === 'disciple' || mood.siege) p = 0;
         if (inns.length && rng.chance(p)) return this.mk('eat', inns[st.npcId % inns.length], st, { stable: false });
         if (home) return this.mk('eat', home, st, { inside: true });
         return inns.length ? this.mk('eat', inns[0], st) : null;
@@ -763,6 +764,8 @@ export class NpcLife {
       case 'work': {
         if (st.role === 'guard' || st.role === 'legend' || st.role === 'wanderer') return null;
         if (st.role === 'master') return this.resolve('train', st, e, sp, mood, hp, now);
+        // a disciple's chores are the yard and the dormitory
+        if (st.role === 'disciple') return this.resolve('sweep', st, e, sp, mood, hp, now);
         const cue = work ? workCue(st.role, work.kind) : undefined;
         // Elders hold court at the hall or plaza without a tool; everybody else works only at a proper workplace.
         if (work && st.role === 'elder') return this.mk('work', work, st, { stable: true, cue: null });
@@ -800,10 +803,31 @@ export class NpcLife {
         return this.avoided(st, g, now) ? null : this.mk('muster', g, st, { hurry: true });
       }
       case 'train': {
-        const kinds: PlaceKind[] = st.role === 'master' ? ['dojo', 'hall', 'pagoda'] : ['dojo', 'barracks', 'hall'];
+        const kinds: PlaceKind[] = st.role === 'master' ? ['dojo', 'hall', 'pagoda'] : st.role === 'disciple' ? ['yard', 'dojo', 'hall'] : ['yard', 'dojo', 'barracks', 'hall'];
         const list = kinds.flatMap((k) => sp.byKind(k)).filter((p) => !this.avoided(st, p, now));
-        const p = work && (work.kind === 'dojo' || work.kind === 'hall' || work.kind === 'pagoda' || (work.kind === 'hermitage' && st.role === 'legend')) ? work : list.length ? list[st.npcId % list.length] : sp.plaza;
+        const p = work && (work.kind === 'dojo' || work.kind === 'hall' || work.kind === 'pagoda' || (work.kind === 'yard' && st.role === 'disciple') || (work.kind === 'hermitage' && st.role === 'legend')) ? work : list.length ? list[st.npcId % list.length] : sp.plaza;
         return this.mk('train', p, st, { stable: true });
+      }
+      case 'meditate': {
+        // before the pavilion when the compound has one, else at the shrine or in the yard
+        const open = (k: PlaceKind) => sp.byKind(k).filter((p) => !this.avoided(st, p, now));
+        const pavilion = open('pavilion');
+        const list = pavilion.length ? pavilion : [...open('shrine'), ...open('pagoda'), ...open('yard')];
+        return list.length ? this.mk('meditate', list[st.npcId % list.length], st, { stable: true }) : null;
+      }
+      case 'spar': {
+        const yard = sp.byKind('yard').find((p) => !this.avoided(st, p, now)) ?? (work && work.kind === 'dojo' ? work : null);
+        if (!yard) return null;
+        return this.mk('spar', yard, st, { spot: this.sparSpot(st, yard) });
+      }
+      case 'serve': {
+        // wait on the master: stand at a respectful distance, near wherever they are
+        const mentorId = this.ctx.sim.npc(st.npcId)?.mentor;
+        const me = mentorId != null ? this.ctx.npcEntity(mentorId) : undefined;
+        if (!me || me.hidden) return null;
+        const place = this.states.get(mentorId!)?.place ?? sp.plaza;
+        const spot = nearestWalkable(this.ctx.grid, me.x + 1, me.y + 1, 2) ?? place.spots[0];
+        return this.mk('serve', place, st, { spot });
       }
       case 'pray': {
         if (st.role === 'legend' && work?.kind === 'hermitage') return this.mk('pray', work, st);
@@ -812,7 +836,8 @@ export class NpcLife {
       }
       case 'sweep': {
         const service = st.work && ['smithy', 'alchemy', 'market', 'inn'].includes(st.work.kind);
-        const p = service ? work : home;
+        // disciples keep the yard swept, and the front of their bunkhouse
+        const p = st.role === 'disciple' && work?.kind === 'yard' && (hash32(st.npcId, Math.floor(now / 3_600_000)) & 1) === 0 ? work : service ? work : home;
         return p ? this.mk('sweep', p, st) : null;
       }
       case 'wander': {
@@ -863,6 +888,29 @@ export class NpcLife {
         return this.mk('mope', market.length ? market[st.npcId % market.length] : sp.plaza, st);
       }
     }
+  }
+
+  /**
+   * Sparring pairs: the disciples of a settlement sorted by id are paired off two by two, and each pair takes two side-by-side
+   * tiles of the yard (the middle first), so partners always face each other across one tile.
+   */
+  private sparSpot(st: LifeState, yard: Place): Point {
+    const mates = [...this.states.values()].filter((s) => s.sid === st.sid && s.role === 'disciple').sort((a, b) => a.npcId - b.npcId);
+    const idx = Math.max(0, mates.findIndex((s) => s.npcId === st.npcId));
+    const free = new Set(yard.spots.map((p) => `${p.x},${p.y}`));
+    const pairs: [Point, Point][] = [];
+    const taken = new Set<string>();
+    for (const a of yard.spots) {
+      const ka = `${a.x},${a.y}`;
+      const kb = `${a.x + 1},${a.y}`;
+      if (taken.has(ka) || taken.has(kb) || !free.has(kb)) continue;
+      taken.add(ka);
+      taken.add(kb);
+      pairs.push([a, { x: a.x + 1, y: a.y }]);
+    }
+    if (pairs.length === 0) return yard.spots[idx % yard.spots.length];
+    const pair = pairs[(idx >> 1) % pairs.length];
+    return pair[idx & 1];
   }
 
   /**

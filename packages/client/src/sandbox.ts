@@ -774,6 +774,33 @@ if (tp !== null) {
   const s = wd.settlements[Number(tp)];
   if (s) teleport(s.spawn.x, s.spawn.y);
 }
+// disciples of a compound (?disciples=<settlement id>): two sparring pairs and two drilling in the yard, two sitting before the pavilion
+const discId = params.get('disciples');
+if (discId !== null) {
+  const sid = Number(discId);
+  const yard = wd.buildings.find((b) => b.settlementId === sid && b.kind === 'yard');
+  const pav = wd.buildings.find((b) => b.settlementId === sid && b.kind === 'pavilion');
+  const s = wd.settlements[sid];
+  if (yard && s) {
+    const uniform: Look = { gender: 0, skin: 2, hairStyle: 1, hairColor: 0, outfit: 1, outfitColor: 3, sashColor: 2, accessory: 0 };
+    const mk2 = (x: number, y: number, act: NpcAct, face: 0 | 1 | 2 | 3, n: number, state: 'idle' | 'meditate' = 'idle'): void => {
+      spawnEnt({ kind: 'npc', name: 'Disciple', x, y, face, state, act, look: { ...uniform, gender: (n & 1) as 0 | 1, hairStyle: n % 7, skin: n % 5 }, role: 'disciple', lv: 6 + n, tag: n % 3 ? 'Outer Disciple' : 'Inner Disciple' } as never, { wander: false });
+    };
+    const cx = yard.x + Math.floor(yard.w / 2);
+    const cy = yard.y + Math.floor(yard.d / 2);
+    mk2(cx - 2, cy + 1, 'spar', 0, 1);
+    mk2(cx - 1, cy + 1, 'spar', 2, 2);
+    mk2(cx + 1, cy + 2, 'spar', 0, 3);
+    mk2(cx + 2, cy + 2, 'spar', 2, 4);
+    mk2(cx - 1, yard.y + 2, 'train', 1, 5);
+    mk2(cx + 1, yard.y + 2, 'train', 1, 6);
+    if (pav) {
+      mk2(pav.door.x - 1, pav.door.y + 1, 'meditate', 1, 7, 'meditate');
+      mk2(pav.door.x + 1, pav.door.y + 1, 'meditate', 1, 8, 'meditate');
+    }
+    teleport(s.spawn.x, s.spawn.y);
+  }
+}
 const zoom = params.get('zoom');
 if (zoom) view.setZoom(Number(zoom));
 

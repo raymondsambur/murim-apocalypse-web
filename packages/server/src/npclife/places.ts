@@ -28,6 +28,9 @@ export type PlaceKind =
   | 'post'
   | 'outskirts'
   | 'hermitage'
+  | 'yard'
+  | 'dormitory'
+  | 'pavilion'
   | 'herb'
   | 'mine'
   | 'farm'
@@ -93,10 +96,13 @@ const BUILDING_PLACE: Partial<Record<BuildingKind, PlaceKind>> = {
   herbHut: 'herb',
   mineEntrance: 'mine',
   hermitage: 'hermitage',
+  yard: 'yard',
+  dormitory: 'dormitory',
+  pavilion: 'pavilion',
 };
 
 /** Kinds that are not entered (open-air posts or towers guards stand beside). */
-const NO_ENTER: ReadonlySet<PlaceKind> = new Set(['tower', 'gate', 'herb', 'mine']);
+const NO_ENTER: ReadonlySet<PlaceKind> = new Set(['tower', 'gate', 'herb', 'mine', 'yard', 'pavilion']);
 
 const cache = new WeakMap<WorldData, WorldPlaces>();
 
@@ -202,9 +208,21 @@ function reachableTile(world: WorldData, grid: PathGrid, comp: Uint16Array, labe
   return w && comp[w.y * world.w + w.x] === label ? w : null;
 }
 
+/** Standing room inside an open yard: its walkable floor, the middle first, so a crowd fills it from the centre. */
+function yardPlace(world: WorldData, comp: Uint16Array, label: number, b: BuildingDef, door: Point): Place {
+  const cx = b.x + (b.w - 1) / 2;
+  const cy = b.y + (b.d - 1) / 2;
+  const tiles: Point[] = [];
+  for (let y = b.y; y < b.y + b.d; y++) for (let x = b.x; x < b.x + b.w; x++) if (isPassable(world, x, y) && comp[y * world.w + x] === label) tiles.push({ x, y });
+  tiles.sort((p, q) => (p.x - cx) ** 2 + (p.y - cy) ** 2 - ((q.x - cx) ** 2 + (q.y - cy) ** 2) || p.y - q.y || p.x - q.x);
+  const spots = tiles.length ? tiles : [door];
+  return { id: `b${b.id}`, kind: 'yard', settlementId: b.settlementId, buildingId: b.id, door, spots, enter: false, look: { x: b.x + b.w / 2, y: b.y + b.d / 2 } };
+}
+
 function buildingPlace(world: WorldData, grid: PathGrid, comp: Uint16Array, label: number, b: BuildingDef, kind: PlaceKind): Place | null {
   const door = reachableTile(world, grid, comp, label, b.door.x, b.door.y, 3);
   if (!door) return null;
+  if (kind === 'yard') return yardPlace(world, comp, label, b, door);
   let spots = spotsNear(world, comp, label, door.x, door.y, 1, 3, NPCLIFE_TUNING.spotsPerPlace, door);
   if (spots.length === 0) spots = [door];
   return { id: `b${b.id}`, kind, settlementId: b.settlementId, buildingId: b.id, door, spots, enter: !NO_ENTER.has(kind), look: { x: b.x + b.w / 2, y: b.y + b.d / 2 } };

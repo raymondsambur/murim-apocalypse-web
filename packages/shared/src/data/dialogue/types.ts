@@ -7,7 +7,7 @@ import type { NpcRole, WeatherKind } from '../../simtypes';
 export const DLG_TRAITS = ['stern', 'kind', 'greedy', 'boastful', 'weary', 'devout', 'cunning', 'honest', 'gruff', 'cheerful', 'superstitious', 'scholarly'] as const;
 export type DlgTrait = (typeof DLG_TRAITS)[number];
 
-export const DLG_ROLES: readonly NpcRole[] = ['villager', 'guard', 'merchant', 'smith', 'alchemist', 'innkeeper', 'master', 'elder', 'physician', 'legend', 'wanderer'];
+export const DLG_ROLES: readonly NpcRole[] = ['villager', 'guard', 'merchant', 'smith', 'alchemist', 'innkeeper', 'master', 'elder', 'physician', 'legend', 'wanderer', 'disciple'];
 export type DlgRole = NpcRole;
 
 /** What the player can ask. `greet` is the line shown when the dialog opens. */

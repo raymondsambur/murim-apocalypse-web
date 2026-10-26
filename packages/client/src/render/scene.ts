@@ -315,7 +315,7 @@ export class SceneRenderer {
         }
         if (o >= 200) continue;
         const tier = bl >= 130 ? 2 : bl >= 60 ? 1 : 0;
-        const spr = this.bank.getObject(o, x, y, tier, o === O.Banner ? this.bannerFor(i, x, y) : undefined);
+        const spr = this.bank.getObject(o, x, y, tier, o === O.Banner || o === O.Standard ? this.bannerFor(i, x, y) : undefined);
         if (!spr) continue;
         const h = ihash(x, y, 2);
         const jx = (h % 7) - 3;

@@ -295,7 +295,8 @@ describe('legends keep to their hermitage', () => {
       if (legend.place) down.add(legend.place.kind);
       if (h.ctx.sim.timeView(h.clock.t).hours >= 22) break;
     }
-    expect([...down].some((k) => k === 'plaza' || k === 'inn')).toBe(true);
+    // (a sect hall has a tea house where other places have an inn)
+    expect([...down].some((k) => k === 'plaza' || k === 'inn' || k === 'teahouse')).toBe(true);
     h.close();
   });
 

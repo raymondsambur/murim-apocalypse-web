@@ -1,6 +1,6 @@
 /**
  * Who fights: the war party of the attackers (species, levels, captain, banner bearer) and the defenders of the
- * town (guards, masters, legends and a handful of militia from the villagers).
+ * town (guards, masters, legends, the disciples of a compound and a handful of militia from the villagers).
  */
 import { MONSTERS, dist, levelForDanger, pickSpecies, type GearLook, type MonsterFamily, type NpcRole, type NpcState, type WeaponType } from '@murim/shared';
 import type { Entity, GameContext } from '../ctx';
@@ -8,7 +8,7 @@ import { partySize } from './skirmish';
 import { SIEGE_TUNING as T } from './tuning';
 
 export type RaiderKind = 'grunt' | 'captain' | 'bearer';
-export type DefenderKind = 'guard' | 'master' | 'legend' | 'militia';
+export type DefenderKind = 'guard' | 'master' | 'legend' | 'disciple' | 'militia';
 
 export interface RaiderPlan {
   defId: string;
@@ -88,6 +88,7 @@ const KIND_MULT: Record<DefenderKind, { hp: number; power: number; tough: number
   guard: { hp: 1.3, power: 1, tough: 1 },
   master: { hp: 1.7, power: 1.8, tough: 1.4 },
   legend: { hp: 2.4, power: 3, tough: 2 },
+  disciple: { hp: 1, power: 0.85, tough: 0.9 },
   militia: { hp: 0.8, power: 0.6, tough: 0.8 },
 };
 
@@ -102,7 +103,7 @@ export function planDefenders(ctx: GameContext, sid: number, units: number, defe
   for (const n of npcs) {
     const orig = ctx.npcEntity(n.id);
     if (!orig) continue;
-    if (n.role === 'guard' || n.role === 'master' || n.role === 'legend') {
+    if (n.role === 'guard' || n.role === 'master' || n.role === 'legend' || n.role === 'disciple') {
       const kind: DefenderKind = n.role;
       const k = KIND_MULT[kind];
       core.push({ npc: n, orig, kind, hpMult: k.hp, power: k.power * (1 + n.level / 80), toughness: k.tough, role: n.role, weapon: n.role === 'guard' ? 'spear' : n.role === 'legend' ? 'sword' : (['sword', 'blade', 'staff', 'fist'] as const)[n.id % 4] });

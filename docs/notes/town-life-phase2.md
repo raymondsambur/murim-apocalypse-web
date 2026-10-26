@@ -144,3 +144,51 @@ The 24-look palette is what keeps the sprite cache small: 45 more people cost 44
 * Ambient townsfolk do not react to fights in the street yet (phase 3 gives villagers a reason to run); during a siege they simply go indoors.
 * The crowd is the same in every settlement apart from the head-count; per-kind looks (farmers in hamlets, robes in a sect hall) are for 2c.
 * One shared crowd per settlement: there is no per-player thinning, so many players in one town do not add people.
+
+## 2c: sect compounds and disciples
+
+Stacked on 2b (`phase2b-population`, pull request 4), which is stacked on 2a. Screenshots: `img/town-life-compound.png` (a whole compound), `img/town-life-compound-yard.png` (the courtyard at dawn: two sparring pairs, two at their forms, two sitting before the pavilion; sandbox `?disciples=<id>`), `img/town-life-fort-yard.png` (a fort's barracks yard).
+
+### Layout: the `compound` archetype (`shared/townlayout.ts`)
+
+Sect halls (radius 18) are planned as compounds, with `terraced` as the fallback on hill sites. The plan, in order:
+
+* **Wall and gate.** The four axes stay open as before. On the south axis stands the sect gate, a `sectGate` lot 4 x 1 across the wall line: only its two end bays block (`O.Building`), the 2-tile passage between them is road. It is the paifang of `art/sectprops.ts genSectGate` (lacquer pillars, three roofs, a blank plaque, two paper lanterns that glow at night), anchored on the middle of its footprint.
+* **Courtyard.** The plaza is the drill yard: 9 x 9 paved tiles, a `yard` lot over it. Furniture from `sectprops.ts` stands on the paving: four training dummies along the back row, two weapon racks on the front row, and a sect standard at each corner (`O.Dummy` 13, `O.Rack` 14, `O.Standard` 15, the cloth tinted with the colour of the controlling faction like the old war banners). A prop never takes a door tile, and props keep the paving under them.
+* **Streets.** The avenues, and a ring road 10 tiles out. Buildings take anchored places (mirrored east-west by the seed): the main hall and the lecture hall on either side of the north avenue, the pagoda behind them, the training hall (`dojo`) east of the yard, two bunkhouses west of the yard facing it and a third beyond the ring road, the meditation pavilion in the far corner, shrine, alchemist and tea house (the guest house) by the south gate, two houses for the masters, the four corner towers. `place()` scores a lot by its distance from its anchor and falls back to the generic scoring when the anchor is taken.
+* **New buildings** (`BuildingKind`): `dormitory` 4 x 3 (long plank bunkhouse, low gabled roof, water barrel, lantern), `pavilion` 3 x 3 (open-sided: stone terrace, four lacquer pillars, a sweeping hip roof, a cushion and an incense burner), `sectGate` and `yard` (open floor, never blocks, no sprite).
+* **Hermitages** search a little further out (up to the ring + 23 tiles) now that a compound's wall leaves less room around the sect hall.
+* **Firm ground.** A compound needs its courtyard, its south column and the gate on buildable ground. When it does not have it the plan reports the courtyard and gate as missing and the other archetype wins (`worldgen.layoutTown` prices a compound without a yard at +8). The sect hall also takes the firmest of the four roomiest sites (`worldgen`, kinds by room).
+* **Forts and towns.** A fort gets a barracks yard and a town a small dojo yard (`yard` 5 x 4, a lot placed on a street like any other, a rail fence on its north, west and east sides, a floor of packed earth, two dummies and two racks). Hamlets and villages get none.
+
+### Landmarks and sightlines
+
+`shared/landmarks.ts`: a `yard` kind ("Training Yard", beacon glyph: a dummy) and the sect gate, listed as "Sect Gate" in place of the plain south gate (the other gates stay). The sightline pass also clears the ground in front of sect gates and pavilions.
+
+### Disciples (`sim/disciples.ts`, `npclife/**`)
+
+New NPC role `disciple`, outer (level 3-8) or inner (9-15; the title says which), age 15-30, wearing one uniform per faction (robe 1, the faction's colour), each under a master (`NpcState.mentor`).
+
+* **How many.** The masters' `disciples` count (the abstract number that random-walks 0-6 per master) is the demand; a compound keeps `clamp(sum, floor, ceiling)`: sect halls 6-10, towns with a master and a yard 4-6 (`COMPOUNDS`). One arrives a day at most (60 % chance), and an inner disciple who has reached level 14 leaves to seek the road when there are too many. The starting world has 6 in the sect hall and 4 in each town with a yard.
+* **The sim's random stream is untouched.** Every roll is a hash of the seed, the hour and the NPC; a disciple is built with a derived `Rng` swapped in for the duration of the call; the main loops skip them; they sit last in the roster (a test compares a run with and without them).
+* **Life.** Homes: bunkhouses (capacity 6, the emptiest first), else a house in a town. Work: the yard. Schedule (`SCHEDULE.disciple`, wake 04:36): dawn drills 05:30-07:30 (`train`, in the yard), breakfast, chores 08:30-10:00 (`sweep` the yard or the front of the bunkhouse), sitting meditation 10:00-12:00 (new `meditate` activity: the pavilion's terrace steps, state `meditate`), midday meal, errands for the masters 13:00-14:30 (new `serve`: stand by their master, wherever he is), sparring 14:30-17:00 (new `spar`: the disciples of a compound sorted by id are paired two by two and each pair takes two side-by-side tiles of the yard, so partners face each other across one tile; the client draws alternating strike and block animations toward the partner), evening chores, prayer, a little company, bed at 21:00. Meals are at the bunkhouse table.
+* **Defence.** Disciples muster with the guards and masters when the settlement is attacked (`SIEGE` defenders: kind `disciple`, between militia and guards).
+* **Masters.** `systems/masters.ts` adds `students: {outer, inner}` to a master's NPC menu (the disciples who train under that master here), and the dialog says so on the Disciple tab. A master who dies leaves his students to the least busy master of the compound (`disciplesDaily`).
+* **Dialogue.** The dialogue library has disciple voices for every topic (`data/dialogue/*`).
+* **Sect vocabulary.** The titles are the sect roles of `systems/sects.ts` ("Outer Disciple", "Inner Disciple"), so a player's sect and the NPCs' compounds read alike; there is no mechanical link between a player sect and a compound.
+* **Guards.** Guards drill in a yard when the settlement has one (fort, town).
+
+### Checks made (2c)
+
+* `npm run typecheck`, `npm run build` clean; `npm test` 1169 passed (1146 in 2b).
+* New tests: planner (compound plan on six seeds: gate, courtyard, furniture on paving, programme, mirroring; small yards; none for villages), world generation (compounds on firm ground on seven seeds; yards for towns and forts), landmarks (sect gate, yards), `sim/disciples.test.ts` (ranges, grades, mentors and uniform, demand following the masters, a dead master's students, the unchanged stream, save and load), `npclife/compound.test.ts` (places and housing; the schedule; dawn drills in the yard; meditation before the pavilion; sparring in pairs on neighbouring tiles; serving near the master; asleep at night), masters (students in the menu), client (art for every building kind, the new object codes, ACT cues, landmark icons).
+* Soak, 180 days, seeds 1337 / 7 / 42 (2b to 2c): alive NPCs 147 / 143 / 146 to 167 / 158 / 162; ms per world hour 0.90 / 0.91 / 0.80 to 0.99 / 0.96 / 0.87; snapshot 132 / 126 / 129 KB to 140 / 133 / 140 KB. The counters on seed 1337 are identical to 2b; on seeds 7 and 42 the world itself differs (the sect hall takes another site), so the history does.
+* `scripts/crowd-bench.ts` (3 / 7 players, noon): the named roster is 16 higher (146 to 162 entities without the crowd); tick time with the crowd on is 0.294 ms (3 players, 0.303 in 2b) and 0.624 ms (7 players, 0.377 in 2b) on average against a 100 ms budget; the 7-player run stands in the sect hall and the towns, where the disciples add their own walking and drilling.
+* `scripts/siege-bot.ts` (forced siege of the starting village, strength 55, 110 s): 159 hits, 29 misses, 17 down events; the same stage sequence as `main` (145 / 37 / 18), 2a and 2b.
+
+### Not done in 2c
+
+* No mechanical link between a player sect and an NPC compound (only the shared vocabulary).
+* Disciples do not leave the compound on their own errands (market, the road) and never spar with a player; a player bonded to an NPC master does not train in the yard.
+* The mock server (`?mock=1`) has no disciples; the sandbox has (`?disciples=<settlement id>`).
+* A compound without firm ground keeps the older terraced layout (no yard, no gate); about one sect hall in four.

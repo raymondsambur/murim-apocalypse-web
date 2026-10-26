@@ -109,6 +109,7 @@ const SPOT_KIND: Partial<Record<BuildingDef['kind'], { kind: CrowdSpot['kind']; 
   inn: { kind: 'inn', weight: 3 },
   teahouse: { kind: 'inn', weight: 2 },
   shrine: { kind: 'shrine', weight: 2 },
+  pavilion: { kind: 'shrine', weight: 1 },
   smithy: { kind: 'work', weight: 1.5 },
   alchemy: { kind: 'work', weight: 1.5 },
   warehouse: { kind: 'work', weight: 1 },
@@ -122,7 +123,7 @@ export function crowdMap(world: Pick<WorldData, 'buildings' | 'roads' | 'settlem
   const spots: CrowdSpot[] = [];
   for (const b of world.buildings) {
     if (b.settlementId !== s.id) continue;
-    if (b.kind === 'house' || b.kind === 'farmhouse') homes.push({ x: b.door.x, y: b.door.y });
+    if (b.kind === 'house' || b.kind === 'farmhouse' || b.kind === 'dormitory') homes.push({ x: b.door.x, y: b.door.y });
     const sk = SPOT_KIND[b.kind];
     if (sk) spots.push({ x: b.door.x, y: b.door.y, weight: sk.weight, kind: sk.kind });
   }

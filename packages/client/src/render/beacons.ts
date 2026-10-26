@@ -65,7 +65,7 @@ export function declutter(items: readonly { rect: Rect; force?: boolean }[]): bo
 }
 
 /** Drawing order / importance: lower first. */
-export const BEACON_PRIORITY: Record<LandmarkKind, number> = { shrine: 0, hermitage: 1, pagoda: 2, dojo: 3, hall: 4, inn: 5, market: 6, smithy: 7, alchemy: 8, barracks: 9, gate: 10 };
+export const BEACON_PRIORITY: Record<LandmarkKind, number> = { shrine: 0, hermitage: 1, pagoda: 2, dojo: 3, hall: 4, inn: 5, market: 6, smithy: 7, alchemy: 8, barracks: 9, gate: 10, yard: 11 };
 
 const KIND_COLOR: Record<LandmarkKind, string> = {
   inn: '#f0b650',
@@ -79,6 +79,7 @@ const KIND_COLOR: Record<LandmarkKind, string> = {
   hermitage: '#86d8b0',
   barracks: '#d06a6a',
   gate: '#c0c8d8',
+  yard: '#e0a878',
 };
 
 /** Height of the pin tip above the ground for a landmark without a building sprite (a gate). */
@@ -233,6 +234,20 @@ const GLYPHS: Record<LandmarkKind, Glyph> = {
     g.lineTo(-r * 0.22, r * 0.62);
     g.lineTo(-r * 0.55, r * 0.35);
     g.closePath();
+    g.stroke();
+  },
+  yard(g, r) {
+    // a training dummy: post, crossbar and head
+    g.beginPath();
+    g.moveTo(0, -r * 0.55);
+    g.lineTo(0, r * 0.75);
+    g.moveTo(-r * 0.6, -r * 0.1);
+    g.lineTo(r * 0.6, -r * 0.1);
+    g.moveTo(-r * 0.4, r * 0.75);
+    g.lineTo(r * 0.4, r * 0.75);
+    g.stroke();
+    g.beginPath();
+    g.arc(0, -r * 0.7, r * 0.22, 0, Math.PI * 2);
     g.stroke();
   },
   gate(g, r) {
@@ -401,9 +416,10 @@ export class Beacons {
       if (alpha < 0.03) continue;
       let px: number;
       let py: number;
-      if (lm.building >= 0) {
-        const info = this.infoById.get(lm.building);
-        if (!info) continue;
+      const binfo = lm.building >= 0 ? this.infoById.get(lm.building) : undefined;
+      if (lm.building >= 0 && !binfo) continue;
+      if (binfo && binfo.def.kind !== 'yard') {
+        const info = binfo;
         const d = info.def;
         const st = world.status.get(info.sid);
         const fallen = st?.status === 'fallen' || world.settlementById.get(info.sid)?.kind === 'ruin';

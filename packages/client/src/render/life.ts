@@ -122,6 +122,9 @@ export const ACT_STATE: Record<NpcAct, { state: CharState; tool?: ToolKind }> = 
   mourn: { state: 'mourn' },
   celebrate: { state: 'cheer' },
   loot: { state: 'loot' },
+  meditate: { state: 'meditate' },
+  spar: { state: 'form' },
+  serve: { state: 'trade' },
 };
 
 /** Nearest friendly entity within `r` tiles (cached per entity for ~1.2 s). Returns its id or -1. */
@@ -303,6 +306,28 @@ export function pickChar(e: Ent, env: PickEnv, out: AnimPick): void {
           }
         } else set('form', at, true);
         return;
+      case 'spar': {
+        // a bout with the partner across the tile: they take turns, one strikes while the other blocks, then they swap
+        const pid = partnerOf(e, now, env.ents);
+        const p = pid >= 0 ? env.ents.map.get(pid) : undefined;
+        if (p) out.dir = dirToward(p.x - e.x, p.y - e.y);
+        const n = FRAME_COUNTS.attack;
+        const strike = n * FRAME_MS.attack;
+        const cyc = strike + FRAME_MS.block * FRAME_COUNTS.block + 500;
+        const mine = e.id < (p?.id ?? e.id + 1) ? 0 : 1;
+        const t = (now + e.seed * 300) % (cyc * 2);
+        const turn = t < cyc ? 0 : 1;
+        const u = t - turn * cyc;
+        if (turn === mine && env.weapon && u < strike) {
+          out.state = 'attack';
+          out.frame = Math.floor(u / FRAME_MS.attack);
+          out.variant = Math.floor(seedOf(e.id, Math.floor(now / (cyc * 2)) * 3 + 1) * ATTACK_VARIANTS[env.weapon]);
+        } else if (turn !== mine && u < FRAME_MS.block * FRAME_COUNTS.block + 120) {
+          out.state = 'block';
+          out.frame = Math.min(FRAME_COUNTS.block - 1, Math.floor(u / FRAME_MS.block));
+        } else set('fight', at, true);
+        return;
+      }
       case 'chat': {
         set('chat', at, true);
         const pid = partnerOf(e, now, env.ents);

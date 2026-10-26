@@ -120,7 +120,7 @@ export function chronicleStamp(e: Pick<ChronicleEntry, 'day' | 'hour'>): { day: 
 // ---- landmarks ------------------------------------------------------------------------------------------------------
 
 /** Icon (registry name) of each landmark kind. */
-export const LANDMARK_ICON: Record<LandmarkKind, string> = { inn: 'wine', market: 'coin', smithy: 'anvil', alchemy: 'cauldron', shrine: 'lotus', dojo: 'swords', hall: 'flag', pagoda: 'crown', hermitage: 'mountain', barracks: 'guard', gate: 'shield' };
+export const LANDMARK_ICON: Record<LandmarkKind, string> = { inn: 'wine', market: 'coin', smithy: 'anvil', alchemy: 'cauldron', shrine: 'lotus', dojo: 'swords', hall: 'flag', pagoda: 'crown', hermitage: 'mountain', barracks: 'guard', gate: 'shield', yard: 'swords' };
 
 export interface LandmarkRow {
   def: LandmarkDef;
