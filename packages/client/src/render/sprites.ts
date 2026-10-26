@@ -5,7 +5,7 @@
 import { O, T, type BuildingKind } from '@murim/shared';
 import { VARIANTS, genObject } from '../art/flora';
 import { genMountainTile, type RockSource } from '../art/mountain';
-import { genWallTile, genBridgeRails } from '../art/walls';
+import { genWallTile, genBridgeRails, genFenceTile, genPalisadeTile } from '../art/walls';
 import { genBuilding, type BuildingArt, type BuildingSpec } from '../art/buildings';
 import { genCharacter, type CharSpec } from '../art/character';
 import { gearKey } from '../art/gear';
@@ -79,7 +79,8 @@ export class SpriteBank {
   private mountains = new LRU<number, Sprite>(1400);
   private walls = new Map<number, Sprite>();
   private rails = new Map<number, Sprite>();
-  private buildings = new LRU<string, BuildingSprite>(80);
+  private fences = new Map<string, Sprite>();
+  private buildings = new LRU<string, BuildingSprite>(160);
   /** West facings are drawn as cached mirrors of the east ones (generation is the expensive part). */
   private chars = new LRU<string, { spr: FlashSprite; mir: FlashSprite | null }>(6000);
   private beasts = new LRU<string, { spr: FlashSprite; mir: FlashSprite | null }>(2000);
@@ -111,6 +112,7 @@ export class SpriteBank {
     this.mountains.clear();
     this.walls.clear();
     this.rails.clear();
+    this.fences.clear();
     this.buildings.clear();
     this.nodes.clear();
   }
@@ -167,6 +169,18 @@ export class SpriteBank {
       const t = genWallTile(mask, this.season, fallen);
       s = makeSprite(t.pb, t.ax, t.ay, null, true);
       this.walls.set(key, s);
+    }
+    return s;
+  }
+
+  /** Palisade or rail fence tile by neighbour mask. */
+  getFence(kind: 'palisade' | 'fence', mask: number): Sprite {
+    const key = `${kind}|${mask}|${this.season}`;
+    let s = this.fences.get(key);
+    if (!s) {
+      const t = kind === 'palisade' ? genPalisadeTile(mask, this.season) : genFenceTile(mask, this.season);
+      s = makeSprite(t.pb, t.ax, t.ay, null, kind === 'palisade');
+      this.fences.set(key, s);
     }
     return s;
   }

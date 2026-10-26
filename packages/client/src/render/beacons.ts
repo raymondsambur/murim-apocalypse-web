@@ -65,7 +65,7 @@ export function declutter(items: readonly { rect: Rect; force?: boolean }[]): bo
 }
 
 /** Drawing order / importance: lower first. */
-export const BEACON_PRIORITY: Record<LandmarkKind, number> = { shrine: 0, hermitage: 1, pagoda: 2, dojo: 3, hall: 4, inn: 5, market: 6, smithy: 7, alchemy: 8, gate: 9 };
+export const BEACON_PRIORITY: Record<LandmarkKind, number> = { shrine: 0, hermitage: 1, pagoda: 2, dojo: 3, hall: 4, inn: 5, market: 6, smithy: 7, alchemy: 8, barracks: 9, gate: 10 };
 
 const KIND_COLOR: Record<LandmarkKind, string> = {
   inn: '#f0b650',
@@ -77,6 +77,7 @@ const KIND_COLOR: Record<LandmarkKind, string> = {
   hall: '#78b4e8',
   pagoda: '#b090f0',
   hermitage: '#86d8b0',
+  barracks: '#d06a6a',
   gate: '#c0c8d8',
 };
 
@@ -214,6 +215,24 @@ const GLYPHS: Record<LandmarkKind, Glyph> = {
     g.beginPath();
     g.moveTo(0, r * 0.35);
     g.lineTo(0, r * 0.75);
+    g.stroke();
+  },
+  barracks(g, r) {
+    // a spear and a banner pole crossed over a shield
+    g.beginPath();
+    g.moveTo(-r * 0.7, r * 0.7);
+    g.lineTo(r * 0.7, -r * 0.7);
+    g.moveTo(r * 0.45, -r * 0.7);
+    g.lineTo(r * 0.7, -r * 0.7);
+    g.lineTo(r * 0.7, -r * 0.45);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-r * 0.55, -r * 0.1);
+    g.lineTo(r * 0.1, -r * 0.1);
+    g.lineTo(r * 0.1, r * 0.35);
+    g.lineTo(-r * 0.22, r * 0.62);
+    g.lineTo(-r * 0.55, r * 0.35);
+    g.closePath();
     g.stroke();
   },
   gate(g, r) {

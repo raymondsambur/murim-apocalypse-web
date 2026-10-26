@@ -307,6 +307,12 @@ export class SceneRenderer {
           this.pushOcc(cx - spr.ax, cy - spr.ay, spr.w, spr.h, d, spr.spans);
           continue;
         }
+        if (o === O.Palisade || o === O.Fence) {
+          const spr = this.bank.getFence(o === O.Palisade ? 'palisade' : 'fence', w.linkMask(x, y, o));
+          s.drawImage(spr.cv, cx - spr.ax, cy - spr.ay);
+          if (spr.spans) this.pushOcc(cx - spr.ax, cy - spr.ay, spr.w, spr.h, d, spr.spans);
+          continue;
+        }
         if (o >= 200) continue;
         const tier = bl >= 130 ? 2 : bl >= 60 ? 1 : 0;
         const spr = this.bank.getObject(o, x, y, tier, o === O.Banner ? this.bannerFor(i, x, y) : undefined);

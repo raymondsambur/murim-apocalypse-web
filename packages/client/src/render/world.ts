@@ -84,6 +84,16 @@ export class WorldModel {
     return m;
   }
 
+  /** Neighbour mask for a palisade or fence tile: it connects to its own kind (a wall opening or building ends the run). */
+  linkMask(x: number, y: number, code: number): number {
+    let m = 0;
+    if (this.objectAt(x, y - 1) === code) m |= W_NE;
+    if (this.objectAt(x + 1, y) === code) m |= W_SE;
+    if (this.objectAt(x, y + 1) === code) m |= W_SW;
+    if (this.objectAt(x - 1, y) === code) m |= W_NW;
+    return m;
+  }
+
   private connects(x: number, y: number): boolean {
     if (!this.inb(x, y)) return false;
     const o = this.objects[y * this.w + x];

@@ -289,7 +289,7 @@ describe('landmark rows for the World panel', () => {
 
   it('has an icon for every landmark kind, and the beacon kinds are the same as the list kinds', () => {
     for (const k of Object.keys(LANDMARK_ICON)) expect(typeof LANDMARK_ICON[k as keyof typeof LANDMARK_ICON]).toBe('string');
-    expect(Object.keys(LANDMARK_ICON).sort()).toEqual(['alchemy', 'dojo', 'gate', 'hall', 'hermitage', 'inn', 'market', 'pagoda', 'shrine', 'smithy']);
+    expect(Object.keys(LANDMARK_ICON).sort()).toEqual(['alchemy', 'barracks', 'dojo', 'gate', 'hall', 'hermitage', 'inn', 'market', 'pagoda', 'shrine', 'smithy']);
   });
 
   it('returns null when there is nowhere to go', () => {
