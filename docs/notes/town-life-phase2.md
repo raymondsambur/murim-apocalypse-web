@@ -78,3 +78,69 @@ Towns used to have no barracks: 16 guards filled every house and the villagers b
 * Crowds and population are 2b; sect compounds are 2c.
 * One hermitage per settlement, none for villages and hamlets.
 * A settlement on a peninsula may have only one road that leaves over land (the rest go over bridges and causeways); `ensureConnected` guarantees the map stays connected, not that every avenue is dry.
+
+## 2b: population tiers (`shared/crowd.ts`, `server/game/ambient.ts`)
+
+Stacked on 2a (`phase2a-town-layouts`, pull request 3): the lot counts and the town sizes it sets are what the crowd walks through.
+
+| tier | who | where it lives | cost |
+|---|---|---|---|
+| named | the sim's NPCs: guards, masters, legends, shopkeepers, a few villagers | sim roster + NPC life (names, memory, dialogue, schedules) | unchanged |
+| ambient | nameless townsfolk | server entities of kind `ambient`, created only while a player is near | measured below |
+
+### The head-count
+
+`RESIDENTS` is the number of people who live in a settlement at full strength: hamlet 12, village 30, town 70, fort 44, sect hall 38, ruin 0. `residentTarget(kind, simPop, basePop)` scales it by the sim population against its base (capped at the sim's own 1.6 growth limit), so a plague or a fall thins the streets and growth fills them. `residentsOf` is never below the named people who live there.
+
+The sim's `settlementView(id).population` now reports `residentsOf(...)`, so the figure on the World panel (and what the NPCs say when asked how many folk live here) is the number you can count in the streets at midday: named alive + ambient quota. The abstract `s.population` the economy runs on (90 / 220 / 600 at the base) is untouched, so prices, food and faction power did not move: the 180-day soak counters are identical to 2a on all three seeds.
+
+At the start of a world: Silent Ford (village) 30 against 17 named, the towns 64-75 against 27 named, the hamlet 12 against 10 named.
+
+### Ambient townsfolk
+
+* **When.** A settlement is watched when an online player is within its radius + 22 tiles (`AMBIENT_WATCH_MARGIN`). A watched settlement fills toward `ambientQuota(population, named) * crowdHourFactor(hour)`, two people per half second per settlement (they step out of the doors, preferring the door farthest from every player), and sends two per half second indoors when it is over (night, a shrinking population). Fifteen seconds after the last player went away everyone is removed at once. A besieged or fallen settlement has nobody out.
+* **Hours.** `crowdHourFactor`: 0.03-0.05 from midnight to 04:00, rising from dawn to 1.0 at 08:00, 1.0 until 16:00, then 0.95 / 0.85 / 0.65 / 0.4 / 0.22 / 0.12 / 0.07 through the evening.
+* **Routine.** Each walker picks a destination every 5-22 s from the settlement's `crowdMap` (house doors are homes; the plaza, the doors of markets, inns, teahouses, shrines and work buildings, and the gates are spots), weighted by `spotMood` (market in the morning, work buildings by day, gates at dawn and dusk, the inn and the shrine in the evening) and by distance, and sometimes just turns to look around. Paths use the ordinary `Movement.moveTo` with a node budget of 900.
+* **Entities.** Kind `ambient`, empty name, role `villager`, one of 24 looks (`ambientLook(0..23)`: plain clothes, ordinary hair, no accessory), speed 0.46-0.6, no hit points. Their ids come from their own range (from 1,000,000,000; `AMBIENT_ID_BASE`) so a crowd coming and going never shifts the ids of players, NPCs and monsters (monster and combat rolls are seeded by them, and several tests depend on that).
+* **Cap.** `AMBIENT_GLOBAL_CAP` = 220 ambient entities in the world; when the watched settlements want more, every one is scaled down together. `game.ambient.cap` can be lowered at runtime (0 switches the tier off).
+* **Not interactive.** `interact` on one answers "The passer-by is busy and does not stop." Clients do not pick them (clicks fall through to the ground), draw no plate, no minimap dot and the lowest priority for the see-through silhouettes. They have no memory, dialogue or persistence.
+* **Sim events.** Nothing in the sim knows about them; they are a view of the head-count, not a second population.
+
+### Client
+
+`EntityKind` gained `ambient`; `contextActions` gives nothing for it (kind label "Passer-by"), `view.pickEntity` skips it, `overlay` draws no plate, `minimap` no dot, `ghostPriority` 6. The sandbox has a `townfolk` button and `?townfolk=N`, and the mock server (`?mock=1`) puts 24 around the starting plaza. Screenshots: `img/town-life-townfolk-plaza.png` (sandbox, plaza with 60 townfolk among the named crowd), `img/town-life-townfolk-game.png` (`?mock=1`).
+
+### Measured budget
+
+Server: `scripts/crowd-bench.ts` (real sim, real game loop, players spread over the biggest settlements, noon, 60 s of ticks after a 40 s warm-up; the crowd off against on):
+
+| players | entities | tick avg / max | ambient share of the tick (avg / max) | A* requests | to each player |
+|---|---|---|---|---|---|
+| 1 | 146 -> 194 (48 ambient) | 0.129 / 2.10 -> 0.180 / 2.46 ms | 0.064 / 2.40 ms | 0.4 -> 2.3 per s | 0.70 -> 2.23 KB/s |
+| 3 | 148 -> 253 (105) | 0.166 / 2.54 -> 0.303 / 5.11 ms | 0.108 / 4.84 ms | 0.8 -> 5.0 per s | 0.54 -> 1.65 KB/s |
+| 7 | 152 -> 298 (146) | 0.352 / 3.86 -> 0.377 / 2.91 ms | 0.121 / 2.26 ms | 1.4 -> 7.2 per s | 0.40 -> 0.97 KB/s |
+
+A tick has a 100 ms budget: the whole crowd costs about 0.1 ms on average, a few ms at worst (the planning pass), and a player is sent 1-2 KB/s of position patches (about 10-26 patches per second against 4-7 without the crowd; adds and deletes are unchanged). The soak is unchanged (the sim never sees them), so the simulated world costs what it did.
+
+Client (headless Chromium in software rendering, so read these as relative: sandbox at the spawn town, zoom 0.9, frame time as `view.stats.frameMs`, sprites as the size of the `chars` LRU of the sprite bank, limit 6000):
+
+| scene | entities drawn | frame | cached person sprites |
+|---|---|---|---|
+| named only (16 NPCs + 14 players) | 54 | 5.5 ms | 517 |
+| + 45 townfolk (24 looks) | 99 | 6.9 ms | 966 |
+| + 60 walkers with unique looks (the old crowd toggle) | 114 | 10.0 ms | 1249 |
+
+The 24-look palette is what keeps the sprite cache small: 45 more people cost 449 sprites and 1.4 ms; the same number with unique looks costs about twice that.
+
+### Checks made (2b)
+
+* `npm run typecheck` clean; `npm test` 1146 passed (1125 in 2a).
+* New tests: `shared/crowd.test.ts` (targets, scaling, hours, looks, crowd map), `server/game/ambient.test.ts` (11: only near players, on-screen count equals the reported population for a hamlet, a village and a town, streets and looks, walking, night against day, the grace period, siege, the world cap, not interactable, reaches clients as nameless entities, reproducible), `server/sim/core.test.ts` (population targets and follow-the-economy), `server/game/entities.test.ts` (ambient id range), client logic and occlusion tests.
+* `scripts/sim-soak.ts` 180 days, seeds 1337 / 7 / 42: counters identical to 2a (alive NPCs 147 / 143 / 146, 0.90 / 0.91 / 0.80 ms per world hour, snapshots 132 / 126 / 129 KB).
+* `scripts/siege-bot.ts` (forced siege of the starting village, strength 55, 110 s): 157 hits, 37 misses, 20 down events, the same stage sequence as `main` (145 / 37 / 18) and 2a (146 / 41 / 17). The crowd leaves the streets when the siege starts.
+
+### Not done in 2b
+
+* Ambient townsfolk do not react to fights in the street yet (phase 3 gives villagers a reason to run); during a siege they simply go indoors.
+* The crowd is the same in every settlement apart from the head-count; per-kind looks (farmers in hamlets, robes in a sect hall) are for 2c.
+* One shared crowd per settlement: there is no per-player thinning, so many players in one town do not add people.

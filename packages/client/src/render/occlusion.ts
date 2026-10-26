@@ -142,7 +142,7 @@ export function ghostPriority(o: { self: boolean; selected: boolean; kind: strin
   if (o.kind === 'player') return 2;
   if (o.kind === 'monster') return o.fighting ? 3 : 4;
   if (o.role === 'legend' || o.role === 'master') return 4;
-  return 5;
+  return o.kind === 'ambient' ? 6 : 5;
 }
 
 /** Keep the `cap` most important candidates (stable: input order breaks full ties). */

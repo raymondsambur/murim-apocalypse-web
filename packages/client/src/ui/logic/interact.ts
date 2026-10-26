@@ -39,6 +39,8 @@ export function contextActions(e: EntityView, ctx: ActionContext): ContextAction
   if (ctx.selfId !== null && e.id === ctx.selfId) return [];
   const dead = e.state === 'dead';
   switch (e.kind) {
+    case 'ambient':
+      return [];
     case 'npc':
       return [{ id: 'talk', label: 'act.talk', glyph: 'chat', primary: true, disabled: ctx.selfDead ? 'act.whyDead' : undefined }];
     case 'monster': {
@@ -73,6 +75,8 @@ export function quickAction(e: EntityView, ctx: ActionContext): ContextAction | 
 /** Short kind label key for the context card subtitle. */
 export function entityKindKey(e: EntityView): string {
   switch (e.kind) {
+    case 'ambient':
+      return 'kind.passerby';
     case 'npc':
       return `role.${e.role ?? 'villager'}`;
     case 'monster':
@@ -88,7 +92,7 @@ export function entityKindKey(e: EntityView): string {
 export function entityIcon(e: EntityView): string {
   if (e.kind === 'monster') return e.elite ? 'skull' : 'paw';
   if (e.kind === 'node') return NODE_LABEL[e.nodeKind ?? 'herb'].glyph;
-  if (e.kind === 'npc') return 'character';
+  if (e.kind === 'npc' || e.kind === 'ambient') return 'character';
   return 'master';
 }
 

@@ -155,6 +155,7 @@ export const enApp: Record<string, string> = {
   'kind.monster': 'Monster',
   'kind.elite': 'Elite',
   'kind.boss': 'Boss',
+  'kind.passerby': 'Passer-by',
   'kind.player': 'Martial artist',
   'kind.playerAway': 'Martial artist (away)',
   'role.villager': 'Villager',

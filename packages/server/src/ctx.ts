@@ -111,6 +111,19 @@ export interface NpcEntityData {
 /** `NPC_DATA.get(entity)?.npcId` maps an npc entity to its sim NPC. */
 export const NPC_DATA = new DataKey<NpcEntityData>('npc');
 
+/** State of an `ambient` entity (the nameless townsfolk of `game/ambient.ts`). */
+export interface AmbientEntityData {
+  settlementId: number;
+  /** Which of the crowd looks it wears. */
+  variant: number;
+  /** Next time it may pick a destination (ms). */
+  nextAt: number;
+  /** Heading indoors for good: it is removed when it gets there. */
+  leaving: boolean;
+}
+
+export const AMBIENT_DATA = new DataKey<AmbientEntityData>('ambient');
+
 // ---------------------------------------------------------------------------
 // Entities
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { Rng } from '@murim/shared';
 import { describe, expect, it } from 'vitest';
-import { EntityStoreImpl, CELL_SIZE } from './entities';
+import { AMBIENT_ID_BASE, EntityStoreImpl, CELL_SIZE } from './entities';
 
 function store() {
   return new EntityStoreImpl(192, 128, () => 1000);
@@ -78,5 +78,19 @@ describe('EntityStoreImpl', () => {
     const v = s.toView(e);
     expect(v).toEqual({ id: e.id, kind: 'npc', name: 'V', x: 3, y: 3, face: 0, state: 'idle', tag: 'Elder' });
     expect('hp' in v).toBe(false);
+  });
+
+  it('gives ambient townsfolk ids of their own so they never shift anyone else\'s', () => {
+    const s = store();
+    const a = s.create({ kind: 'npc', name: 'A', x: 1, y: 1 });
+    const crowd = [s.create({ kind: 'ambient', name: '', x: 2, y: 2 }), s.create({ kind: 'ambient', name: '', x: 3, y: 3 })];
+    const b = s.create({ kind: 'monster', name: 'B', x: 4, y: 4 });
+    expect(b.id).toBe(a.id + 1);
+    expect(crowd[0].id).toBeGreaterThanOrEqual(AMBIENT_ID_BASE);
+    expect(crowd[1].id).toBe(crowd[0].id + 1);
+    expect(s.count('ambient')).toBe(2);
+    expect(s.ofKind('ambient')).toHaveLength(2);
+    s.remove(crowd[0]);
+    expect(s.count('ambient')).toBe(1);
   });
 });

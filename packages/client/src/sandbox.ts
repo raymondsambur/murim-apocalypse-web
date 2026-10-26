@@ -1,13 +1,14 @@
 /**
  * Standalone render sandbox (no server): generates the world locally, spawns fake entities and exposes a control panel.
  * Run: npx vite packages/client --port 5201 --strictPort  ->  http://localhost:5201/sandbox.html
- * URL params: seed, season, hour, weather (clear|cloudy|rain|storm|fog|snow), tp (settlement id), zoom, panel=0, blight=1.
+ * URL params: seed, season, hour, weather (clear|cloudy|rain|storm|fog|snow), tp (settlement id), zoom, panel=0, blight=1, crowd=1, townfolk=N.
  */
 import {
   FACTIONS,
   Rng,
   STAT_KEYS,
   WEAPON_TYPES,
+  ambientLook,
   findPath,
   generateWorld,
   isPassable,
@@ -496,6 +497,7 @@ mk(labRow, 'reroll look', () => {
 });
 mk(labRow, 'gallery', () => toggleGallery());
 mk(labRow, 'crowd', () => toggleCrowd());
+mk(labRow, 'townfolk', () => toggleTownfolk());
 mk(labRow, 'scale reference', () => toggleScaleRef());
 mk(labRow, 'npc behind house', () => npcBehindHouse());
 mk(labRow, 'max gear', () => {
@@ -570,6 +572,25 @@ function toggleCrowd(): void {
       { center: [self.x, self.y], radius: 8, stepMs: rng.int(240, 520) },
     );
     crowdIds.push(e.id);
+  }
+}
+
+// townsfolk toggle: the nameless ambient tier the server spawns near players (shared/crowd.ts), n of them from the 24 looks
+let townIds: number[] = [];
+function toggleTownfolk(n = 45): void {
+  if (townIds.length) {
+    view.applyEntities({ del: townIds });
+    for (const id of townIds) {
+      ents.delete(id);
+      walkers.delete(id);
+    }
+    townIds = [];
+    return;
+  }
+  for (let i = 0; i < n; i++) {
+    const [x, y] = nearPassable(spawn.x, spawn.y, 12);
+    const e = spawnEnt({ kind: 'ambient', name: '', x, y, face: rng.int(0, 3) as 0, state: 'idle', look: ambientLook(rng.int(0, 23)), role: 'villager' }, { center: [spawn.x, spawn.y], radius: 14, stepMs: rng.int(520, 700) });
+    townIds.push(e.id);
   }
 }
 
@@ -686,9 +707,10 @@ function npcBehindHouse(): void {
   say('NPC behind the house: plate hidden. You at the right side behind the house: plate stays, ghost shows.');
 }
 
-(window as unknown as { lab: unknown }).lab = { lab, apply: labApply, gallery: toggleGallery, crowd: toggleCrowd, scaleRef: toggleScaleRef, behindHouse: npcBehindHouse, ents };
+(window as unknown as { lab: unknown }).lab = { lab, apply: labApply, gallery: toggleGallery, crowd: toggleCrowd, townfolk: toggleTownfolk, scaleRef: toggleScaleRef, behindHouse: npcBehindHouse, ents };
 if (lab.oT || lab.wT || lab.aK !== 'none' || lab.state !== 'auto') labApply();
 if (params.get('crowd') === '1') toggleCrowd();
+if (params.get('townfolk')) toggleTownfolk(Number(params.get('townfolk')) || 45);
 if (params.get('gallery') === '1') toggleGallery();
 if (params.get('scale') === '1') toggleScaleRef();
 if (params.get('occl') === '1') setTimeout(npcBehindHouse, 300);

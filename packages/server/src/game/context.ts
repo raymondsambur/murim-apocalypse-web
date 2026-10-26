@@ -26,6 +26,7 @@ import { registerCoreCommands } from './commands';
 import { EntityStoreImpl } from './entities';
 import type { Logger } from './log';
 import { Movement } from './movement';
+import { AmbientManager } from './ambient';
 import { NpcManager } from './npcs';
 import { registerCoreQueries } from './persist';
 import { MAX_QUEUED_COMMANDS, PlayerManager, PlayerStoreImpl, type ClientConn, type PlayerImpl } from './players';
@@ -64,6 +65,7 @@ export class Game {
   readonly movement: Movement;
   readonly aoi: Aoi;
   readonly npcs: NpcManager;
+  readonly ambient: AmbientManager;
   readonly chat: Chat;
   readonly playerMgr: PlayerManager;
   readonly ctx: GameContext;
@@ -89,6 +91,7 @@ export class Game {
     );
     this.aoi = new Aoi(this.entities);
     this.npcs = new NpcManager({ world: this.world, grid: this.grid, sim: this.sim, entities: this.entities, movement: this.movement, rng: this.rng, log: this.log.child('npcs'), now: this.now });
+    this.ambient = new AmbientManager({ world: this.world, grid: this.grid, sim: this.sim, entities: this.entities, movement: this.movement, players: this.players, rng: this.rng.fork(0xa3b1), log: this.log.child('ambient'), now: this.now });
     this.playerMgr = new PlayerManager({
       world: this.world,
       grid: this.grid,
@@ -283,6 +286,7 @@ export class Game {
     this.drainCommands();
     this.movement.update(now);
     this.npcs.tick(now);
+    this.ambient.tick(now);
     this.registry.runTimers(now);
     this.registry.each('onTick', this.registry.tick, dtMs, now);
     this.playerMgr.flushMe(now);

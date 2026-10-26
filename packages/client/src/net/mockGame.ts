@@ -16,6 +16,7 @@ import {
   Rng,
   SKILLS,
   STEP_MS,
+  ambientLook,
   breakthroughChance,
   buildMonsterCombatant,
   buildPlayerCombatant,
@@ -31,6 +32,7 @@ import {
   nearestWalkable,
   randomLook,
   rankOf,
+  residentTarget,
   sanitizeLoadout,
   stackValue,
   statPointsForLevel,
@@ -296,6 +298,12 @@ export class MockGame {
       );
     }
 
+    // the nameless townsfolk the real server spawns near players (shared/crowd.ts)
+    for (let i = 0; i < 24; i++) {
+      const p = this.walkableNear(cx + r.int(-9, 9), cy + r.int(-9, 9), 6);
+      this.addEnt({ kind: 'ambient', name: '', x: p.x, y: p.y, face: r.pick([0, 1, 2, 3] as const), state: 'idle', look: ambientLook(r.int(0, 23)), role: 'villager' }, { wander: { home: p, radius: 6, next: Date.now() + 1000 + i * 300 } });
+    }
+
     const species = ['boar', 'wolf', 'wolf', 'viper', 'thug', 'thug', 'hollow', 'chief'];
     species.forEach((id, i) => {
       const def = MONSTERS[id];
@@ -342,7 +350,7 @@ export class MockGame {
       controller: FACTIONS[i % FACTIONS.length].id,
       status: statuses[i % statuses.length],
       prosperity: 40 + ((i * 17) % 55),
-      population: s.population,
+      population: residentTarget(s.kind, s.population, s.population),
       defense: 30 + ((i * 11) % 60),
       blight: (i * 23) % 140,
       siege: statuses[i % statuses.length] === 'besieged',

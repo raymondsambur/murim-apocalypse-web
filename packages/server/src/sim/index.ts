@@ -3,7 +3,7 @@
  * the same seed, the same sequence of calls and the same `nowMs` values give byte-identical
  * snapshots. No sockets, timers, database or wall-clock reads: the server passes `nowMs`.
  */
-import { Rng, hash32, type ChronicleEntry, type MissionOffer, type MonsterFamily, type NpcState, type SettlementView, type SimEvent, type SimState, type TimeView, type WeatherKind, type WorldData, type WorldInfo } from '@murim/shared';
+import { Rng, hash32, residentsOf, type ChronicleEntry, type MissionOffer, type MonsterFamily, type NpcState, type SettlementView, type SimEvent, type SimState, type TimeView, type WeatherKind, type WorldData, type WorldInfo } from '@murim/shared';
 import type { CreateSim, SerializedSim, ShopListing, Sim, SimOptions } from './api';
 import { initBlight, initHearts, blightHour, damageHeartImpl, emitBlight, heartsDaily, heartsHourly, purifyArea } from './blight';
 import { BLIGHT, BOARD_HOUR, DAYS_PER_SEASON, SIM_VERSION } from './constants';
@@ -203,12 +203,16 @@ class SimImpl implements Sim {
   settlementView(id: number): SettlementView {
     const s = this.ctx.st.settlements[id];
     if (!s) throw new RangeError(`unknown settlement ${id}`);
+    const def = this.ctx.S.defs[id];
+    let named = 0;
+    for (const n of this.ctx.st.npcs) if (n.alive && n.settlementId === id) named++;
     return {
       id: s.id,
       controller: s.controller,
       status: s.status,
       prosperity: Math.round(s.prosperity),
-      population: Math.round(s.population),
+      // the people who live there, named and nameless: what you can count in the streets at midday (see shared/crowd.ts)
+      population: residentsOf(def.kind, s.population, def.population, named),
       defense: Math.round(s.defense),
       blight: Math.round(s.blight),
       siege: besieged(this.ctx, s),

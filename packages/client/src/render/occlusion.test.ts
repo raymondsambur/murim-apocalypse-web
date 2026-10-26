@@ -86,6 +86,8 @@ describe('see-through silhouettes', () => {
     expect(p({ self: false, selected: false, kind: 'player' })).toBeLessThan(p({ self: false, selected: false, kind: 'monster', fighting: false }));
     expect(p({ self: false, selected: false, kind: 'monster', fighting: true })).toBeLessThan(p({ self: false, selected: false, kind: 'monster' }));
     expect(p({ self: false, selected: false, kind: 'npc', role: 'legend' })).toBeLessThan(p({ self: false, selected: false, kind: 'npc', role: 'villager' }));
+    // nameless townsfolk come after everyone with a name
+    expect(p({ self: false, selected: false, kind: 'npc', role: 'villager' })).toBeLessThan(p({ self: false, selected: false, kind: 'ambient', role: 'villager' }));
   });
 
   it('caps the count per frame, keeping the important and the near ones', () => {

@@ -208,7 +208,7 @@ export class Minimap {
           }
           continue;
         }
-        if (e.id === selfId) continue;
+        if (e.id === selfId || v.kind === 'ambient') continue;
         ctx.fillStyle = v.kind === 'monster' ? '#ff5a4a' : v.kind === 'player' ? '#6aa8ff' : '#f3d65a';
         ctx.fillRect(Math.round(tx(e.x) - px / 2), Math.round(ty(e.y) - px / 2), px, px);
       }

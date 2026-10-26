@@ -81,6 +81,7 @@ export function registerCoreCommands(ctx: GameContext, deps: CoreCommandDeps): v
     const target = ctx.entities.get(m.id);
     // Only entities the client has been told about can be targeted.
     if (!target || target.hidden || target.id === p.entity.id || !(p as PlayerImpl).known.has(target.id)) throw new GameError('not_found', 'There is nothing there.');
+    if (target.kind === 'ambient') throw new GameError('not_found', 'The passer-by is busy and does not stop.');
     const e = p.entity;
     if (!e.move && dist(e.x, e.y, target.x, target.y) <= INTERACT_RANGE) {
       dispatch(p, target);
