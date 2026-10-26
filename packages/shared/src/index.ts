@@ -9,6 +9,7 @@ export * from './pathfinding';
 export * from './worldgrid';
 export * from './worldgen';
 export * from './guardplan';
+export * from './landmarks';
 export * from './combat';
 export * from './character';
 export * from './progression';

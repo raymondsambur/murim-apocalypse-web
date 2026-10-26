@@ -6,7 +6,7 @@
  * indoors) and `spots` (walkable tiles around it where NPCs stand while doing something outside).
  * Every tile kept is reachable from the settlement spawn, so a place is never an unreachable island.
  */
-import { T, isPassable, nearestWalkable, type BuildingDef, type BuildingKind, type PathGrid, type Point, type SettlementDef, type WorldData } from '@murim/shared';
+import { T, gateDirs as settlementGateDirs, isPassable, nearestWalkable, type BuildingDef, type BuildingKind, type PathGrid, type Point, type SettlementDef, type WorldData } from '@murim/shared';
 import { NPCLIFE_TUNING } from './tuning';
 
 export type PlaceKind =
@@ -318,15 +318,12 @@ function buildSettlement(world: WorldData, grid: PathGrid, comp: Uint16Array, la
   });
   if (farms.length === 0) addField(`farm${s.id}_area`, s.x, s.y, s.radius + 10);
 
-  // Gates: where each road leaves the settlement. Roads leave along the compass axes, so a gate is the axis point
-  // nearest the direction of the neighbour (or the four compass points if there are no roads).
+  // Gates: where each road leaves the settlement. Roads leave along the compass axes (see `gateDirs`: one per road, at least
+  // two, a fort has all four), so a gate is the axis point just inside the edge.
   const gates: Place[] = [];
   const gateTiles: Point[] = [];
   const gateDirs: Point[] = [];
-  const addGate = (angle: number): void => {
-    const c = Math.cos(angle);
-    const sn = Math.sin(angle);
-    const dir: Point = Math.abs(c) >= Math.abs(sn) ? { x: Math.sign(c) || 1, y: 0 } : { x: 0, y: Math.sign(sn) || 1 };
+  const addGate = (dir: Point): void => {
     const t = reachableTile(world, grid, comp, label, s.x + dir.x * s.radius * 0.9, s.y + dir.y * s.radius * 0.9, 4);
     if (!t || gateTiles.some((g) => Math.abs(g.x - t.x) + Math.abs(g.y - t.y) < 4)) return;
     gateTiles.push(t);
@@ -336,14 +333,7 @@ function buildSettlement(world: WorldData, grid: PathGrid, comp: Uint16Array, la
     gates.push(p);
     add(p);
   };
-  for (const [a, b] of world.roads) {
-    const other = a === s.id ? b : b === s.id ? a : -1;
-    if (other < 0) continue;
-    const o = world.settlements[other];
-    if (o) addGate(Math.atan2(o.y - s.y, o.x - s.x));
-  }
-  // A fort has four real openings in its wall, whether or not a road runs out of each.
-  for (let k = 0; (gates.length < 2 || s.kind === 'fort') && k < 4; k++) addGate(Math.PI / 2 + (k * Math.PI) / 2);
+  for (const d of settlementGateDirs(s, world.roads, world.settlements)) addGate(d);
 
   // Patrol posts: gates, tower / barracks yards, the plaza and a few inner-ring points; sorted by angle for a loop.
   const posts: Place[] = [...gates, plaza];
