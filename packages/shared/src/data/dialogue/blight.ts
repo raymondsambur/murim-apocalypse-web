@@ -15,6 +15,7 @@ const BLIGHT: DlgGroup[] = [
   g({ role: 'smith' }, 'Iron holds off the rot. Sword, pot, nail. That is why I am busy.', 'I have forged cold-iron nails for a hundred doors. Folk say they keep the Blight out.'),
   g({ role: 'legend' }, 'I saw the first Heart wake. I will not describe it. Be glad you did not.', 'Fire, steel, spirit. I have used them all against it. Spirit, in the end, matters most.'),
   g({ role: 'wanderer' }, 'I have seen towns taken whole by it. Nothing left but silence and grey weeds.', 'The grey country is quiet. Not peaceful. Quiet, like a held breath.'),
+  g({ role: 'disciple' }, 'The masters say a sect exists for days like these. I try to believe it between drills.', 'We drill with sword and breath against the Blight. I am not ready. Nobody tells you that you will not be ready.', 'When the Hollows come, the disciples hold the gate. I have practised the gate. I hope that is enough.'),
   // Traits
   g({ trait: 'superstitious' }, 'Do not speak of it after dark. It listens.', 'Hang iron at the door and salt at the sill. It will not stop it, but it makes me feel better.'),
   g({ trait: 'devout' }, 'The Blight is a test. The shrine gives me strength.', 'Prayer does not push it back, but it keeps despair at bay, and that matters.'),

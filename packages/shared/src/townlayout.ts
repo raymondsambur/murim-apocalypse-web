@@ -11,8 +11,8 @@
 import type { Rng } from './rng';
 import type { BuildingKind, SettlementKind } from './terrain';
 
-export type Archetype = 'cross' | 'mainStreet' | 'grid' | 'ring' | 'walled' | 'terraced' | 'river';
-export const ARCHETYPES: readonly Archetype[] = ['cross', 'mainStreet', 'grid', 'ring', 'walled', 'terraced', 'river'];
+export type Archetype = 'cross' | 'mainStreet' | 'grid' | 'ring' | 'walled' | 'terraced' | 'river' | 'compound';
+export const ARCHETYPES: readonly Archetype[] = ['cross', 'mainStreet', 'grid', 'ring', 'walled', 'terraced', 'river', 'compound'];
 
 export type Enclosure = 'none' | 'fence' | 'palisade' | 'wall';
 export type Face = 'S' | 'E';
@@ -44,13 +44,20 @@ export const FOOTPRINT: Record<BuildingKind, [number, number]> = {
   warehouse: [4, 3],
   teahouse: [3, 3],
   hermitage: [3, 3],
+  yard: [5, 4],
+  dormitory: [4, 3],
+  pavilion: [3, 3],
+  sectGate: [4, 1],
 };
 
 /** Kinds whose sprite draws its door on the south face whatever the building's orientation. */
-const SOUTH_ONLY: ReadonlySet<BuildingKind> = new Set<BuildingKind>(['smithy', 'market', 'shrine']);
+const SOUTH_ONLY: ReadonlySet<BuildingKind> = new Set<BuildingKind>(['smithy', 'market', 'shrine', 'yard']);
 
 export const ZONE_OF: Partial<Record<BuildingKind, Zone>> = {
   shrine: 'temple',
+  yard: 'temple',
+  pavilion: 'temple',
+  dormitory: 'homes',
   pagoda: 'temple',
   hall: 'temple',
   dojo: 'temple',
@@ -112,6 +119,7 @@ export const SPECS: Record<SettlementKind, SettlementSpec> = {
       'herbHut',
       'barracks',
       'barracks',
+      'yard',
       ...times(18, 'house' as BuildingKind),
     ],
     archetypes: [['grid', 2], ['ring', 2], ['walled', 3], ['terraced', 1], ['river', 2], ['mainStreet', 1]],
@@ -120,15 +128,15 @@ export const SPECS: Record<SettlementKind, SettlementSpec> = {
   },
   fort: {
     radius: 17,
-    program: ['shrine', 'dojo', 'inn', 'market', 'smithy', 'alchemy', 'barracks', 'barracks', 'barracks', 'warehouse', ...times(4, 'house' as BuildingKind)],
+    program: ['shrine', 'dojo', 'inn', 'market', 'smithy', 'alchemy', 'barracks', 'barracks', 'barracks', 'yard', 'warehouse', ...times(4, 'house' as BuildingKind)],
     archetypes: [['walled', 1]],
     farms: 0,
     population: 320,
   },
   sectHall: {
     radius: 18,
-    program: ['pagoda', 'hall', 'hall', 'dojo', 'dojo', 'shrine', 'alchemy', 'teahouse', ...times(6, 'house' as BuildingKind)],
-    archetypes: [['ring', 3], ['terraced', 2]],
+    program: ['hall', 'hall', 'pagoda', 'dojo', ...times(3, 'dormitory' as BuildingKind), 'pavilion', 'shrine', 'alchemy', 'teahouse', ...times(2, 'house' as BuildingKind)],
+    archetypes: [['compound', 5], ['terraced', 1]],
     farms: 0,
     population: 260,
   },
@@ -175,6 +183,14 @@ export interface TownPlan {
   gardens: Tile[];
   /** Trees and bushes left standing between the blocks. */
   trees: Tile[];
+  /** Drill-yard furniture: straw dummies, weapon racks, sect standards. */
+  dummies: Tile[];
+  racks: Tile[];
+  standards: Tile[];
+  /** Rail fence round the north, west and east sides of a small yard. */
+  yardFence: Tile[];
+  /** Floor of the yards that are not the plaza (packed earth). */
+  yardFloor: Tile[];
   /** Programme entries that did not fit. */
   missing: BuildingKind[];
 }
@@ -403,6 +419,22 @@ export function planTown(input: PlanInput): TownPlan {
       gridLines();
       break;
     }
+    case 'compound': {
+      // the courtyard is the plaza (a 9 x 9 drill yard); a ring road runs round it at 9 tiles, lots fronting the yard,
+      // the ring road and the avenues
+      avenues();
+      const rr = Math.min(10, I - 4);
+      hclip(-rr, -rr, rr);
+      hclip(rr, -rr, rr);
+      vclip(-rr, -rr, rr);
+      vclip(rr, -rr, rr);
+      mark(-rr, -rr, rr, -rr);
+      mark(-rr, rr, rr, rr);
+      mark(-rr, -rr, -rr, rr);
+      mark(rr, -rr, rr, rr);
+      plazaHalf = 4;
+      break;
+    }
   }
 
   // plaza at the centre (over the streets)
@@ -410,6 +442,7 @@ export function planTown(input: PlanInput): TownPlan {
 
   // ---- enclosure --------------------------------------------------------------------------------------------------------
   const lots: PlacedLot[] = [];
+  const unplaced: BuildingKind[] = [];
   if (enclosed) {
     const hash = (x: number, y: number) => ((Math.imul(x * 73856093 ^ y * 19349663, 0x45d9f3b) >>> 0) % 1000) / 1000;
     for (let t = -E; t <= E; t++) {
@@ -449,6 +482,26 @@ export function planTown(input: PlanInput): TownPlan {
         for (let y = by; y < by + 2; y++) for (let x = bx; x < bx + 2; x++) put(x, y, LOT);
         lots.push({ kind: 'tower', x: bx, y: by, w: 2, d: 2, face: 'S', door: { x: bx + 1, y: by + 2 }, zone: 'guard', needsPath: true });
       }
+    }
+  }
+
+  // the paifang over the south gate of a compound: only its end bays stand on the wall line, the road passes between them
+  const compound = archetype === 'compound';
+  // a compound needs firm ground for its courtyard, the south avenue and the gate; otherwise it counts them as missing so
+  // the caller can choose another layout
+  const firm = (x0: number, y0: number, x1: number, y1: number) => {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (!field(x, y)) return false;
+    return true;
+  };
+  const compoundOk = compound && firm(-plazaHalf, -plazaHalf, plazaHalf, plazaHalf + 1) && firm(0, 0, 0, E) && firm(-2, E, 1, E);
+  if (compound && !compoundOk) unplaced.push('yard', 'sectGate');
+  if (compoundOk && enclosed) {
+    const gx = -2;
+    const gy = E;
+    const bays = [gx, gx + 3];
+    if (bays.every((x) => field(x, gy)) && field(0, gy) && field(-1, gy)) {
+      for (const x of bays) put(x, gy, LOT);
+      lots.push({ kind: 'sectGate', x: gx, y: gy, w: 4, d: 1, face: 'S', door: { x: 0, y: gy + 1 }, zone: 'temple' });
     }
   }
 
@@ -535,7 +588,7 @@ export function planTown(input: PlanInput): TownPlan {
   };
   scanRoads();
 
-  const place = (kindB: BuildingKind, margin: number, slack = 0): PlacedLot | null => {
+  const place = (kindB: BuildingKind, margin: number, slack = 0, anchor?: Tile): PlacedLot | null => {
     const [w, d] = FOOTPRINT[kindB];
     const zone = ZONE_OF[kindB] ?? 'homes';
     let best: { lot: PlacedLot; score: number } | null = null;
@@ -546,7 +599,7 @@ export function planTown(input: PlanInput): TownPlan {
       for (const [face, bx, by] of opts) {
         if (!fits(bx, by, w, d, margin, slack)) continue;
         const onMain = mainAxis === 'x' ? t.y <= 1 && t.y >= 0 : t.x <= 1 && t.x >= 0;
-        const score = scoreOf(zone, bx + w / 2, by + d / 2, onMain, primary[idx(t.x, t.y)] === 1);
+        const score = anchor ? -Math.hypot(bx + w / 2 - anchor.x, by + d / 2 - anchor.y) + (primary[idx(t.x, t.y)] === 1 ? 0.3 : 0) + rng.next() * 0.3 : scoreOf(zone, bx + w / 2, by + d / 2, onMain, primary[idx(t.x, t.y)] === 1);
         if (!best || score > best.score) best = { lot: { kind: kindB, x: bx, y: by, w, d, face, door: { x: t.x, y: t.y }, zone }, score };
       }
     }
@@ -556,8 +609,38 @@ export function planTown(input: PlanInput): TownPlan {
     return l;
   };
 
+  // A compound's buildings keep to fixed places round the courtyard (mirrored east-west by the seed).
+  const mirror = rng.chance(0.5) ? -1 : 1;
+  const anchors = new Map<BuildingKind, Tile[]>();
+  if (compound) {
+    const rr = Math.min(10, I - 4);
+    const A = (kind: BuildingKind, x: number, y: number) => anchors.set(kind, [...(anchors.get(kind) ?? []), { x: x * mirror, y }]);
+    A('hall', -6.5, -7.5); // the main hall and the lecture hall, either side of the north avenue
+    A('hall', 6.5, -7.5);
+    A('pagoda', 0, -rr - 3.5); // behind them, north of the ring road
+    A('dojo', 7.5, 0.5); // the training hall east of the yard
+    A('dormitory', -6.5, -1.5); // the bunkhouses west of the yard and beyond the ring road
+    A('dormitory', -6.5, 2.5);
+    A('dormitory', -rr - 2.5, 0);
+    A('pavilion', rr + 3, -rr - 1); // the meditation pavilion in the far corner
+    A('shrine', 6, 7);
+    A('alchemy', -5, 7);
+    A('teahouse', 0, rr + 3);
+    A('house', -rr - 2.5, -6);
+    A('house', -rr - 2.5, 6);
+    // the courtyard itself: the whole 9 x 9 plaza is the yard
+    if (compoundOk) lots.push({ kind: 'yard', x: -plazaHalf, y: -plazaHalf, w: 2 * plazaHalf + 1, d: 2 * plazaHalf + 1, face: 'S', door: { x: 0, y: plazaHalf + 1 }, zone: 'temple' });
+  }
+  const used = new Map<BuildingKind, number>();
+
   let missing: BuildingKind[] = [];
-  const placeAny = (kb: BuildingKind): PlacedLot | null => place(kb, 1) ?? place(kb, 0) ?? place(kb, 0, 2);
+  const placeAny = (kb: BuildingKind): PlacedLot | null => {
+    const list = anchors.get(kb);
+    const n = used.get(kb) ?? 0;
+    const anchor = list && n < list.length ? list[n] : undefined;
+    if (anchor) used.set(kb, n + 1);
+    return place(kb, 1, 0, anchor) ?? place(kb, 0, 0, anchor) ?? place(kb, 0, 2, anchor);
+  };
   for (const kb of spec.program) {
     const l = placeAny(kb);
     if (l) lots.push(l);
@@ -628,6 +711,49 @@ export function planTown(input: PlanInput): TownPlan {
 
   // ---- props ------------------------------------------------------------------------------------------------------------
   const free = (x: number, y: number) => get(x, y) === FREE && field(x, y) && inside(x, y);
+  // drill yards: straw dummies along the back, weapon racks and standards at the corners; a small yard also gets a rail
+  // fence round three sides and a floor of packed earth
+  const dummies: Tile[] = [];
+  const racks: Tile[] = [];
+  const standards: Tile[] = [];
+  const yardFence: Tile[] = [];
+  const yardFloor: Tile[] = [];
+  /** Props standing on the plaza keep its paving. */
+  const onPlaza: Tile[] = [];
+  const furnish = (list: Tile[], x: number, y: number): void => {
+    const c = get(x, y);
+    if ((c !== PLAZA && c !== LOT) || !field(x, y)) return;
+    if (lots.some((l) => l.door.x === x && l.door.y === y)) return; // never block a door
+    if (c === PLAZA) onPlaza.push({ x, y });
+    put(x, y, PROP);
+    list.push({ x, y });
+  };
+  for (const l of lots) {
+    if (l.kind !== 'yard') continue;
+    if (compound) {
+      const h = plazaHalf;
+      for (const x of [-3, -1, 1, 3]) furnish(dummies, x, -h + 1);
+      furnish(racks, -3, h - 1);
+      furnish(racks, 3, h - 1);
+      for (const [x, y] of [[-h, -h], [h, -h], [-h, h], [h, h]] as const) furnish(standards, x, y);
+      continue;
+    }
+    for (let y = l.y; y < l.y + l.d; y++) for (let x = l.x; x < l.x + l.w; x++) yardFloor.push({ x, y });
+    const fence = (x: number, y: number) => {
+      if (get(x, y) === LOT && field(x, y)) {
+        put(x, y, PROP);
+        yardFence.push({ x, y });
+      }
+    };
+    for (let x = l.x; x < l.x + l.w; x++) fence(x, l.y);
+    for (let y = l.y + 1; y < l.y + l.d; y++) {
+      fence(l.x, y);
+      fence(l.x + l.w - 1, y);
+    }
+    for (const dx of [1, l.w - 2]) furnish(dummies, l.x + dx, l.y + 1);
+    furnish(racks, l.x + 1, l.y + l.d - 1);
+    furnish(racks, l.x + l.w - 2, l.y + l.d - 1);
+  }
   const doorTiles = new Set(lots.map((l) => `${l.door.x},${l.door.y}`));
   const wells: Tile[] = [];
   const lanterns: Tile[] = [];
@@ -693,7 +819,7 @@ export function planTown(input: PlanInput): TownPlan {
     for (let y = -O; y <= O; y++) for (let x = -O; x <= O; x++) if (cells[idx(x, y)] === v) out.push({ x, y });
     return out;
   };
-  const plazaTiles = collect(PLAZA);
+  const plazaTiles = [...collect(PLAZA), ...onPlaza];
   void riverSide;
   return {
     archetype,
@@ -710,7 +836,13 @@ export function planTown(input: PlanInput): TownPlan {
     lanterns,
     gardens,
     trees,
-    missing,
+    dummies,
+    racks,
+    standards,
+    yardFence,
+    yardFloor,
+    // what a compound could not have (its courtyard and gate) is never retried as an ordinary lot, only counted
+    missing: [...unplaced, ...missing],
   };
 }
 

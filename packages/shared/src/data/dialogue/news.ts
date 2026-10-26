@@ -54,6 +54,7 @@ const NEWS: DlgGroup[] = [
   g({ role: 'physician' }, 'A child was born with grey hair last night. Nobody says why, everybody knows.', 'Three broken arms this week. A cart overturned on the north road.'),
   g({ role: 'legend' }, 'Nothing new under the sun, {player}. Only newer fools.', 'The young ones talk of glory. The old ones talk of rest. I prefer the latter.'),
   g({ role: 'wanderer' }, 'North road is mud, south road is bandits, east road is quiet. That is my news.', 'I met a peddler on the pass who sold me a map. It was upside down. Or I am.'),
+  g({ role: 'disciple' }, 'We hear little in the compound. The masters talk in the hall, and we listen at the door, sweeping.', 'Word is the senior disciples are drilling harder. That means something is coming.', 'The cook says the grain has gone up. The cook is rarely wrong about grain.'),
   g({ role: 'villager' }, 'The hen laid a double yolk yesterday. Take that as you will.', 'Someone stole the washing again. We suspect the goat.'),
   // Standing
   g({ standing: 'honoured' }, 'They are putting your name in the village songs, {player}. It is a tuneless song, but sincere.'),

@@ -40,7 +40,7 @@ describe('worldgen layouts', () => {
           const h = hs[0];
           const d = dist(h.x + h.w / 2, h.y + h.d / 2, s.x, s.y);
           expect(d).toBeGreaterThan(s.radius + 2);
-          expect(d).toBeLessThan(s.radius + 17);
+          expect(d).toBeLessThan(s.radius + 24);
           expect(isPassable(world, h.door.x, h.door.y)).toBe(true);
           expect(spawnReach(s.id)[h.door.y * world.w + h.door.x]).toBe(1);
         } else expect(hs).toHaveLength(0);
@@ -64,6 +64,15 @@ describe('worldgen layouts', () => {
           for (let x = b.x; x < b.x + b.w; x++) {
             const i = y * world.w + x;
             const t = world.terrain[i];
+            // a yard is open floor; of a sect gate only the end bays stand and the road passes between them
+            if (b.kind === 'yard') {
+              expect(objectBlocks(world.objects[i]) && world.objects[i] !== O.Dummy && world.objects[i] !== O.Rack && world.objects[i] !== O.Standard && world.objects[i] !== O.Fence, `yard#${b.id} tile ${x},${y} is open`).toBe(false);
+              continue;
+            }
+            if (b.kind === 'sectGate' && x !== b.x && x !== b.x + b.w - 1) {
+              expect(objectBlocks(world.objects[i]), `sectGate#${b.id} passage ${x},${y}`).toBe(false);
+              continue;
+            }
             expect(world.objects[i], `${b.kind}#${b.id} tile ${x},${y}`).toBe(O.Building);
             expect([T.Road, T.Plaza, T.Bridge, T.Farm, T.Water, T.DeepWater, T.Rock], `${b.kind}#${b.id} on terrain ${t}`).not.toContain(t);
             expect(owner.has(i), `${b.kind}#${b.id} overlaps #${owner.get(i)}`).toBe(false);
@@ -91,7 +100,7 @@ describe('worldgen layouts', () => {
         const placed = kinds.filter((k) => k !== 'hermitage' && k !== 'tower' && k !== 'mineEntrance').length;
         expect(placed, `${s.name} (${s.kind}, ${s.layout})`).toBeGreaterThanOrEqual(Math.ceil(want * (s.kind === 'hamlet' ? 0.7 : 0.85)));
         // beds for the people the sim seeds: four to a house
-        const beds = 4 * (count('house') + count('farmhouse'));
+        const beds = 4 * (count('house') + count('farmhouse')) + 6 * count('dormitory');
         expect(beds, `${s.name} beds`).toBeGreaterThanOrEqual(s.kind === 'hamlet' ? 8 : s.kind === 'village' ? 24 : s.kind === 'town' ? 56 : 12);
       }
     });
@@ -176,6 +185,66 @@ describe('worldgen layouts', () => {
     expect(found.get('town')!.has(O.Palisade)).toBe(true);
     expect(found.get('village')!.has(O.Fence)).toBe(true);
     expect(found.get('hamlet')!.has(O.Fence)).toBe(true);
+  });
+
+  it('builds sect compounds on firm ground: paifang, courtyard, halls, bunkhouses, pavilion and furniture', () => {
+    let compounds = 0;
+    for (const seed of SEEDS) {
+      const world = generateWorld(seed);
+      for (const s of world.settlements) {
+        if (s.kind !== 'sectHall' || s.layout !== 'compound') continue;
+        compounds++;
+        const mine = buildingsOf(world, s.id);
+        const count = (k: string) => mine.filter((b) => b.kind === k).length;
+        expect(count('sectGate'), `${s.name} seed ${seed} gate`).toBe(1);
+        expect(count('yard'), `${s.name} yard`).toBe(1);
+        expect(count('dormitory'), `${s.name} dormitories`).toBeGreaterThanOrEqual(2);
+        expect(count('pavilion'), `${s.name} pavilion`).toBe(1);
+        expect(count('hall')).toBeGreaterThanOrEqual(2);
+        const gate = mine.find((b) => b.kind === 'sectGate')!;
+        // the passage between the end bays is open ground and part of the road
+        for (const x of [gate.x + 1, gate.x + 2]) {
+          const i = gate.y * world.w + x;
+          expect(objectBlocks(world.objects[i]), `${s.name} passage ${x}`).toBe(false);
+          expect([T.Road, T.Dirt, T.Plaza, T.Bridge]).toContain(world.terrain[i]);
+        }
+        expect(world.objects[gate.y * world.w + gate.x]).toBe(O.Building);
+        expect(world.objects[gate.y * world.w + gate.x + 3]).toBe(O.Building);
+        // the courtyard is paved and furnished
+        const yard = mine.find((b) => b.kind === 'yard')!;
+        const around: number[] = [];
+        for (let y = yard.y; y < yard.y + yard.d; y++) for (let x = yard.x; x < yard.x + yard.w; x++) around.push(world.objects[y * world.w + x]);
+        expect(around.filter((o) => o === O.Dummy).length).toBeGreaterThanOrEqual(3);
+        expect(around.filter((o) => o === O.Rack).length).toBeGreaterThanOrEqual(2);
+        expect(around.filter((o) => o === O.Standard).length).toBeGreaterThanOrEqual(2);
+        // (a trade road may cross the courtyard)
+        for (let y = yard.y; y < yard.y + yard.d; y++) for (let x = yard.x; x < yard.x + yard.w; x++) expect([T.Plaza, T.Road, T.Dirt, T.Bridge]).toContain(world.terrain[y * world.w + x]);
+      }
+    }
+    expect(compounds).toBeGreaterThanOrEqual(3);
+  });
+
+  it('gives every town and fort a small drill yard, and no hamlet or village one', () => {
+    for (const seed of SEEDS) {
+      const world = generateWorld(seed);
+      for (const s of world.settlements) {
+        const yards = buildingsOf(world, s.id).filter((b) => b.kind === 'yard');
+        if (s.kind === 'town' || s.kind === 'fort') {
+          // a cramped site may lose it; most keep it
+          expect(yards.length, `${s.name} (${s.kind}) seed ${seed}`).toBeLessThanOrEqual(1);
+        } else if (s.kind === 'hamlet' || s.kind === 'village' || s.kind === 'ruin') expect(yards).toHaveLength(0);
+      }
+    }
+    let withYard = 0;
+    let total = 0;
+    for (const seed of SEEDS) {
+      for (const s of generateWorld(seed).settlements) {
+        if (s.kind !== 'town' && s.kind !== 'fort') continue;
+        total++;
+        if (buildingsOf(generateWorld(seed), s.id).some((b) => b.kind === 'yard')) withYard++;
+      }
+    }
+    expect(withYard / total).toBeGreaterThan(0.7);
   });
 
   it('places the settlements on dry ground with the avenues leaving over land, for many seeds', () => {

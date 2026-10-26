@@ -289,7 +289,7 @@ function kindsFor(count: number): SettlementKind[] {
 const HERMITAGE_KINDS: ReadonlySet<SettlementKind> = new Set(['town', 'sectHall', 'fort']);
 
 /** Buildings people look for: their entrances stay free of trees and rocks. */
-const KEY_KINDS: ReadonlySet<BuildingKind> = new Set(['inn', 'market', 'smithy', 'alchemy', 'shrine', 'dojo', 'hall', 'pagoda', 'hermitage', 'teahouse', 'barracks', 'gate']);
+const KEY_KINDS: ReadonlySet<BuildingKind> = new Set(['inn', 'market', 'smithy', 'alchemy', 'shrine', 'dojo', 'hall', 'pagoda', 'hermitage', 'teahouse', 'barracks', 'gate', 'sectGate', 'pavilion']);
 
 function setLand(c: Ctx, x: number, y: number, t: number): void {
   if (!inB(c, x, y)) return;
@@ -496,10 +496,12 @@ function layoutTown(c: Ctx, def: SettlementDef, rng: Rng, hint: SiteHint): Build
   const order = [first, ...spec.archetypes.map(([a]) => a).filter((a) => a !== first)];
   let archetype = first;
   let plan = planTown({ kind, spec, archetype: first, rng: rng.fork(12), mainAxis: hint.mainAxis, field });
+  // a compound without its courtyard and gate is no compound: it is not allowed to win on a count of missing houses
+  const badness = (pl: typeof plan): number => pl.missing.length + (pl.archetype === 'compound' && !pl.lots.some((l) => l.kind === 'yard') ? 8 : 0);
   for (const a of order.slice(1)) {
-    if (plan.missing.length <= spec.program.length * 0.1) break;
+    if (badness(plan) <= spec.program.length * 0.1) break;
     const alt = planTown({ kind, spec, archetype: a, rng: rng.fork(12), mainAxis: hint.mainAxis, field });
-    if (alt.missing.length < plan.missing.length) {
+    if (badness(alt) < badness(plan)) {
       plan = alt;
       archetype = a;
     }
@@ -524,6 +526,11 @@ function layoutTown(c: Ctx, def: SettlementDef, rng: Rng, hint: SiteHint): Build
   for (const t of plan.lanterns) set(t, null, O.Lantern);
   for (const t of plan.gardens) set(t, null, rng.chance(0.5) ? O.Flowers : O.Bush);
   for (const t of plan.trees) set(t, null, rng.chance(0.45) ? O.Bush : def.climate === 0 ? O.Pine : O.Oak);
+  for (const t of plan.yardFloor) set(t, T.Dirt, O.None);
+  for (const t of plan.yardFence) set(t, null, O.Fence);
+  for (const t of plan.dummies) set(t, null, O.Dummy);
+  for (const t of plan.racks) set(t, null, O.Rack);
+  for (const t of plan.standards) set(t, null, O.Standard);
 
   const placed: BuildingDef[] = [];
   for (const l of plan.lots) {
@@ -534,7 +541,14 @@ function layoutTown(c: Ctx, def: SettlementDef, rng: Rng, hint: SiteHint): Build
     c.buildings.push(b);
     placed.push(b);
     def.buildingIds.push(b.id);
-    for (let yy = by; yy < by + l.d; yy++) for (let xx = bx; xx < bx + l.w; xx++) c.objects[ix(c, xx, yy)] = O.Building;
+    // a yard is open ground; of a sect gate only the two end bays stand, the road passes between them
+    if (l.kind === 'yard') continue;
+    for (let yy = by; yy < by + l.d; yy++) {
+      for (let xx = bx; xx < bx + l.w; xx++) {
+        if (l.kind === 'sectGate' && xx !== bx && xx !== bx + l.w - 1) continue;
+        c.objects[ix(c, xx, yy)] = O.Building;
+      }
+    }
   }
   const grid = localGrid(c);
   plan.lots.forEach((l, i) => {
@@ -584,7 +598,7 @@ function placeHermitage(c: Ctx, def: SettlementDef, placed: BuildingDef[], rng: 
   for (let attempt = 0; attempt < 600; attempt++) {
     const ang = rng.next() * Math.PI * 2;
     // After a fair number of misses the search widens to a few more tiles out.
-    const rad = R + 4 + rng.next() * (attempt < 300 ? 8 : 14);
+    const rad = R + 4 + rng.next() * (attempt < 300 ? 8 : attempt < 450 ? 14 : 19);
     const bx = Math.round(def.x + Math.cos(ang) * rad - bw / 2);
     const by = Math.round(def.y + Math.sin(ang) * rad - bd / 2);
     const door = { x: bx + (bw >> 1), y: by + bd };
@@ -1075,6 +1089,27 @@ export function generateWorld(seed: number, w = WORLD_W, h = WORLD_H): WorldData
     byRoom.forEach((m, rank) => {
       kinds[m.i] = want[rank];
     });
+    // A sect hall is a compound: its courtyard, south avenue and gate want firm ground. Of the roomy sites (the first four by
+    // room) the firmest one takes the sect hall and the one that had it takes the firmest one's kind.
+    const soft = (site: Cand): number => {
+      const bad = (dx: number, dy: number): number => {
+        const x = site.x + dx;
+        const y = site.y + dy;
+        return inB(c, x, y) && WALKABLE_GROUND.has(c.terrain[ix(c, x, y)]) ? 0 : 1;
+      };
+      let n = 0;
+      for (let dy = -5; dy <= 5; dy++) for (let dx = -4; dx <= 4; dx++) n += bad(dx, dy) * 3;
+      for (let dy = 0; dy <= SPECS.sectHall.radius; dy++) for (const dx of [-2, -1, 0, 1]) n += bad(dx, dy) * 2;
+      for (let d = -10; d <= 10; d++) n += bad(d, -10) + bad(d, 10) + bad(-10, d) + bad(10, d);
+      return n;
+    };
+    const top = byRoom.slice(0, 4);
+    const hallNow = top.find((m) => kinds[m.i] === 'sectHall');
+    const firmest = [...top].sort((a, b) => soft(a.site) - soft(b.site) || a.i - b.i)[0];
+    if (hallNow && firmest && firmest !== hallNow && soft(firmest.site) < soft(hallNow.site)) {
+      kinds[hallNow.i] = kinds[firmest.i];
+      kinds[firmest.i] = 'sectHall';
+    }
     void slots;
   }
   const used = new Set<string>();

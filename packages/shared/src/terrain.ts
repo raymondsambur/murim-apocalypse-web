@@ -61,6 +61,12 @@ export const O = {
   Well: 11,
   /** A stone street lantern (decoration, walkable). */
   Lantern: 12,
+  /** A straw training dummy in a drill yard (blocks). */
+  Dummy: 13,
+  /** A weapon rack in a drill yard (blocks). */
+  Rack: 14,
+  /** A sect standard on its pole, the cloth tinted by the faction (blocks). */
+  Standard: 15,
   /** Tile occupied by a building footprint. */
   Building: 200,
   /** Wall segment (forts, sect halls). */
@@ -72,7 +78,7 @@ export const O = {
 } as const;
 
 export function objectBlocks(o: number): boolean {
-  return o === O.Pine || o === O.Oak || o === O.Bamboo || o === O.Boulder || o === O.DeadTree || o === O.Building || o === O.Wall || o === O.Palisade || o === O.Fence || o === O.Well;
+  return o === O.Pine || o === O.Oak || o === O.Bamboo || o === O.Boulder || o === O.DeadTree || o === O.Building || o === O.Wall || o === O.Palisade || o === O.Fence || o === O.Well || o === O.Dummy || o === O.Rack || o === O.Standard;
 }
 
 export type BuildingKind =
@@ -95,7 +101,15 @@ export type BuildingKind =
   | 'warehouse'
   | 'teahouse'
   /** A hermit's hut outside the walls where the legends of a town live. */
-  | 'hermitage';
+  | 'hermitage'
+  /** Open drill ground (sect courtyard, barracks or dojo yard): paved floor, no walls, never blocks. */
+  | 'yard'
+  /** Long bunkhouse where the disciples of a compound sleep. */
+  | 'dormitory'
+  /** Open-sided meditation pavilion. */
+  | 'pavilion'
+  /** The paifang over a compound's main entrance: only its two end bays block, the road passes between them. */
+  | 'sectGate';
 
 export interface BuildingDef {
   id: number;

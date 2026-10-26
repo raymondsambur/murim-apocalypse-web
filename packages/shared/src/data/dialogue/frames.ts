@@ -65,6 +65,7 @@ const CLOSERS: DlgGroup[] = [
   g({ role: 'elder' }, 'Think on it.', 'Patience is the oldest remedy.'),
   g({ role: 'physician' }, 'Rest, and drink water.', 'Wash those hands.'),
   g({ role: 'wanderer' }, 'May our roads cross again.', 'The road takes and gives.'),
+  g({ role: 'disciple' }, 'Go well. I must return to the yard.', 'May your forms be true.', 'The master is calling. Forgive me.'),
   g({ role: 'legend' }, 'Hm. Go on, then.', 'Don\'t make my mistakes.'),
   g({ role: 'villager' }, 'Mind the dogs on your way out.', 'Say hello to the neighbours.'),
   // Time & weather

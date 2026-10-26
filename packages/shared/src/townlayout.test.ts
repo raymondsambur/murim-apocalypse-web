@@ -11,7 +11,7 @@ function plan(kind: SettlementKind, archetype: Archetype, seed: number, field = 
   return planTown({ kind, spec, archetype, field, rng: new Rng(seed), mainAxis });
 }
 
-const SOUTH_ONLY = ['smithy', 'market', 'shrine'];
+const SOUTH_ONLY = ['smithy', 'market', 'shrine', 'yard'];
 
 describe('town layout plans', () => {
   const plans: { kind: SettlementKind; a: Archetype; seed: number; p: TownPlan }[] = [];
@@ -39,7 +39,9 @@ describe('town layout plans', () => {
       for (const l of p.lots) {
         for (let y = l.y; y < l.y + l.d; y++) {
           for (let x = l.x; x < l.x + l.w; x++) {
-            expect(paved.has(`${x},${y}`), `${kind} ${a} ${seed} ${l.kind} on paved ${x},${y}`).toBe(false);
+            // a yard is open floor (the plaza itself in a compound), and only the end bays of a sect gate stand
+            if (l.kind === 'sectGate' && x !== l.x && x !== l.x + l.w - 1) continue;
+            if (l.kind !== 'yard') expect(paved.has(`${x},${y}`), `${kind} ${a} ${seed} ${l.kind} on paved ${x},${y}`).toBe(false);
             expect(used.has(`${x},${y}`), `${kind} ${a} ${seed} overlap at ${x},${y}`).toBe(false);
             used.add(`${x},${y}`);
           }
@@ -52,7 +54,7 @@ describe('town layout plans', () => {
     for (const { kind, a, seed, p } of plans) {
       const street = new Set([...p.roads, ...p.dirt, ...p.plaza, ...p.bridges].map(key));
       for (const l of p.lots) {
-        expect([l.w, l.d]).toEqual(FOOTPRINT[l.kind]);
+        if (!(l.kind === 'yard' && a === 'compound')) expect([l.w, l.d]).toEqual(FOOTPRINT[l.kind]);
         if (l.face === 'S') expect(l.door).toEqual({ x: l.x + (l.w >> 1), y: l.y + l.d });
         else expect(l.door).toEqual({ x: l.x + l.w, y: l.y + (l.d >> 1) });
         if (l.face === 'E') expect(SOUTH_ONLY).not.toContain(l.kind);
@@ -90,7 +92,7 @@ describe('town layout plans', () => {
 
   it('encloses by kind and leaves the four axes open', () => {
     expect(enclosureFor('fort', 'walled')).toBe('wall');
-    expect(enclosureFor('sectHall', 'ring')).toBe('wall');
+    expect(enclosureFor('sectHall', 'compound')).toBe('wall');
     expect(enclosureFor('town', 'walled')).toBe('palisade');
     expect(enclosureFor('town', 'grid')).toBe('none');
     expect(enclosureFor('village', 'grid')).toBe('fence');
@@ -202,6 +204,78 @@ describe('town layout plans', () => {
       for (let i = 0; i < 200; i++) seen.add(pickArchetype(kind, new Rng(i)));
       for (const a of seen) expect(allowed.has(a)).toBe(true);
       expect(seen.size).toBe(allowed.size);
+    }
+  });
+
+  it('plans a sect compound: gate, courtyard, halls, bunkhouses, pavilion', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const p = plan('sectHall', 'compound', seed);
+      const kinds = (k: string) => p.lots.filter((l) => l.kind === k);
+      const R = SPECS.sectHall.radius;
+      expect(p.missing, `seed ${seed}`).toEqual([]);
+      // the paifang stands on the south wall with its passage free
+      const gate = kinds('sectGate');
+      expect(gate, `seed ${seed} gate`).toHaveLength(1);
+      expect(gate[0]).toMatchObject({ x: -2, y: R - 1, w: 4, d: 1, face: 'S', door: { x: 0, y: R } });
+      const streets = new Set([...p.roads, ...p.dirt, ...p.plaza, ...p.bridges].map(key));
+      for (const x of [-1, 0]) expect(streets.has(`${x},${R - 1}`), `seed ${seed} gate passage ${x}`).toBe(true);
+      expect(p.enclosureTiles.some((t) => t.x === -2 && t.y === R - 1)).toBe(false);
+      // the courtyard is the 9 x 9 plaza, furnished
+      const yard = kinds('yard');
+      expect(yard).toHaveLength(1);
+      expect(yard[0]).toMatchObject({ x: -4, y: -4, w: 9, d: 9 });
+      expect(p.dummies.length).toBeGreaterThanOrEqual(4);
+      expect(p.racks.length).toBeGreaterThanOrEqual(2);
+      expect(p.standards.length).toBeGreaterThanOrEqual(3); // a hall's door may take a corner
+      const plaza = new Set(p.plaza.map(key));
+      for (const t of [...p.dummies, ...p.racks, ...p.standards]) expect(plaza.has(key(t)), `seed ${seed} prop ${key(t)} keeps its paving`).toBe(true);
+      expect(p.yardFloor).toHaveLength(0);
+      // the programme
+      expect(kinds('hall')).toHaveLength(2);
+      expect(kinds('pagoda')).toHaveLength(1);
+      expect(kinds('dormitory')).toHaveLength(3);
+      expect(kinds('pavilion')).toHaveLength(1);
+      expect(kinds('dojo')).toHaveLength(1);
+      // the bunkhouses and halls look on to the yard or the ring road: the main hall is within the inner ring
+      for (const h of kinds('hall')) expect(Math.max(Math.abs(h.x + h.w / 2), Math.abs(h.y + h.d / 2))).toBeLessThanOrEqual(12);
+    }
+  });
+
+  it('mirrors compounds east-west between seeds', () => {
+    const sides = new Set<number>();
+    for (let seed = 1; seed <= 12; seed++) sides.add(Math.sign(plan('sectHall', 'compound', seed).lots.find((l) => l.kind === 'dojo')!.x));
+    expect(sides.size).toBe(2);
+  });
+
+  it('gives a town and a fort a small drill yard: fenced on three sides, dummies and racks, a floor of earth', () => {
+    for (const kind of ['town', 'fort'] as const) {
+      for (const a of SPECS[kind].archetypes.map(([x]) => x)) {
+        const p = plan(kind, a, 2);
+        const yards = p.lots.filter((l) => l.kind === 'yard');
+        expect(yards, `${kind} ${a}`).toHaveLength(1);
+        const y = yards[0];
+        expect([y.w, y.d]).toEqual(FOOTPRINT.yard);
+        expect(p.yardFloor).toHaveLength(y.w * y.d);
+        expect(p.dummies.length, `${kind} ${a} dummies`).toBeGreaterThanOrEqual(2);
+        expect(p.racks.length, `${kind} ${a} racks`).toBeGreaterThanOrEqual(2);
+        // the south edge is open: no fence tile in the bottom row
+        expect(p.yardFence.length).toBe(y.w + 2 * (y.d - 1));
+        expect(p.yardFence.some((t) => t.y === y.y + y.d - 1 && t.x > y.x && t.x < y.x + y.w - 1)).toBe(false);
+        // furniture stands inside the yard, not on the fence
+        const fence = new Set(p.yardFence.map(key));
+        for (const t of [...p.dummies, ...p.racks]) {
+          expect(t.x >= y.x && t.x < y.x + y.w && t.y >= y.y && t.y < y.y + y.d).toBe(true);
+          expect(fence.has(key(t))).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('keeps hamlets and villages free of yards and sect furniture', () => {
+    for (const kind of ['hamlet', 'village'] as const) {
+      const p = plan(kind, SPECS[kind].archetypes[0][0], 1);
+      expect(p.lots.some((l) => l.kind === 'yard' || l.kind === 'dormitory' || l.kind === 'sectGate')).toBe(false);
+      expect(p.dummies.length + p.racks.length + p.standards.length).toBe(0);
     }
   });
 });

@@ -88,6 +88,16 @@ const ROLE_VOICES: DlgGroup[] = [
   ),
   g({ role: 'legend' }, 'They call me {title}. Say it, or do not. Either way, speak.', '{title}, they say. I say I am an old person who is tired of being looked at.'),
   g(
+    { role: 'disciple' },
+    'Forgive me, {player}, I should be at the yard. A visitor is welcome, though. Please.',
+    'Our master says a guest is a lesson in courtesy. So: welcome, {player}.',
+    'I am only a disciple here, {player}. But I can point you to the hall.',
+    'Quiet, please. The elders are at their forms, and I would rather not sweep the yard twice.',
+    'You have the look of someone who has fought. Do you teach? No? Pity. I would learn.',
+    'Dawn drills, chores, then more drills. It is a good life, {player}, if you like bruises.',
+    'Do not mind the dummies, {player}. They have heard all my complaints.',
+  ),
+  g(
     { role: 'wanderer' },
     'Road dust and empty pockets, that is me. What is your excuse, {player}?',
     'I have been to places you have not heard of and left some you will not want to. Sit.',

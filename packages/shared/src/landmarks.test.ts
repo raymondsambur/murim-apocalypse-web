@@ -83,3 +83,28 @@ describe('landmarksOf', () => {
     expect(nearestLivingSettlement([set(1, 'ruin', 0, 0)], 0, 0)).toBeNull();
   });
 });
+
+describe('compound landmarks', () => {
+  it('lists the sect gate in place of the plain gate on its side, and the training yards', () => {
+    const world = generateWorld(1337);
+    const list = landmarksOf(world);
+    const hall = world.settlements.find((s) => s.kind === 'sectHall' && s.layout === 'compound')!;
+    const mine = list.filter((l) => l.sid === hall.id);
+    const gate = mine.filter((l) => l.label === 'Sect Gate');
+    expect(gate).toHaveLength(1);
+    expect(gate[0].kind).toBe('gate');
+    // the paifang stands on the south axis: no second gate listed there
+    expect(mine.filter((l) => l.kind === 'gate' && l.building < 0 && l.label.startsWith('Southwest'))).toHaveLength(0);
+    // the other gates are still listed
+    expect(mine.filter((l) => l.kind === 'gate').length).toBeGreaterThanOrEqual(2);
+    const yard = mine.filter((l) => l.kind === 'yard');
+    expect(yard).toHaveLength(1);
+    expect(yard[0].label).toBe('Training Yard');
+    // towns and forts with a drill yard list it too, numbered when there are several
+    for (const s of world.settlements) {
+      const n = world.buildings.filter((b) => b.settlementId === s.id && b.kind === 'yard').length;
+      expect(list.filter((l) => l.sid === s.id && l.kind === 'yard')).toHaveLength(n);
+    }
+    expect(LANDMARK_LABEL.yard).toBe('Training Yard');
+  });
+});
