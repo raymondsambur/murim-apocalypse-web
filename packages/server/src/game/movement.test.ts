@@ -106,9 +106,10 @@ describe('Movement', () => {
 
   it('step time follows the entity speed factor', () => {
     const slow = store.create({ kind: 'npc', name: 'S', x: start.x, y: start.y, speed: 1 });
-    const fast = store.create({ kind: 'npc', name: 'F', x: start.x, y: start.y + 1, speed: 2 });
+    // Same row, so both cross the same terrain.
+    const fast = store.create({ kind: 'npc', name: 'F', x: start.x, y: start.y, speed: 2 });
     mv.moveTo(slow, start.x + 4, start.y);
-    mv.moveTo(fast, start.x + 4, start.y + 1);
+    mv.moveTo(fast, start.x + 4, start.y);
     expect(fast.move!.stepMs).toBeLessThan(slow.move!.stepMs);
     expect(fast.move!.stepMs).toBeCloseTo(slow.move!.stepMs / 2, -1);
   });

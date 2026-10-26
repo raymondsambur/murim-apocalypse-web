@@ -24,7 +24,9 @@ import {
   factionName,
   factionRows,
   groupByDay,
+  LANDMARK_ICON,
   mergeChronicle,
+  nearbyLandmarks,
   oldestId,
   pageChronicle,
   sortSettlements,
@@ -45,6 +47,7 @@ addStrings({
   'world.tab.chronicle': 'Chronicle',
   'world.tab.factions': 'Factions',
   'world.tab.settlements': 'Settlements',
+  'world.tab.landmarks': 'Landmarks',
   'world.loading': 'Reading the world…',
   'world.refresh': 'Refresh',
   'world.updated': 'Updated {time} ago',
@@ -122,9 +125,19 @@ addStrings({
   'world.set.look': 'Look',
   'world.set.empty': 'No settlements known.',
   'world.set.here': 'You are here',
+  'world.lm.title': 'Landmarks',
+  'world.lm.near': 'Nearest settlement: {name}',
+  'world.lm.inside': 'You are in {name}',
+  'world.lm.away': '{n} tiles away',
+  'world.lm.dist': '{n} tiles',
+  'world.lm.here': 'Right here',
+  'world.lm.show': 'Show',
+  'world.lm.showTitle': 'Centre the camera on the {name} in {place} and make its beacon pulse',
+  'world.lm.hint': 'Beacons hover over these places in the world. Press Show to find one.',
+  'world.lm.empty': 'No landmarks known.',
 });
 
-type TabId = 'map' | 'chronicle' | 'factions' | 'settlements';
+type TabId = 'map' | 'chronicle' | 'factions' | 'settlements' | 'landmarks';
 let tab: TabId = 'map';
 
 interface InfoCache {
@@ -447,6 +460,42 @@ function settlementsTab(ui: UiContext): HTMLElement[] {
   return [sort, ...cards];
 }
 
+// ---- Landmarks ---------------------------------------------------------------------------------------------------------------
+
+function showLandmark(ui: UiContext, lm: { id: string; x: number; y: number }): void {
+  ui.gameView.centerOn(lm.x, lm.y);
+  ui.gameView.pulseLandmark?.(lm.id);
+  if (isNarrow()) ui.panels.close('world');
+}
+
+function landmarksTab(ui: UiContext): HTMLElement[] {
+  const payload = ui.state.get('world')?.payload;
+  const self = ui.state.selfEntity();
+  if (!payload || !self) return [h('p', { class: 'empty-note' }, t('world.map.unready'))];
+  const near = nearbyLandmarks(payload, self.x, self.y);
+  if (!near || !near.rows.length) return [h('p', { class: 'empty-note' }, t('world.lm.empty'))];
+  const head = h(
+    'div',
+    { class: 'world-lm-head' },
+    h('strong', {}, near.inside ? t('world.lm.inside', { name: near.settlement.name }) : t('world.lm.near', { name: near.settlement.name })),
+    near.inside ? null : h('span', { class: 'jobs-fine' }, t('world.lm.away', { n: Math.round(near.away) })),
+  );
+  const list = h('ul', { class: 'world-lm-list', 'aria-label': t('world.lm.title') });
+  for (const { def, dist } of near.rows) {
+    list.append(
+      h(
+        'li',
+        { class: 'world-lm', dataset: { kind: def.kind } },
+        h('span', { class: 'world-lm-icon', 'aria-hidden': 'true' }, icon(LANDMARK_ICON[def.kind])),
+        h('div', { class: 'world-lm-text' }, h('strong', {}, def.label), h('span', { class: 'jobs-fine' }, def.settlement)),
+        h('span', { class: 'world-lm-dist jobs-fine' }, dist < 2 ? t('world.lm.here') : t('world.lm.dist', { n: Math.round(dist) })),
+        h('button', { class: 'btn btn-xs', type: 'button', title: t('world.lm.showTitle', { name: def.label, place: def.settlement }), onclick: () => showLandmark(ui, def) }, t('world.lm.show')),
+      ),
+    );
+  }
+  return [head, h('p', { class: 'jobs-fine' }, t('world.lm.hint')), list];
+}
+
 // ---- panel ---------------------------------------------------------------------------------------------------------------------
 
 registerPanel({
@@ -482,6 +531,7 @@ registerPanel({
         { id: 'chronicle', label: t('world.tab.chronicle'), glyph: 'book' },
         { id: 'factions', label: t('world.tab.factions'), glyph: 'flag' },
         { id: 'settlements', label: t('world.tab.settlements'), glyph: 'city' },
+        { id: 'landmarks', label: t('world.tab.landmarks'), glyph: 'target' },
       ],
       (id) => {
         tab = id as TabId;
@@ -499,7 +549,7 @@ registerPanel({
       h('button', { class: 'btn btn-xs btn-ghost', type: 'button', disabled: info.loading, onclick: () => loadInfo(ui, true) }, t('world.refresh')),
     );
     const body = h('div', { class: 'world-body', role: 'tabpanel' });
-    const parts = tab === 'map' ? mapTab(ui) : tab === 'chronicle' ? chronicleTab(ui) : tab === 'factions' ? factionsTab(ui) : settlementsTab(ui);
+    const parts = tab === 'map' ? mapTab(ui) : tab === 'chronicle' ? chronicleTab(ui) : tab === 'factions' ? factionsTab(ui) : tab === 'landmarks' ? landmarksTab(ui) : settlementsTab(ui);
     if (info.error && tab !== 'factions') parts.unshift(h('p', { class: 'tone-bad jobs-fine' }, info.error));
     body.append(...parts);
     mount(root, tb.el, status, body);

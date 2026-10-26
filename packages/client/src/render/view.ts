@@ -6,6 +6,7 @@
 import { TILE_H, TILE_W, type CombatEvent, type EntityPatch, type EntityView, type FxKind, type SettlementView, type TimeView } from '@murim/shared';
 import type { BattleInfo, DecodedWorld, GameViewApi, MinimapOptions, PickGesture, PickResult } from './api';
 import type { CharState, ToolKind } from '../art/anim';
+import { Beacons } from './beacons';
 import { Camera } from './camera';
 import { ChunkManager } from './chunks';
 import { WorldClock } from './clock';
@@ -50,6 +51,7 @@ export class GameView implements GameViewApi {
   readonly fxs = new Fx();
   readonly weather = new Weather();
   private overlay = new Overlay();
+  readonly beacons = new Beacons();
   private xf: FrameXf = makeFrameXf(0, 0, 1, 1, 1, 1);
   private pickCb: ((p: PickResult, g: PickGesture) => void) | null = null;
   private wheelAcc = 0;
@@ -130,6 +132,7 @@ export class GameView implements GameViewApi {
     this.world = new WorldModel(world);
     this.chunks = new ChunkManager(this.world);
     this.bank = new SpriteBank(this.world);
+    this.beacons.setWorld(this.world);
     this.sceneR = new SceneRenderer(this.world, this.bank, this.ents);
     this.minimap = new Minimap(this.world);
     this.applySeason(this.clock.season);
@@ -340,6 +343,11 @@ export class GameView implements GameViewApi {
     const attach = !self || Math.hypot(self.x - x, self.y - y) < 1.2;
     this.cam.centerOn(w.sx, w.sy, instant, attach);
     if (instant) this.burst = 8;
+  }
+
+  /** Make the beacon of a landmark (see `landmarksOf`) pulse for a few seconds, whatever the distance and zoom. */
+  pulseLandmark(id: string): boolean {
+    return this.beacons.pulse(id, performance.now());
   }
 
   setZoom(zoom: number): void {
@@ -588,6 +596,7 @@ export class GameView implements GameViewApi {
 
     if (this.sceneR) {
       const P = xf.P;
+      if (this.world && this.bank) this.beacons.draw(c, { bank: this.bank, world: this.world, xf, camX: cam.x, camY: cam.y, zoom: cam.zoom, dpr: this.dpr, now });
       this.overlay.draw(c, this.sceneR.drawnEnts, P, this.dpr, cam.zoom, now, this.selfId, this.selectedId, this.hoverId);
       const ax0 = xf.camAX - xf.cx;
       const ay0 = xf.camAY - xf.cy;

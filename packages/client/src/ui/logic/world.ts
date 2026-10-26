@@ -1,5 +1,5 @@
 /** Pure helpers for the World panel: chronicle filtering and paging, settlement and faction summaries, map colours. */
-import { FACTION_BY_ID, reputationTitle, type ChronicleEntry, type ChronicleKind, type FactionBrief, type SettlementStatus, type SettlementView } from '@murim/shared';
+import { FACTION_BY_ID, landmarksOf, nearestLivingSettlement, reputationTitle, type LandmarkDef, type LandmarkKind, type LandmarkWorld, type SettlementDef, type ChronicleEntry, type ChronicleKind, type FactionBrief, type SettlementStatus, type SettlementView } from '@murim/shared';
 
 export const CHRONICLE_KINDS: ChronicleKind[] = ['blight', 'faction', 'settlement', 'npc', 'weather', 'economy', 'player', 'legend', 'season'];
 export const CHRONICLE_PAGE = 30;
@@ -115,4 +115,40 @@ export function barPct(value: number, max: number): number {
 
 export function chronicleStamp(e: Pick<ChronicleEntry, 'day' | 'hour'>): { day: number; hour: string } {
   return { day: e.day + 1, hour: `${String(Math.floor(e.hour) % 24).padStart(2, '0')}:00` };
+}
+
+// ---- landmarks ------------------------------------------------------------------------------------------------------
+
+/** Icon (registry name) of each landmark kind. */
+export const LANDMARK_ICON: Record<LandmarkKind, string> = { inn: 'wine', market: 'coin', smithy: 'anvil', alchemy: 'cauldron', shrine: 'lotus', dojo: 'swords', hall: 'flag', pagoda: 'crown', hermitage: 'mountain', gate: 'shield' };
+
+export interface LandmarkRow {
+  def: LandmarkDef;
+  /** Tiles from the viewer. */
+  dist: number;
+}
+
+export interface NearbyLandmarks {
+  settlement: SettlementDef;
+  /** The viewer stands within the settlement's ring. */
+  inside: boolean;
+  /** Tiles from the viewer to the settlement's edge (0 when inside). */
+  away: number;
+  rows: LandmarkRow[];
+}
+
+/** Landmarks of the living settlement nearest to (x, y), nearest first; null when the world has none. */
+export function nearbyLandmarks(world: LandmarkWorld, x: number, y: number): NearbyLandmarks | null {
+  const settlement = nearestLivingSettlement(world.settlements, x, y);
+  if (!settlement) return null;
+  const rows = landmarksOf(world)
+    .filter((l) => l.sid === settlement.id)
+    .map((def) => ({ def, dist: Math.hypot(def.x - x, def.y - y) }))
+    .sort((a, b) => a.dist - b.dist || a.def.id.localeCompare(b.def.id));
+  const toCentre = Math.hypot(settlement.x - x, settlement.y - y);
+  return { settlement, inside: toCentre <= settlement.radius, away: Math.max(0, toCentre - settlement.radius), rows };
+}
+
+export function fmtTiles(n: number): string {
+  return `${Math.round(n)}`;
 }

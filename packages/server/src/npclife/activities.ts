@@ -77,7 +77,7 @@ export const ACTIVITIES: Record<ActivityId, ActivityDef> = {
   muster: { id: 'muster', cue: 'patrol', state: 'work', hours: [1, 2], net: { duty: -0.5 } },
 };
 
-export type ScheduleKey = 'villager' | 'guardDay' | 'guardNight' | 'artisan' | 'merchant' | 'innkeeper' | 'master' | 'elder' | 'legend';
+export type ScheduleKey = 'villager' | 'guardDay' | 'guardNight' | 'artisan' | 'merchant' | 'innkeeper' | 'master' | 'elder' | 'legend' | 'wanderer';
 
 export function scheduleKey(role: NpcRole, shift: 0 | 1): ScheduleKey {
   switch (role) {
@@ -96,8 +96,9 @@ export function scheduleKey(role: NpcRole, shift: 0 | 1): ScheduleKey {
     case 'elder':
       return 'elder';
     case 'legend':
-    case 'wanderer':
       return 'legend';
+    case 'wanderer':
+      return 'wanderer';
     default:
       return 'villager';
   }
@@ -204,7 +205,20 @@ export const SCHEDULE: Record<ScheduleKey, readonly Seg[]> = {
     [20.5, 22, { sleep: 1.2, rest: 0.4 }],
     [22, 24, { sleep: 1.7 }],
   ],
+  // Legends keep to their hermitage: they train, pray and rest there, and come down only for the evening and festivals.
   legend: [
+    [0, 5, { sleep: 1.6 }],
+    [5, 6.5, { pray: 0.8, train: 0.6, sleep: 0.3 }],
+    [6.5, 7.5, { eat: 0.9, train: 0.5, sweep: 0.2 }],
+    [7.5, 12, { train: 1.0, pray: 0.25, rest: 0.35, sweep: 0.1 }],
+    [12, 13, { eat: 1.0, rest: 0.4 }],
+    [13, 17.5, { train: 0.8, pray: 0.3, rest: 0.45, wander: 0.1 }],
+    [17.5, 19, { eat: 1.0, socialise: 0.5, pray: 0.2, wander: 0.2 }],
+    [19, 21.5, { socialise: 0.9, pray: 0.2, rest: 0.4, wander: 0.25 }],
+    [21.5, 22, { sleep: 1.0, socialise: 0.3 }],
+    [22, 24, { sleep: 1.6 }],
+  ],
+  wanderer: [
     [0, 5, { sleep: 1.6 }],
     [5, 6, { pray: 0.6, train: 0.6, sleep: 0.4 }],
     [6, 7, { eat: 0.9, train: 0.5, wander: 0.3 }],

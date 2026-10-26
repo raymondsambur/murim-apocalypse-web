@@ -49,6 +49,7 @@ const ROOF_DEFAULT: Record<BuildingKind, string> = {
   ruinedHouse: '#3a3236',
   warehouse: '#6a5546',
   teahouse: '#8a4a3a',
+  hermitage: '#a09058',
 };
 
 /** Kinds whose roof takes the faction colour. */
@@ -73,6 +74,7 @@ const MAX_Z: Record<BuildingKind, number> = {
   ruinedHouse: 52,
   warehouse: 70,
   teahouse: 76,
+  hermitage: 50,
 };
 
 /** Vertical stretch per kind (default `BUILDING_ZK`). */
@@ -164,6 +166,9 @@ export function genBuilding(spec: BuildingSpec): BuildingArt {
       break;
     case 'dojo':
       L.dojo(ctx);
+      break;
+    case 'hermitage':
+      hermitage(ctx);
       break;
     case 'mineEntrance':
       L.mineEntrance(ctx);
@@ -515,4 +520,40 @@ function teahouse(c: Ctx): void {
     sc.sprite(fl.pb, fl.ax, fl.ay, lower.R + 0.1, lower.B + 0.1, 0, 6);
   }
   chimneyAt(c, iu1 - 0.3, iv0 + 0.4, up.h, 8);
+}
+
+// ---------------------------------------------------------------------------
+// hermitage
+// ---------------------------------------------------------------------------
+
+/** A hermit's hut: thatched cell on a stone step, a garden pine or two, and a small altar with incense. */
+function hermitage(c: Ctx): void {
+  const { sc, st, w, d } = c;
+  const b = basic(c, {
+    inset: 0.7,
+    H: 22,
+    wallKind: 'plank',
+    wallBase: hex('#8a6a48'),
+    post: 0,
+    doorH: 19,
+    doorW: 0.7,
+    plinthH: 4,
+    roof: { rise: 12, over: 0.4, up: 3, thatch: true, color: hex('#a09058'), curve: 1.1 },
+    windowH: 5,
+    windows: false,
+  });
+  const dp = doorPlacement(c.spec);
+  if (!st.fallen) {
+    const big = P.gardenPine(1.7, 1);
+    sc.sprite(big.pb, big.ax, big.ay, 0.3, d - 1.0, 0, 3);
+    const small = P.gardenPine(1.25, 2);
+    sc.sprite(small.pb, small.ax, small.ay, w - 0.35, 0.7, 0, 3);
+    const al = P.altar();
+    sc.sprite(al.pb, al.ax, al.ay, w - 0.5, d - 0.5, 0, 4);
+    addLight(c, w - 0.5, d - 0.5, 12, 26, GLOW_FIRE);
+    const lan = P.stoneLantern();
+    sc.sprite(lan.pb, lan.ax, lan.ay, dp.center - 0.7, b.v1 + 0.45, 0, 4);
+    addLight(c, dp.center - 0.7, b.v1 + 0.45, 16, 24, GLOW_WARM);
+    addSmoke(c, b.u1 - 0.5, b.v0 + 0.5, b.zWall + 8, 'chimney');
+  }
 }

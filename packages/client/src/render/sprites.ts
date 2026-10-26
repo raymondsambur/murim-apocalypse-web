@@ -38,6 +38,8 @@ export interface NodeSpriteSet {
 /** A sprite plus a lazily created white "hit flash" version. */
 export interface FlashSprite extends Sprite {
   flash?: HTMLCanvasElement;
+  /** Silhouette canvases by tint (see `ghostOf`). */
+  ghost?: Record<string, HTMLCanvasElement>;
   /** Weapon tip (sprite px) and the rarity of weapon / outfit for dynamic effects. */
   tip?: [number, number] | null;
   /** Eye rects for the blink overlay. */
@@ -290,6 +292,34 @@ export class SpriteBank {
       g.fillStyle = grd;
       g.fillRect(0, 0, r * 2, r * 2);
       this.glows.set(key, c);
+    }
+    return c;
+  }
+
+  /**
+   * Faint tinted silhouette with a thin outline, drawn over scenery that covers a sprite (one canvas, 1 px larger on
+   * every side; draw it at the sprite position minus one pixel).
+   */
+  ghostOf(s: FlashSprite, tint: string): HTMLCanvasElement {
+    const cache = (s.ghost ??= {});
+    let c = cache[tint];
+    if (!c) {
+      const solid = makeCanvas(s.w, s.h);
+      const sg = solid.getContext('2d')!;
+      sg.drawImage(s.cv, 0, 0);
+      sg.globalCompositeOperation = 'source-atop';
+      sg.fillStyle = tint;
+      sg.fillRect(0, 0, s.w, s.h);
+      c = makeCanvas(s.w + 2, s.h + 2);
+      const g = c.getContext('2d')!;
+      // outline: the silhouette grown by a pixel in four directions, minus the silhouette itself
+      for (const [ox, oy] of [[0, 1], [2, 1], [1, 0], [1, 2]] as const) g.drawImage(solid, ox, oy);
+      g.globalCompositeOperation = 'destination-out';
+      g.drawImage(s.cv, 1, 1);
+      g.globalCompositeOperation = 'source-over';
+      g.globalAlpha = 0.32;
+      g.drawImage(solid, 1, 1);
+      cache[tint] = c;
     }
     return c;
   }

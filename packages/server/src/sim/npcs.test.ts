@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FACTION_BY_ID, ITEMS, SKILLS, isPassable, rankOf, type NpcRole, type NpcState, type SimEvent } from '@murim/shared';
+import { FACTION_BY_ID, ITEMS, SKILLS, guardHeadcount, isPassable, rankOf, type NpcRole, type NpcState, type SimEvent } from '@murim/shared';
 import { PROD_SEED, makeSim, runDays, stateOf, worldFor } from './testkit';
 import type { Sim } from './api';
 
@@ -23,7 +23,8 @@ describe('initial roster', () => {
       expect(n.look.outfit).toBeGreaterThanOrEqual(0);
       expect(isPassable(world, n.homeX, n.homeY)).toBe(true);
       const def = world.settlements[n.settlementId];
-      expect(Math.hypot(n.homeX - def.x, n.homeY - def.y)).toBeLessThanOrEqual(def.radius + 4);
+      // A legend's hermitage stands a few tiles beyond the ring.
+      expect(Math.hypot(n.homeX - def.x, n.homeY - def.y)).toBeLessThanOrEqual(def.radius + (n.role === 'legend' ? 16 : 4));
       expect(n.level).toBeGreaterThanOrEqual(1);
       expect(n.age).toBeGreaterThan(10);
     }
@@ -37,8 +38,7 @@ describe('initial roster', () => {
     for (const def of world.settlements) {
       if (def.kind === 'ruin') continue;
       const id = def.id;
-      expect(count(sim, id, 'guard')).toBeGreaterThanOrEqual(def.kind === 'fort' ? 4 : 2);
-      expect(count(sim, id, 'guard')).toBeLessThanOrEqual(def.kind === 'fort' ? 4 : 3);
+      expect(count(sim, id, 'guard')).toBe(guardHeadcount(def.kind));
       expect(count(sim, id, 'elder')).toBe(1);
       expect(count(sim, id, 'merchant')).toBe(1);
       const villagers = count(sim, id, 'villager');

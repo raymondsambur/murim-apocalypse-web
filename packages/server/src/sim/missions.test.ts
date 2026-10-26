@@ -215,18 +215,23 @@ describe('boards', () => {
   });
 
   it('purify offers point at real Blight near living settlements', () => {
-    const sim = makeSim();
+    // Only one or two settlements sit within reach of the Blight in a given world, so how many offers appear
+    // depends on the dice of that one seeded history: count over a few worlds.
     let found = 0;
-    for (let d = 0; d < 60; d++) {
-      for (const s of stateOf(sim).settlements) {
-        for (const o of sim.board(s.id)) {
-          if (o.type !== 'purify') continue;
-          found++;
-          const def = worldFor(PROD_SEED).settlements[s.id];
-          expect(Math.hypot(o.target.x! - def.x, o.target.y! - def.y)).toBeLessThanOrEqual(38);
+    for (const seed of [PROD_SEED, 7, 21]) {
+      const sim = makeSim(seed);
+      const world = worldFor(seed);
+      for (let d = 0; d < 60; d++) {
+        for (const s of stateOf(sim).settlements) {
+          for (const o of sim.board(s.id)) {
+            if (o.type !== 'purify') continue;
+            found++;
+            const def = world.settlements[s.id];
+            expect(Math.hypot(o.target.x! - def.x, o.target.y! - def.y)).toBeLessThanOrEqual(38);
+          }
         }
+        runDays(sim, 1);
       }
-      runDays(sim, 1);
     }
     expect(found).toBeGreaterThan(5);
   });

@@ -77,6 +77,8 @@ export interface GameViewApi {
   onPick(cb: (pick: PickResult, gesture: PickGesture) => void): void;
 
   centerOn(x: number, y: number, instant?: boolean): void;
+  /** Make the beacon of a landmark (id from `landmarksOf`) pulse for a few seconds. Optional (stand-ins may ignore it). */
+  pulseLandmark?(id: string): boolean;
   /** 0.5 .. 2.5. */
   setZoom(zoom: number): void;
   getZoom(): number;

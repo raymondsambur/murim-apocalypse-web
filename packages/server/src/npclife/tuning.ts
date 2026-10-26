@@ -24,6 +24,16 @@ export const NPCLIFE_TUNING = {
   /** Standing spots kept per place. */
   spotsPerPlace: 10,
 
+  // ---- guards ----------------------------------------------------------------------------------
+  /** A gate guard stands at the gate this long before deciding again (world hours). */
+  gateStandHours: [1.2, 2.6] as const,
+  /** A patrol squad moves on to the next point of its route every this many world hours. */
+  squadBucketHours: 0.5,
+  /** Distance (tiles) of an outskirts patrol point beyond its gate, up the road. */
+  outskirtsOffset: 7,
+  /** Barracks / house capacity for a hermit's hut. */
+  hermitageCapacity: 2,
+
   // ---- movement ------------------------------------------------------------------------------
   /** Random pause before leaving after an activity ends (real ms): crowds do not move in lockstep. */
   departJitterMs: [300, 4500] as const,

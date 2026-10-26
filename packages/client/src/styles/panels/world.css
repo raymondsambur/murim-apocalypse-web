@@ -241,14 +241,58 @@
   }
 }
 
-/* Tab strips with 4+ tabs: on phones only the active tab shows its label */
+/* Tab strips with 4+ tabs: tighter padding, and on phones only the active tab shows its label */
+.tabs-tight .tab {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  gap: 0.3rem;
+  min-width: 0;
+}
 @media (max-width: 760px) {
-  .tabs-tight .tab {
-    padding-left: 0.55rem;
-    padding-right: 0.55rem;
-    min-width: 0;
-  }
   .tabs-tight .tab[aria-selected='false'] .tab-label {
     display: none;
   }
+}
+
+/* Landmarks tab */
+.world-lm-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.world-lm-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.world-lm {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+}
+.world-lm-icon {
+  display: inline-flex;
+  width: 1.6rem;
+  height: 1.6rem;
+  align-items: center;
+  justify-content: center;
+  color: var(--gold);
+  flex: none;
+}
+.world-lm-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.world-lm-dist {
+  white-space: nowrap;
 }

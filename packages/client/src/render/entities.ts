@@ -37,6 +37,8 @@ export interface Ent {
   /** Painter key used for the sorted pass and the smoothed occlusion level (0 visible .. 1 hidden behind scenery, see occlusion.ts). */
   dkey: number;
   occ: number;
+  /** Smoothed 0..1: how long this entity has been covered by scenery (drives its see-through silhouette). */
+  veil: number;
   /** Plate cache key and canvas. */
   plateKey: string;
   plate: HTMLCanvasElement | null;
@@ -127,6 +129,7 @@ export class EntityStore {
       depth: 0,
       dkey: 0,
       occ: 0,
+      veil: 0,
       plateKey: '',
       plate: null,
       born: now,

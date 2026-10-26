@@ -6,7 +6,7 @@
  * indoors) and `spots` (walkable tiles around it where NPCs stand while doing something outside).
  * Every tile kept is reachable from the settlement spawn, so a place is never an unreachable island.
  */
-import { T, isPassable, nearestWalkable, type BuildingDef, type BuildingKind, type PathGrid, type Point, type SettlementDef, type WorldData } from '@murim/shared';
+import { T, gateDirs as settlementGateDirs, isPassable, nearestWalkable, type BuildingDef, type BuildingKind, type PathGrid, type Point, type SettlementDef, type WorldData } from '@murim/shared';
 import { NPCLIFE_TUNING } from './tuning';
 
 export type PlaceKind =
@@ -26,6 +26,8 @@ export type PlaceKind =
   | 'tower'
   | 'gate'
   | 'post'
+  | 'outskirts'
+  | 'hermitage'
   | 'herb'
   | 'mine'
   | 'farm'
@@ -54,8 +56,12 @@ export interface SettlementPlaces {
   readonly plaza: Place;
   /** Guard patrol posts, in a loop order. */
   readonly posts: readonly Place[];
-  /** Where the roads leave the settlement (siege muster points). */
+  /** Where the roads leave the settlement (siege muster points). Each carries flank spots for guards, two per side. */
   readonly gates: readonly Place[];
+  /** Patrol points out in the fields: a few tiles up each road beyond the gates, and the edge of each farm. */
+  readonly outskirts: readonly Place[];
+  /** A squad's round: the inner posts, gates and outskirts (not the plaza) sorted by angle around the settlement. */
+  readonly route: readonly Place[];
   readonly farms: readonly Place[];
   byKind(kind: PlaceKind): readonly Place[];
 }
@@ -86,6 +92,7 @@ const BUILDING_PLACE: Partial<Record<BuildingKind, PlaceKind>> = {
   gate: 'gate',
   herbHut: 'herb',
   mineEntrance: 'mine',
+  hermitage: 'hermitage',
 };
 
 /** Kinds that are not entered (open-air posts or towers guards stand beside). */
@@ -207,6 +214,55 @@ function openPlace(id: string, kind: PlaceKind, sid: number, centre: Point, spot
   return { id, kind, settlementId: sid, buildingId: null, door: spots[0] ?? centre, spots: spots.length ? spots : [centre], enter: false, look };
 }
 
+/**
+ * Where guards stand at a gate: two flanking the road (slot 0 and 1), then further pairs inside the gate, then
+ * any other reachable tile near it. `dir` is the unit axis vector pointing out of the settlement.
+ */
+function gateSpots(world: WorldData, comp: Uint16Array, label: number, t: Point, dir: Point): Point[] {
+  const side: Point = { x: -dir.y, y: dir.x };
+  const ok = (x: number, y: number) => isPassable(world, x, y) && comp[y * world.w + x] === label;
+  const out: Point[] = [];
+  const push = (p: Point) => {
+    if (!out.some((q) => q.x === p.x && q.y === p.y)) out.push(p);
+  };
+  for (const depth of [0, 2, 4]) {
+    for (const sgn of [1, -1]) {
+      for (const off of [2, 1]) {
+        const x = t.x - dir.x * depth + side.x * sgn * off;
+        const y = t.y - dir.y * depth + side.y * sgn * off;
+        if (ok(x, y)) {
+          push({ x, y });
+          break;
+        }
+      }
+    }
+  }
+  for (const p of spotsNear(world, comp, label, t.x, t.y, 0, 2, 8)) push(p);
+  return out;
+}
+
+/** A reachable tile near (x, y), preferring road / dirt so a patrol stands on the track and not in a thicket. */
+function roadTileNear(world: WorldData, comp: Uint16Array, label: number, x: number, y: number, radius: number): Point | null {
+  x = Math.round(x);
+  y = Math.round(y);
+  let best: Point | null = null;
+  let bestD = Infinity;
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      const px = x + dx;
+      const py = y + dy;
+      if (!isPassable(world, px, py) || comp[py * world.w + px] !== label) continue;
+      const t = world.terrain[py * world.w + px];
+      const d = dx * dx + dy * dy + (t === T.Road || t === T.Dirt ? 0 : 20);
+      if (d < bestD) {
+        bestD = d;
+        best = { x: px, y: py };
+      }
+    }
+  }
+  return best;
+}
+
 function buildSettlement(world: WorldData, grid: PathGrid, comp: Uint16Array, label: number, s: SettlementDef): SettlementPlaces {
   const all: Place[] = [];
   const kinds = new Map<PlaceKind, Place[]>();
@@ -262,27 +318,22 @@ function buildSettlement(world: WorldData, grid: PathGrid, comp: Uint16Array, la
   });
   if (farms.length === 0) addField(`farm${s.id}_area`, s.x, s.y, s.radius + 10);
 
-  // Gates: where each road leaves the settlement (or the four compass points if it has none).
+  // Gates: where each road leaves the settlement. Roads leave along the compass axes (see `gateDirs`: one per road, at least
+  // two, a fort has all four), so a gate is the axis point just inside the edge.
   const gates: Place[] = [];
   const gateTiles: Point[] = [];
-  const addGate = (angle: number, frac: number): void => {
-    const px = s.x + Math.cos(angle) * s.radius * frac;
-    const py = s.y + Math.sin(angle) * s.radius * frac;
-    const t = reachableTile(world, grid, comp, label, px, py, 4);
+  const gateDirs: Point[] = [];
+  const addGate = (dir: Point): void => {
+    const t = reachableTile(world, grid, comp, label, s.x + dir.x * s.radius * 0.9, s.y + dir.y * s.radius * 0.9, 4);
     if (!t || gateTiles.some((g) => Math.abs(g.x - t.x) + Math.abs(g.y - t.y) < 4)) return;
     gateTiles.push(t);
-    const spots = spotsNear(world, comp, label, t.x, t.y, 0, 2, 6);
-    const p = openPlace(`gate${s.id}_${gates.length}`, 'gate', s.id, t, spots, { x: s.x + Math.cos(angle) * (s.radius + 6), y: s.y + Math.sin(angle) * (s.radius + 6) });
+    gateDirs.push(dir);
+    const spots = gateSpots(world, comp, label, t, dir);
+    const p: Place = { ...openPlace(`gate${s.id}_${gates.length}`, 'gate', s.id, t, spots, { x: s.x + dir.x * (s.radius + 6), y: s.y + dir.y * (s.radius + 6) }), door: t };
     gates.push(p);
     add(p);
   };
-  for (const [a, b] of world.roads) {
-    const other = a === s.id ? b : b === s.id ? a : -1;
-    if (other < 0) continue;
-    const o = world.settlements[other];
-    if (o) addGate(Math.atan2(o.y - s.y, o.x - s.x), 0.85);
-  }
-  for (let k = 0; gates.length < 2 && k < 4; k++) addGate((k * Math.PI) / 2 + Math.PI / 4, 0.85);
+  for (const d of settlementGateDirs(s, world.roads, world.settlements)) addGate(d);
 
   // Patrol posts: gates, tower / barracks yards, the plaza and a few inner-ring points; sorted by angle for a loop.
   const posts: Place[] = [...gates, plaza];
@@ -300,6 +351,26 @@ function buildSettlement(world: WorldData, grid: PathGrid, comp: Uint16Array, la
   const angleOf = (p: Place) => Math.atan2(p.door.y - s.y, p.door.x - s.x);
   posts.sort((a, b) => (a === plaza ? -9 : angleOf(a)) - (b === plaza ? -9 : angleOf(b)));
 
+  // Outskirts: a few tiles up each road beyond its gate, and the outermost tile of each farm.
+  const outskirts: Place[] = [];
+  gates.forEach((g, i) => {
+    const dir = gateDirs[i];
+    const t = roadTileNear(world, comp, label, g.door.x + dir.x * NPCLIFE_TUNING.outskirtsOffset, g.door.y + dir.y * NPCLIFE_TUNING.outskirtsOffset, 3);
+    if (!t || outskirts.some((o) => Math.abs(o.door.x - t.x) + Math.abs(o.door.y - t.y) < 4)) return;
+    const p = openPlace(`out${s.id}_g${i}`, 'outskirts', s.id, t, spotsNear(world, comp, label, t.x, t.y, 0, 2, 6), { x: t.x + dir.x * 4, y: t.y + dir.y * 4 });
+    outskirts.push(p);
+    add(p);
+  });
+  farms.forEach((f, i) => {
+    let far = f.spots[0];
+    for (const t of f.spots) if ((t.x - s.x) ** 2 + (t.y - s.y) ** 2 > (far.x - s.x) ** 2 + (far.y - s.y) ** 2) far = t;
+    if (outskirts.some((o) => Math.abs(o.door.x - far.x) + Math.abs(o.door.y - far.y) < 4)) return;
+    const p = openPlace(`out${s.id}_f${i}`, 'outskirts', s.id, far, spotsNear(world, comp, label, far.x, far.y, 0, 2, 6), f.look);
+    outskirts.push(p);
+    add(p);
+  });
+  const route = [...posts.filter((p) => p !== plaza), ...outskirts].sort((a, b) => angleOf(a) - angleOf(b) || a.id.localeCompare(b.id));
+
   const dwellings = [...(kinds.get('house') ?? []), ...(kinds.get('farmhouse') ?? [])];
-  return { settlementId: s.id, all, dwellings, plaza, posts, gates, farms, byKind: (k) => kinds.get(k) ?? [] };
+  return { settlementId: s.id, all, dwellings, plaza, posts, gates, outskirts, route, farms, byKind: (k) => kinds.get(k) ?? [] };
 }

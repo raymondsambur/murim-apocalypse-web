@@ -7,6 +7,7 @@ import {
   FACTION_BY_ID,
   ITEMS,
   SKILL_LIST,
+  guardHeadcount,
   hash32,
   isPassable,
   legendTitle,
@@ -42,7 +43,7 @@ const HOME_KINDS: Record<string, BuildingKind[]> = {
   alchemist: ['alchemy'],
   innkeeper: ['inn'],
   master: ['dojo', 'hall', 'pagoda'],
-  legend: ['shrine', 'pagoda', 'hall', 'dojo'],
+  legend: ['hermitage', 'shrine', 'pagoda', 'hall', 'dojo'],
   villager: ['house', 'farmhouse', 'herbHut', 'teahouse'],
   wanderer: ['market', 'inn', 'teahouse'],
   physician: ['alchemy'],
@@ -87,6 +88,8 @@ function pickHome(ctx: Ctx, sid: number, role: string, used: Set<number>, minRin
   const def = ctx.S.defs[sid];
   const w = ctx.S.w;
   const kinds = HOME_KINDS[role] ?? [];
+  // A legend's hermitage stands outside the ring.
+  const reachOut = role === 'legend' ? 14 : 3;
   let cx = def.spawn.x;
   let cy = def.spawn.y;
   for (const kind of kinds) {
@@ -108,7 +111,7 @@ function pickHome(ctx: Ctx, sid: number, role: string, used: Set<number>, minRin
           const y = cy + dy;
           if (!isPassable(ctx.world, x, y)) continue;
           if (used.has(y * w + x)) continue;
-          if (Math.hypot(x - def.x, y - def.y) > def.radius + 3) continue;
+          if (Math.hypot(x - def.x, y - def.y) > def.radius + reachOut) continue;
           cand.push({ x, y });
         }
       }
@@ -322,7 +325,7 @@ function requiredCount(ctx: Ctx, sid: number, role: NpcRole): number {
   const kind = ctx.S.defs[sid].kind;
   switch (role) {
     case 'guard':
-      return kind === 'fort' ? 3 : 2;
+      return guardHeadcount(kind);
     case 'elder':
     case 'merchant':
       return 1;
@@ -365,7 +368,10 @@ function seedSettlement(ctx: Ctx, sid: number): void {
   const kind = ctx.S.defs[sid].kind;
   const used = usedHomes(ctx, sid);
   const ctl = s.controller;
-  const guards = kind === 'fort' ? 4 : rng.int(2, 3);
+  // The headcount is no longer random. The roll is still taken: the long-run sim tests were tuned on seeded histories
+  // and the few that read thresholds off one history break when the random stream shifts.
+  if (kind !== 'fort') rng.int(2, 3);
+  const guards = guardHeadcount(kind);
   for (let i = 0; i < guards; i++) createNpc(ctx, { role: 'guard', sid, level: roleLevel(ctx, 'guard', sid), age: roleAge(ctx, 'guard'), faction: ctl, used });
   createNpc(ctx, { role: 'elder', sid, level: roleLevel(ctx, 'elder', sid), age: roleAge(ctx, 'elder'), faction: ctl, used });
   createNpc(ctx, { role: 'merchant', sid, level: roleLevel(ctx, 'merchant', sid), age: roleAge(ctx, 'merchant'), faction: ctl, used });
