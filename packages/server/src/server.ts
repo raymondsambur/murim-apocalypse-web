@@ -15,7 +15,7 @@ import { openDb, type Db } from './db';
 import { CharacterService } from './game/chargen';
 import { Game } from './game/context';
 import { createLogger, type Logger } from './game/log';
-import { relocateCharactersIfWorldChanged } from './game/worldmigrate';
+import { relocateCharactersIfWorldChanged, simFitsWorld, worldSignature } from './game/worldmigrate';
 import { Persistence, SIM_SNAPSHOT_KEY, SIM_STUB_SNAPSHOT_KEY, loadSimSnapshot } from './game/persist';
 import { Runtime } from './game/runtime';
 import { buildHttp } from './http';
@@ -91,6 +91,19 @@ function bootSim(create: CreateSim, kind: 'real' | 'stub', world: WorldData, db:
   const { worldSeed: seed, hourMs } = config;
   const t = now();
   let snap = loadSimSnapshot(db, snapshotKey, seed, log);
+  // A snapshot saved for another map layout would put NPCs, blight and boards in the wrong places: set it aside.
+  const sigKey = `${snapshotKey}.world_sig`;
+  const sig = worldSignature(world);
+  if (snap) {
+    const storedSig = db.kvGet(sigKey);
+    if (storedSig ? storedSig !== sig : !simFitsWorld(world, snap.saved)) {
+      log.warn('the saved world was made for a different map layout; backing it up and starting a fresh world (accounts and characters are kept)');
+      db.kvSet(`${snapshotKey}.stale.${t}`, db.kvGet(snapshotKey) ?? '');
+      db.kvDelete(snapshotKey);
+      snap = null;
+    }
+  }
+  db.kvSet(sigKey, sig);
   let sim: Sim;
   try {
     sim = create(world, { seed, hourMs, nowMs: snap?.savedAt ?? t, saved: snap?.saved ?? null });
