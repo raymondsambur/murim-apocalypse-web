@@ -56,6 +56,10 @@ export class Battle {
   readonly name: string;
   phase: BattlePhase = 'march';
   waveNo = 0;
+  /** Waves of this battle that were driven off (the final wave does not count: the sim decides that one). */
+  repelled = 0;
+  /** True once a strong defence has asked the sim to end the siege early. */
+  endedEarly = false;
   /** The current (or last) wave is the one the sim's end will find at the gate. */
   final = false;
   outcome: Outcome | null = null;
@@ -736,6 +740,7 @@ export class Battle {
 
   private endWave(now: number): void {
     const ctx = this.ctx;
+    if (!this.final) this.repelled++;
     this.phase = 'lull';
     this.nextWaveAt = now + ctx.rng.int(T.lullMs[0], T.lullMs[1]);
     for (const u of this.def) {
@@ -752,11 +757,26 @@ export class Battle {
     this.shout(now, this.def.find((u) => isLive(u) && u.kind !== 'militia'), WIN_SHOUTS);
     this.sendPhase(now, 'march');
     this.sortie(now);
+    this.breakRaidersIfRepelled();
+  }
+
+  /** A strong defence that has driven off enough waves breaks the raid: the strength drops to nothing and the sim ends the siege (a certain hold) at the next world hour. */
+  private breakRaidersIfRepelled(): void {
+    if (this.endedEarly || this.final || this.repelled < T.earlyWaves) return;
+    this.refresh();
+    if (this.pHold < T.earlyHold) return;
+    const s = this.ctx.sim.state.settlements[this.sid];
+    if (!s || s.siegeUntil <= 0) return;
+    this.endedEarly = true;
+    s.siegeStrength = 0;
+    s.siegeUntil = this.ctx.sim.clock().totalHours;
   }
 
   private stepLull(now: number): void {
     const left = this.hoursLeft(now);
-    if (now >= this.nextWaveAt || left <= T.finalLeadHours) {
+    // The last wave is kept for the end of the siege: after `maxWaves - 1` waves the raiders regroup out of sight.
+    const capped = this.waveNo >= T.maxWaves - 1;
+    if ((now >= this.nextWaveAt && !capped && !this.endedEarly) || (left <= T.finalLeadHours && !this.endedEarly)) {
       this.final = left <= T.finalLeadHours;
       this.spawnWave(now, false);
     }

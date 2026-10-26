@@ -665,3 +665,89 @@ describe('determinism and mercy', () => {
     }
   });
 });
+
+/** The battle's private wave state, for steering it in a test without waiting minutes of real time. */
+interface WaveState {
+  waveNo: number;
+  repelled: number;
+  phase: string;
+  nextWaveAt: number;
+  endWave(now: number): void;
+}
+
+describe('waves are capped and a strong defence ends the siege early', () => {
+  const start = (strength: number, defense: number, hours: number) => {
+    const s = mk();
+    s.h.join('Watcher', standNear(s, 0));
+    s.h.tick(3);
+    setOdds(s, 0, defense, strength);
+    besiege(s, 0, 'blackwind', strength, hours);
+    setOdds(s, 0, defense, strength);
+    s.siege.scan();
+    const b = s.siege.battles.get(0)!;
+    return { s, b, w: b as unknown as WaveState, st: s.ctx.sim.state.settlements[0] };
+  };
+
+  it('sends another wave after a lull while the cap is not reached', () => {
+    const { s, b, w } = start(62, 50, 30);
+    w.waveNo = 1;
+    w.phase = 'lull';
+    w.nextWaveAt = 0;
+    s.h.tick(5);
+    expect(b.waveNo).toBe(2);
+  });
+
+  it('sends no further wave once maxWaves - 1 waves have come, however long the siege has left', () => {
+    const { s, b, w } = start(62, 50, 30);
+    w.waveNo = T.maxWaves - 1;
+    w.phase = 'lull';
+    w.nextWaveAt = 0;
+    s.h.tick(150);
+    expect(b.waveNo).toBe(T.maxWaves - 1);
+    expect(b.phase).toBe('lull');
+  });
+
+  it('still sends the final wave when the end of the siege is near, even after the cap', () => {
+    const { s, b, w } = start(62, 50, 2);
+    w.waveNo = T.maxWaves - 1;
+    w.phase = 'lull';
+    w.nextWaveAt = 0;
+    s.h.hours(1); // less than finalLeadHours of the siege are left
+    s.h.tick(5);
+    expect(b.waveNo).toBeGreaterThanOrEqual(T.maxWaves);
+    expect(b.final).toBe(true);
+  });
+
+  it('a strong defence that repelled enough waves breaks the raiders: strength 0, the siege ends at the next hour as a hold', () => {
+    const { s, b, w, st } = start(30, 90, 30);
+    expect(holdChance(90, 0, 30)).toBeGreaterThan(T.earlyHold);
+    w.repelled = T.earlyWaves - 1;
+    w.endWave(s.ctx.now());
+    expect(b.endedEarly).toBe(true);
+    expect(st.siegeStrength).toBe(0);
+    expect(st.siegeUntil).toBeLessThanOrEqual(s.ctx.sim.clock().totalHours);
+    s.h.hours(1);
+    expect(st.siegeUntil).toBe(0);
+    // The sim rolled at the first hour boundary; the finale (a hold) may already have played out and been cleaned up.
+    expect(b.outcome).toBe('held');
+    expect(['finale', 'done']).toContain(b.phase);
+    expect(b.waveNo).toBeLessThanOrEqual(T.maxWaves - 1);
+  });
+
+  it('a weak defence is not let off: after the same waves the siege still runs to its end', () => {
+    const { s, b, w, st } = start(62, 50, 30);
+    w.repelled = T.earlyWaves - 1;
+    w.endWave(s.ctx.now());
+    expect(b.endedEarly).toBe(false);
+    expect(st.siegeStrength).toBe(62);
+    expect(st.siegeUntil).toBeGreaterThan(s.ctx.sim.clock().totalHours + 20);
+  });
+
+  it('too few repelled waves are not enough, even for a strong defence', () => {
+    const { s, b, w, st } = start(30, 90, 30);
+    w.repelled = 0;
+    w.endWave(s.ctx.now());
+    expect(b.endedEarly).toBe(false);
+    expect(st.siegeStrength).toBe(30);
+  });
+});

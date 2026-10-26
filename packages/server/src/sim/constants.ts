@@ -93,7 +93,8 @@ export const SETTLE = {
   siegeBlight: 8,
   siegeBlightSpan: 40,
   siegeDailyCap: 0.45,
-  siegeHours: [16, 30] as [number, number],
+  /** A Blight siege lasts this many world hours (a visible battle plays out in a few waves, see siege/tuning.ts). */
+  siegeHours: [4, 8] as [number, number],
   siegeCooldownDays: 6,
   /** The starting village cannot be besieged by the Blight before this many days. */
   startGraceDays: 150,
@@ -184,6 +185,8 @@ export const FACT = {
   exileRaidBonus: 6,
   /** Siege strength of a raid = power x this range (+ wealth bonus). */
   raidStrength: [0.7, 1.2] as [number, number],
+  /** A faction raid lasts this many world hours. */
+  raidHours: [4, 8] as [number, number],
   powerFloor: 5,
   relationDrift: 0.02,
   warDeclare: -60,

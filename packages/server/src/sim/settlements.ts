@@ -270,6 +270,8 @@ export function settlementsHourly(ctx: Ctx): void {
     s.blight = settlementBlight(ctx, s.id);
     if (s.status === 'fallen') continue;
     s.defense = clamp(s.defense + (defenseTarget(ctx, s) - s.defense) * SETTLE.defenseRelax, 0, 100);
+    // Defenders (and players) who have worn the attackers down to nothing end the siege at once: a certain hold.
+    if (s.siegeUntil > now && s.siegeBy !== null && s.siegeStrength <= 0) s.siegeUntil = now;
     if (s.siegeUntil > 0 && now >= s.siegeUntil) {
       endSiege(ctx, s);
       continue;

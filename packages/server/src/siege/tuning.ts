@@ -102,6 +102,11 @@ export const SIEGE_TUNING = {
   lateJoinHours: 0.5,
   /** Gap between waves comes from `lullMs`; waves shrink as the strength falls. */
   waveMinUnits: 4,
+  /** At most this many waves, the last one being the final wave (so `maxWaves - 1` ordinary waves, then a quiet wait). */
+  maxWaves: 4,
+  /** A strong defence ends the siege early: after this many repelled waves, if the hold chance is at least `earlyHold`, the raiders break. */
+  earlyWaves: 3,
+  earlyHold: 0.7,
 
   // ---- players taking part -------------------------------------------------------------------
   /** Each raider a player kills lowers the siege strength by this much more than the sim does (per kill, x(1 + elite)). */

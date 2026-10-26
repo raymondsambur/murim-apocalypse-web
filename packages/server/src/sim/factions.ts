@@ -406,7 +406,7 @@ function startRaid(ctx: Ctx, f: FactionState, sid: number): void {
   f.power = round1(Math.max(FACT.powerFloor, f.power - 1.5));
   ctx.st.ext.stats.raids = (ctx.st.ext.stats.raids ?? 0) + 1;
   if (s.controller) bump(ctx, f.id, s.controller, -8);
-  startSiege(ctx, s, f.id, strength, ctx.rng.int(18, 36));
+  startSiege(ctx, s, f.id, strength, ctx.rng.int(FACT.raidHours[0], FACT.raidHours[1]));
   // Allies of the defender rush to help.
   const def = getFaction(ctx, s.controller);
   if (def) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FACTIONS } from '@murim/shared';
-import { PROD_SEED, makeSim, runDays, stateOf, worldFor } from './testkit';
+import { PROD_SEED, makeSim, runDays, runHours, stateOf, worldFor } from './testkit';
 
 describe('initial holdings', () => {
   it('assigns controllers by faction home kind; the starting village is independent; the ruin is fallen', () => {
@@ -177,5 +177,51 @@ describe('long-run behaviour', () => {
         expect(s.siegeBy ?? null).toBeNull();
       }
     }
+  });
+});
+
+describe('short sieges', () => {
+  it('raids and Blight sieges last 4 to 8 world hours, never longer', () => {
+    const sim = makeSim(PROD_SEED);
+    const st = stateOf(sim);
+    let longest = 0;
+    let started = 0;
+    for (let h = 0; h < 120 * 24; h++) {
+      const ev = runHours(sim, 1);
+      started += ev.filter((e) => e.k === 'siege' && e.start).length;
+      for (const s of st.settlements) if (s.siegeUntil > st.clock.totalHours) longest = Math.max(longest, s.siegeUntil - st.clock.totalHours);
+    }
+    expect(started).toBeGreaterThan(5);
+    expect(longest).toBeGreaterThan(0);
+    expect(longest).toBeLessThanOrEqual(8);
+  });
+
+  it('a siege whose strength was worn down to nothing ends at the next world hour, as a hold', () => {
+    const sim = makeSim(PROD_SEED);
+    const st = stateOf(sim);
+    const s = st.settlements[2];
+    expect(s.status).not.toBe('fallen');
+    s.siegeUntil = st.clock.totalHours + 30;
+    s.siegeBy = 'blackwind';
+    s.siegeStrength = 0;
+    s.status = 'besieged';
+    const ev = runHours(sim, 1);
+    expect(s.siegeUntil).toBe(0);
+    expect(s.siegeBy ?? null).toBeNull();
+    expect(s.status).not.toBe('fallen');
+    expect(ev.some((e) => e.k === 'siege' && !e.start && e.settlementId === 2)).toBe(true);
+  });
+
+  it('a siege with strength left runs on as before', () => {
+    const sim = makeSim(PROD_SEED);
+    const st = stateOf(sim);
+    const s = st.settlements[2];
+    s.siegeUntil = st.clock.totalHours + 30;
+    s.siegeBy = 'blackwind';
+    s.siegeStrength = 25;
+    s.status = 'besieged';
+    runHours(sim, 1);
+    expect(s.siegeUntil).toBeGreaterThan(st.clock.totalHours);
+    expect(s.siegeStrength).toBe(25);
   });
 });
