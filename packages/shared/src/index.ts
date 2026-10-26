@@ -8,6 +8,7 @@ export * from './stats';
 export * from './pathfinding';
 export * from './worldgrid';
 export * from './worldgen';
+export * from './townlayout';
 export * from './guardplan';
 export * from './landmarks';
 export * from './combat';

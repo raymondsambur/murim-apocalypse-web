@@ -37,8 +37,13 @@ if (process.argv[2] === 'crop') {
       let ch = CHR[wd.terrain[i]] ?? '?';
       if (o === O.Building) {
         const b = wd.buildings.find((bb) => x >= bb.x && x < bb.x + bb.w && y >= bb.y && y < bb.y + bb.d);
-        ch = b ? ({ house: 'H', inn: 'I', smithy: 'S', alchemy: 'A', market: 'K', shrine: 'R', pagoda: 'G', hall: 'L', dojo: 'D', farmhouse: 'F', herbHut: 'E', tower: 'O', barracks: 'Q', ruinedHouse: 'X', warehouse: 'V', teahouse: 'C' } as Record<string, string>)[b.kind] ?? 'H' : 'H';
+        ch = b ? ({ house: 'H', inn: 'I', smithy: 'S', alchemy: 'A', market: 'K', shrine: 'R', pagoda: 'G', hall: 'L', dojo: 'D', farmhouse: 'F', herbHut: 'E', tower: 'O', barracks: 'Q', ruinedHouse: 'X', warehouse: 'V', teahouse: 'C', hermitage: 'M' } as Record<string, string>)[b.kind] ?? 'H' : 'H';
       } else if (o === O.Wall) ch = 'W';
+      else if (o === O.Palisade) ch = '|';
+      else if (o === O.Fence) ch = ':';
+      else if (o === O.Well) ch = 'U';
+      else if (o === O.Lantern) ch = 'l';
+      else if (o === O.Flowers || o === O.Bush) ch = '*';
       else if (o === O.Pine || o === O.Oak || o === O.Bamboo) ch = 'T';
       else if (o === O.Boulder) ch = 'o';
       lines.push;

@@ -57,14 +57,22 @@ export const O = {
   Bones: 8,
   Flowers: 9,
   Banner: 10,
+  /** A village well (blocks). */
+  Well: 11,
+  /** A stone street lantern (decoration, walkable). */
+  Lantern: 12,
   /** Tile occupied by a building footprint. */
   Building: 200,
-  /** Wall segment (forts). */
+  /** Wall segment (forts, sect halls). */
   Wall: 201,
+  /** Timber palisade segment (walled towns), connects like a wall. */
+  Palisade: 202,
+  /** Low rail fence segment (hamlets, villages), connects like a wall. */
+  Fence: 203,
 } as const;
 
 export function objectBlocks(o: number): boolean {
-  return o === O.Pine || o === O.Oak || o === O.Bamboo || o === O.Boulder || o === O.DeadTree || o === O.Building || o === O.Wall;
+  return o === O.Pine || o === O.Oak || o === O.Bamboo || o === O.Boulder || o === O.DeadTree || o === O.Building || o === O.Wall || o === O.Palisade || o === O.Fence || o === O.Well;
 }
 
 export type BuildingKind =
@@ -126,6 +134,8 @@ export interface SettlementDef {
   buildingIds: number[];
   sites: WorkSiteDef[];
   population: number;
+  /** Street layout archetype (see townlayout.ts); absent for ruins. */
+  layout?: string;
 }
 
 export type MonsterFamily = 'beast' | 'bandit' | 'blight';
