@@ -2,9 +2,25 @@ import type { CharacterSave, WorldData } from '@murim/shared';
 import type { Db } from '../db';
 import type { Logger } from './log';
 
-/** Identifies the generated world layout: seed, size and where the towns are. */
+/** 32-bit FNV-1a hash of a string, as hex. */
+function fnv(s: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+/**
+ * Identifies the generated world layout: seed, size, where the towns are and what stands in them (the kind and
+ * position of every building). A town redesign that keeps the town centres in place still changes the signature,
+ * so the saved world (NPC homes, rosters) is not carried over to a layout it was not made for.
+ */
 export function worldSignature(world: WorldData): string {
-  return `${world.seed}:${world.w}x${world.h}:${world.settlements.map((s) => `${s.x},${s.y}`).join(';')}`;
+  const towns = world.settlements.map((s) => `${s.x},${s.y}`).join(';');
+  const buildings = fnv(world.buildings.map((b) => `${b.kind}:${b.x},${b.y}`).join(';'));
+  return `${world.seed}:${world.w}x${world.h}:${towns}:b${world.buildings.length}-${buildings}`;
 }
 
 /** How far past a town's radius a saved NPC home may lie before it counts as "not in this town". */

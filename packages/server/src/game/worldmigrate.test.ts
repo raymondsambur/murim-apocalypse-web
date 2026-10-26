@@ -58,6 +58,22 @@ describe('relocateCharactersIfWorldChanged', () => {
   });
 });
 
+describe('worldSignature', () => {
+  it('is stable for one world and changes when a building changes, even if every town stays where it is', () => {
+    const a = generateWorld(1337);
+    const b = generateWorld(1337);
+    expect(worldSignature(a)).toBe(worldSignature(b));
+    const moved = generateWorld(1337);
+    moved.buildings[0] = { ...moved.buildings[0], x: moved.buildings[0].x + 1 };
+    expect(worldSignature(moved)).not.toBe(worldSignature(a));
+    const added = generateWorld(1337);
+    added.buildings.push({ ...added.buildings[0], id: added.buildings.length });
+    expect(worldSignature(added)).not.toBe(worldSignature(a));
+    // The town centres are untouched in both variants.
+    expect(moved.settlements.map((s) => [s.x, s.y])).toEqual(a.settlements.map((s) => [s.x, s.y]));
+  });
+});
+
 describe('simFitsWorld', () => {
   const world = generateWorld(1337);
   const npcsAt = (home: (sid: number) => { x: number; y: number }) =>
