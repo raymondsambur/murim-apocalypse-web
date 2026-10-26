@@ -20,6 +20,7 @@ import {
   stackValue,
   type AffixKey,
   type GearBonus,
+  type ItemDef,
   type ItemStack,
   type PassiveBonus,
   type SkillDef,
@@ -40,6 +41,9 @@ export interface TipLine {
 export interface TipModel {
   /** Icon name (see ui/icons.ts). */
   glyph: string;
+  /** For items: the definition and rarity, so the tooltip can show the pixel-art icon instead of the vector glyph. */
+  item?: ItemDef;
+  itemRarity?: number;
   glyphColor: string;
   title: string;
   titleColor: string;
@@ -159,6 +163,8 @@ export function itemTipModel(stack: ItemStack, opts: ItemTipOptions = {}): TipMo
   }
   return {
     glyph: itemIconName(def),
+    item: def,
+    itemRarity: r,
     glyphColor: def.color,
     title: def.name,
     titleColor: equip ? RARITY_COLORS[r] : NEUTRAL,
