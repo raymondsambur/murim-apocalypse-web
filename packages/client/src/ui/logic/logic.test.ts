@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActiveMission, CombatView, EntityView, ItemStack, MeView, MissionOffer, NpcMenu } from '@murim/shared';
+import type { ActiveMission, BuildingDef, CombatView, EntityView, ItemStack, MeView, MissionOffer, NpcMenu, SettlementDef } from '@murim/shared';
 import type { ConnInfo } from '../../net/socket';
 import type { ChatLine, ChatTabState, Invite } from '../../state/store';
 import { breakthroughStatus, inventoryCount } from './breakthrough';
@@ -10,6 +10,7 @@ import { contextActions, entityKindKey, quickAction, type ActionContext } from '
 import { freeSlots, nextSortMode, reconcileSelection, sortOrder, stackActions } from './inventory';
 import { INVITE_TTL_MS, inviteReplies, isExpired } from './invites';
 import { buyList, maxBuy, npcTabs, offerGate, sellList, turnInMissions } from './npc';
+import { LANDMARK_ICON, nearbyLandmarks } from './world';
 
 const ctx: ActionContext = { selfId: 1, selfDead: false, inCombat: false, sectRole: null };
 const ent = (o: Partial<EntityView>): EntityView => ({ id: 9, kind: 'npc', name: 'X', x: 0, y: 0, face: 0, state: 'idle', ...o });
@@ -257,5 +258,41 @@ describe('combat view helpers', () => {
     expect(hasReward({ xp: 1, gold: 0, items: [] })).toBe(true);
     expect(hasReward(undefined)).toBe(false);
     expect(bannerSeconds('win')).toBeLessThan(bannerSeconds('lose'));
+  });
+});
+
+describe('landmark rows for the World panel', () => {
+  const set = (id: number, kind: SettlementDef['kind'], x: number, y: number, radius = 12): SettlementDef => ({ id, name: `Town ${id}`, kind, x, y, radius, climate: 1, spawn: { x, y }, buildingIds: [], sites: [], population: 5 });
+  const b = (id: number, kind: BuildingDef['kind'], sid: number, x: number, y: number): BuildingDef => ({ id, kind, x, y, w: 3, d: 3, settlementId: sid, door: { x: x + 1, y: y + 3 } });
+  const world = {
+    settlements: [set(0, 'village', 50, 50), set(1, 'town', 150, 50), set(2, 'ruin', 100, 100)],
+    buildings: [b(0, 'inn', 0, 52, 40), b(1, 'smithy', 0, 44, 55), b(2, 'house', 0, 48, 48), b(3, 'shrine', 1, 150, 40), b(4, 'hermitage', 1, 170, 60)],
+    roads: [[0, 1]] as [number, number][],
+  };
+
+  it('picks the nearest living settlement (a ruin never counts) and lists its landmarks nearest first', () => {
+    const here = nearbyLandmarks(world, 50, 52)!;
+    expect(here.settlement.id).toBe(0);
+    expect(here.inside).toBe(true);
+    expect(here.away).toBe(0);
+    const kinds = here.rows.map((r) => r.def.kind);
+    expect(kinds).toContain('inn');
+    expect(kinds).toContain('smithy');
+    expect(kinds).not.toContain('house');
+    for (let i = 1; i < here.rows.length; i++) expect(here.rows[i].dist).toBeGreaterThanOrEqual(here.rows[i - 1].dist);
+    // the ruin lies closer to this point than the town, but is skipped
+    const away = nearbyLandmarks(world, 105, 95)!;
+    expect(away.settlement.id).not.toBe(2);
+    expect(away.inside).toBe(false);
+    expect(away.away).toBeGreaterThan(0);
+  });
+
+  it('has an icon for every landmark kind, and the beacon kinds are the same as the list kinds', () => {
+    for (const k of Object.keys(LANDMARK_ICON)) expect(typeof LANDMARK_ICON[k as keyof typeof LANDMARK_ICON]).toBe('string');
+    expect(Object.keys(LANDMARK_ICON).sort()).toEqual(['alchemy', 'dojo', 'gate', 'hall', 'hermitage', 'inn', 'market', 'pagoda', 'shrine', 'smithy']);
+  });
+
+  it('returns null when there is nowhere to go', () => {
+    expect(nearbyLandmarks({ settlements: [set(0, 'ruin', 0, 0)], buildings: [], roads: [] }, 1, 1)).toBeNull();
   });
 });
