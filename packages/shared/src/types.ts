@@ -207,5 +207,4 @@ export interface CharacterSave {
   /** Counter for equipment uids (`c{charId}-s{n}`); see server systems/lib.ts `nextUid`. */
   uidSeq?: number;
   /** Timed blessings/buffs: key -> expiry (ms epoch), e.g. 'bless_blight'. */
-  buffs?: Record<string, number>;
-}
+  buffs?: Record<string, number>;}

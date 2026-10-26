@@ -15,6 +15,7 @@ import { openDb, type Db } from './db';
 import { CharacterService } from './game/chargen';
 import { Game } from './game/context';
 import { createLogger, type Logger } from './game/log';
+import { relocateCharactersIfWorldChanged } from './game/worldmigrate';
 import { Persistence, SIM_SNAPSHOT_KEY, SIM_STUB_SNAPSHOT_KEY, loadSimSnapshot } from './game/persist';
 import { Runtime } from './game/runtime';
 import { buildHttp } from './http';
@@ -131,6 +132,7 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
   let app: FastifyInstance | null = null;
   try {
     const world = generateWorld(config.worldSeed);
+    relocateCharactersIfWorldChanged(db, world, log, now());
     const { create, kind } = await loadCreateSim(config, log);
     const booted = bootSim(create, kind, world, db, config, log, now);
     const sim = booted.sim;
