@@ -140,6 +140,72 @@ export function stoneLantern(): Prop {
   return done(pb, 7, 24);
 }
 
+/** A small garden pine (about two persons tall at size 1): a bare trunk under stacked needle tiers. */
+export function gardenPine(size = 1, seed = 0): Prop {
+  const W = Math.round(26 * size);
+  const H = Math.round(58 * size);
+  const pb = new PixelBuffer(W, H);
+  const cx = W >> 1;
+  const base = H - 4;
+  const needles = ramp('#3d7048', 0.62, 1.3);
+  groundShadow(pb, cx + 2, base, 9 * size, 2.6 * size, 54);
+  const wood = ramp('#6a4a32', 0.7, 1.25);
+  pb.rect(cx - 1, base - Math.round(20 * size), 3, Math.round(21 * size), wood.b);
+  pb.rect(cx - 1, base - Math.round(20 * size), 1, Math.round(21 * size), wood.l);
+  const tiers = 5;
+  for (let k = 0; k < tiers; k++) {
+    // Lowest tier first: each is a drooping triangle of needles, the next one overlaps its top.
+    const t = k / (tiers - 1);
+    const half = (12.5 - t * 8.5) * size;
+    const bottom = base - (12 + k * 8.5) * size;
+    const top = bottom - (13 - k) * size;
+    for (let y = Math.floor(top); y <= Math.ceil(bottom); y++) {
+      const f = (y - top) / (bottom - top);
+      const hw = Math.max(0.6, half * f);
+      for (let x = Math.floor(cx - hw); x <= Math.ceil(cx + hw); x++) {
+        const nx = (x + 0.5 - cx) / hw;
+        if (Math.abs(nx) > 1) continue;
+        // ragged lower edge and a lit left flank
+        if (f > 0.82 && hf(x, y, seed + k) < 0.35 + (f - 0.82) * 3) continue;
+        let col = nx < -0.35 ? needles.l : nx > 0.45 ? needles.d : needles.b;
+        if (f > 0.7) col = nx < -0.2 ? needles.b : needles.d;
+        if (hf(x, y, 9 + seed) < 0.16) col = needles.dd;
+        pb.set(x, y, col);
+      }
+    }
+  }
+  return done(pb, cx, base);
+}
+
+/** A small stone altar with an incense bowl, an offering of fruit and a red cloth. */
+export function altar(): Prop {
+  const pb = new PixelBuffer(24, 26);
+  groundShadow(pb, 12, 23, 9, 2.6, 54);
+  pb.rect(4, 19, 16, 4, STONE.d);
+  pb.rect(4, 19, 16, 1, STONE.l);
+  pb.rect(6, 12, 12, 7, STONE.b);
+  pb.rect(6, 12, 12, 1, STONE.l);
+  pb.rect(6, 12, 2, 7, STONE.l);
+  pb.rect(16, 13, 2, 6, STONE.d);
+  pb.rect(5, 11, 14, 2, STONE.l);
+  // red cloth over the front
+  pb.rect(8, 13, 8, 5, hex('#a8302a'));
+  pb.rect(8, 13, 8, 1, hex('#c8483c'));
+  pb.rect(8, 17, 8, 1, hex('#7a2420'));
+  // incense bowl with a glowing tip and thin smoke
+  pb.rect(9, 8, 6, 3, hex('#4a4044'));
+  pb.rect(9, 8, 6, 1, hex('#6a6068'));
+  pb.set(11, 5, hex('#ffb347'));
+  pb.set(13, 6, hex('#ff8a3c'));
+  pb.set(11, 4, hex('#b8b0a8'));
+  pb.set(12, 2, hex('#b8b0a8'));
+  pb.set(11, 1, hex('#d8d0c8'));
+  // offering
+  pb.rect(16, 9, 3, 2, hex('#d9a24a'));
+  pb.set(17, 8, hex('#6aa043'));
+  return done(pb, 12, 23);
+}
+
 export function well(): Prop {
   const pb = new PixelBuffer(30, 34);
   groundShadow(pb, 16, 30, 11, 3, 54);
