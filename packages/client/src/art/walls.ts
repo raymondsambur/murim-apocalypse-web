@@ -120,3 +120,74 @@ export function genBridgeRails(axis: 0 | 1, season: number): TileSprite {
   void st;
   return { pb: sc.pb, ax: 17, ay: oy + 8 };
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Palisade and rail fence: lighter enclosures for towns, villages and hamlets (connected by neighbour mask like the wall)
+// ---------------------------------------------------------------------------------------------------------------------
+
+const LOG = hex('#7a5a3a');
+const LOG_D = hex('#5a4128');
+
+function logShader(base: ReturnType<typeof hex>, k: number): Shader {
+  return (_s, _t, lit, x, y) => lc(hf(x, y, 3) < 0.12 ? scale(base, 0.8 * k) : scale(base, k), lit);
+}
+
+/** Positions (u, v) along the arms of a tile, `step` apart, centre first. */
+function armPoints(mask: number, step: number): [number, number][] {
+  const pts: [number, number][] = [[0.5, 0.5]];
+  const n = Math.round(0.5 / step);
+  for (let i = 1; i <= n; i++) {
+    const d = i * step;
+    if (mask & W_NE) pts.push([0.5, 0.5 - d]);
+    if (mask & W_SE) pts.push([0.5 + d, 0.5]);
+    if (mask & W_SW) pts.push([0.5, 0.5 + d]);
+    if (mask & W_NW) pts.push([0.5 - d, 0.5]);
+  }
+  if (mask === 0) pts.push([0.3, 0.3], [0.7, 0.7]);
+  return pts;
+}
+
+/** A timber palisade tile: pointed logs with a rail across, about 1.4 persons tall. */
+export function genPalisadeTile(mask: number, season: number, variant = 0): TileSprite {
+  const H = 40;
+  const oy = H + 14;
+  const sc = new Scene3D(34, oy + 22, 17, oy);
+  const top: Shader = (_u, _v, lit, x, y) => (season === 3 && hf(x, y, 11) < 0.7 ? lc(SNOW, lit) : lc(scale(LOG, 1.1), lit));
+  const logs = armPoints(mask, 0.17);
+  logs.forEach(([u, v], i) => {
+    const h = H - 3 + Math.floor(hf(i, variant, 4) * 5);
+    sc.box(u - 0.075, v - 0.075, 0, u + 0.075, v + 0.075, h, top, logShader(LOG, 1), logShader(LOG, 0.78));
+    // the sharpened tip
+    sc.box(u - 0.045, v - 0.045, h, u + 0.045, v + 0.045, h + 5, top, logShader(LOG, 1.05), logShader(LOG, 0.82));
+  });
+  // a rail binding the logs, along every arm
+  const rail = (u0: number, v0: number, u1: number, v1: number) => sc.box(u0, v0, 20, u1, v1, 23, top, logShader(LOG_D, 1), logShader(LOG_D, 0.8));
+  const w = 0.045;
+  if (mask & W_NE) rail(0.5 - w, 0, 0.5 + w, 0.5);
+  if (mask & W_SE) rail(0.5, 0.5 - w, 1, 0.5 + w);
+  if (mask & W_SW) rail(0.5 - w, 0.5, 0.5 + w, 1);
+  if (mask & W_NW) rail(0, 0.5 - w, 0.5, 0.5 + w);
+  sc.pb.outline(undefined, 0.3);
+  return { pb: sc.pb, ax: 17, ay: oy + 8 };
+}
+
+/** A low rail fence tile: short posts and two rails, about 0.4 persons tall. */
+export function genFenceTile(mask: number, season: number, variant = 0): TileSprite {
+  const H = 12;
+  const oy = H + 8;
+  const sc = new Scene3D(34, oy + 22, 17, oy);
+  const top: Shader = (_u, _v, lit, x, y) => (season === 3 && hf(x, y, 11) < 0.6 ? lc(SNOW, lit) : lc(scale(LOG, 1.12), lit));
+  for (const [u, v] of armPoints(mask, 0.25)) {
+    sc.box(u - 0.05, v - 0.05, 0, u + 0.05, v + 0.05, H + Math.floor(hf(u * 10, v * 10 + variant, 2) * 2), top, logShader(LOG, 1), logShader(LOG, 0.78));
+  }
+  const rail = (z: number, u0: number, v0: number, u1: number, v1: number) => sc.box(u0, v0, z, u1, v1, z + 2, top, logShader(LOG, 0.95), logShader(LOG, 0.75));
+  const w = 0.025;
+  for (const z of [4, 8]) {
+    if (mask & W_NE) rail(z, 0.5 - w, 0, 0.5 + w, 0.5);
+    if (mask & W_SE) rail(z, 0.5, 0.5 - w, 1, 0.5 + w);
+    if (mask & W_SW) rail(z, 0.5 - w, 0.5, 0.5 + w, 1);
+    if (mask & W_NW) rail(z, 0, 0.5 - w, 0.5, 0.5 + w);
+  }
+  sc.pb.outline(undefined, 0.3);
+  return { pb: sc.pb, ax: 17, ay: oy + 8 };
+}

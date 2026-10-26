@@ -4,7 +4,7 @@
  */
 import type { BuildingDef, BuildingKind, SettlementDef } from './terrain';
 
-export type LandmarkKind = 'inn' | 'market' | 'smithy' | 'alchemy' | 'shrine' | 'dojo' | 'hall' | 'pagoda' | 'hermitage' | 'gate';
+export type LandmarkKind = 'inn' | 'market' | 'smithy' | 'alchemy' | 'shrine' | 'dojo' | 'hall' | 'pagoda' | 'hermitage' | 'barracks' | 'gate';
 
 export const LANDMARK_LABEL: Record<LandmarkKind, string> = {
   inn: 'Inn',
@@ -16,10 +16,11 @@ export const LANDMARK_LABEL: Record<LandmarkKind, string> = {
   hall: 'Hall',
   pagoda: 'Pagoda',
   hermitage: 'Hermitage',
+  barracks: 'Barracks',
   gate: 'Gate',
 };
 
-/** Which building kinds are landmarks (everything but plain houses, huts and mine mouths). */
+/** Which building kinds are landmarks (everything but plain houses, huts, warehouses and mine mouths). */
 const BUILDING_LANDMARK: Partial<Record<BuildingKind, LandmarkKind>> = {
   inn: 'inn',
   market: 'market',
@@ -30,6 +31,7 @@ const BUILDING_LANDMARK: Partial<Record<BuildingKind, LandmarkKind>> = {
   hall: 'hall',
   pagoda: 'pagoda',
   hermitage: 'hermitage',
+  barracks: 'barracks',
   gate: 'gate',
 };
 

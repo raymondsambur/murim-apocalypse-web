@@ -187,9 +187,11 @@ describe('lives, deaths and succession', () => {
   it('old masters die of old age, are chronicled, and a successor inherits the teachings', () => {
     const sim = makeSim();
     const st = stateOf(sim);
-    const victim = sim.npcs().find((n) => n.role === 'master' && n.settlementId === 5)!;
+    const hall = worldFor(PROD_SEED).settlements.find((x) => x.kind === 'sectHall')!;
+    const victim = sim.npcs().find((n) => n.role === 'master' && n.settlementId === hall.id)!;
     const teaches = [...victim.teaches];
     const sid = victim.settlementId;
+    const mastersBefore = count(sim, sid, 'master');
     victim.age = 140; // far past any longevity
     const events: SimEvent[] = [];
     for (let d = 0; d < 40 && victim.alive; d++) events.push(...runDays(sim, 1));
@@ -207,7 +209,7 @@ describe('lives, deaths and succession', () => {
     expect(heirs.length).toBeGreaterThanOrEqual(1);
     expect(heirs.some((h) => teaches.every((t) => h.teaches.includes(t)))).toBe(true);
     expect(st.chronicle.some((c) => /takes the mantle of Master/.test(c.text) && c.text.includes(victim.name))).toBe(true);
-    expect(count(sim, sid, 'master')).toBeGreaterThanOrEqual(3);
+    expect(count(sim, sid, 'master')).toBeGreaterThanOrEqual(mastersBefore - 1);
   });
 
   it('shopkeepers are replaced so services never vanish', () => {

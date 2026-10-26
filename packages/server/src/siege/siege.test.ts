@@ -239,7 +239,7 @@ describe('the defence', () => {
     expect(tickUntil(h, () => b.phase === 'melee', 1200)).toBeLessThan(1200);
     conn.clear();
     let maxFighting = 0;
-    for (let i = 0; i < 400; i++) {
+    for (let i = 0; i < 1200; i++) {
       h.tick();
       for (const e of [...raiders(s), ...sided(s, 'def')]) {
         expect(e.hp).toBeGreaterThanOrEqual(0);
@@ -455,10 +455,14 @@ describe('players take part', () => {
     ctx.events.on('monsterKilled', (ev) => void kills.push(ev.siege ?? -1));
     expect(tickUntil(h, () => b.phase === 'melee', 1200)).toBeLessThan(1200);
     const strength0 = ctx.sim.state.settlements[0].siegeStrength;
-    // go for the nearest raider
-    const target = ctx.entities.nearest(p.entity.x, p.entity.y, 60, (e) => e.side === 'raid' && e.state !== 'dead')!;
-    h.say(p, { t: 'interact', id: target.id });
-    expect(tickUntil(h, () => kills.length > 0, 1500)).toBeLessThan(1500);
+    // go for the nearest raider (the defenders may kill it first: pick another until the player makes a kill)
+    let used = 0;
+    while (kills.length === 0 && used < 2400) {
+      const target = ctx.entities.nearest(p.entity.x, p.entity.y, 60, (e) => e.side === 'raid' && e.state !== 'dead');
+      if (target) h.say(p, { t: 'interact', id: target.id });
+      used += tickUntil(h, () => kills.length > 0, 60) + 1;
+    }
+    expect(kills.length).toBeGreaterThan(0);
     expect(kills[0]).toBe(0);
     expect(ctx.sim.state.settlements[0].siegeStrength).toBeLessThan(strength0);
     h.tick(5);

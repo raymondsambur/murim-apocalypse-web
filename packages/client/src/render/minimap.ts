@@ -76,6 +76,10 @@ export class Minimap {
           r = 86;
           gg = 86;
           b = 94;
+        } else if (o === O.Palisade || o === O.Fence) {
+          r = 112;
+          gg = 88;
+          b = 60;
         } else if (o === O.Pine || o === O.Oak || o === O.Bamboo) {
           r *= 0.82;
           gg *= 0.9;

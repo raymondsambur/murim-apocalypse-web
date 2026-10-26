@@ -20,6 +20,7 @@ import {
 import { findPath, type PathGrid } from './pathfinding';
 import { dist, isPassable, reachableFrom } from './worldgrid';
 import { settlementName } from './data/names';
+import { FOOTPRINT, SPECS, pickArchetype, planTown } from './townlayout';
 
 /** Tuning knobs for terrain shape. */
 const SEA_DEEP = 0.3;
@@ -43,6 +44,8 @@ interface Ctx {
   settlements: SettlementDef[];
   nodes: ResourceNodeDef[];
   nextNodeId: number;
+  /** Ground set aside for a settlement that is built later (the fallen capital), as discs. */
+  reserved: { x: number; y: number; r: number }[];
 }
 
 const ix = (c: { w: number }, x: number, y: number) => y * c.w + x;
@@ -194,16 +197,27 @@ interface Cand {
   score: number;
 }
 
-function findCandidates(c: Ctx, loose: boolean): Cand[] {
-  const R = 10;
+function findCandidates(c: Ctx, loose: boolean, small = false): Cand[] {
+  // Towns are big now (radius up to 23 plus the cleared ring): look at a wider disc, keep clear of the map edge and
+  // insist that the four road axes leave over dry land.
+  // (`small` is for the fallen capital, which is just a few ruined houses: the old, lenient look.)
+  const R = small ? 10 : 14;
+  const EDGE = small ? 13 : 24;
+  const AXIS = 17;
   const out: Cand[] = [];
   // Settlements flatten their own ground, so only water/mountain coverage and extreme relief matter.
-  const maxBad = loose ? 80 : 36;
+  const maxBad = small ? (loose ? 80 : 36) : loose ? 170 : 90;
   const maxRange = loose ? 0.6 : 0.4;
-  for (let y = R + 3; y < c.h - R - 3; y += 3) {
-    for (let x = R + 3; x < c.w - R - 3; x += 3) {
+  for (let y = EDGE; y < c.h - EDGE; y += 3) {
+    for (let x = EDGE; x < c.w - EDGE; x += 3) {
       const t = c.terrain[ix(c, x, y)];
       if (t !== T.Grass && t !== T.Plains && t !== T.Forest) continue;
+      let dry = 0;
+      if (!small) for (const [ax, ay] of [[AXIS, 0], [-AXIS, 0], [0, AXIS], [0, -AXIS]] as const) {
+        const at = c.terrain[ix(c, x + ax, y + ay)];
+        if (TERRAIN_INFO[at].passable) dry++;
+      }
+      if (!small && dry < (loose ? 2 : 3)) continue;
       let bad = 0;
       let lo = 9;
       let hi = -9;
@@ -236,15 +250,24 @@ function pickSites(c: Ctx, cands: Cand[], count: number): Cand[] {
     }
   }
   const chosen = [start];
-  // Minimum distance between settlements (tiles); relaxed in steps only if the map cannot hold them all.
-  let sep = 60;
-  while (chosen.length < count && sep >= 30) {
+  // Settlements are squares now (up to 44 tiles across with their cleared ring), so keep the sites far enough apart
+  // that two of them never overlap: a Chebyshev separation of 66 tiles, relaxed in steps only if the map cannot hold
+  // them all (down to 44, then, as a last resort, to the old Euclidean 30 that lets layouts squeeze past each other).
+  const cheb = (a: Cand, b: Cand) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+  let sep = 66;
+  let euclid = false;
+  while (chosen.length < count && (euclid ? sep >= 30 : sep >= 44)) {
+    const dd = (k: Cand, s: Cand) => (euclid ? dist(s.x, s.y, k.x, k.y) : cheb(s, k));
     const scored = cands
-      .map((k) => ({ k, d: Math.min(...chosen.map((s) => dist(s.x, s.y, k.x, k.y))) }))
+      .map((k) => ({ k, d: Math.min(...chosen.map((s) => dd(k, s))) }))
       .filter((e) => e.d >= sep)
       .sort((a, b) => b.d - a.d);
     if (scored.length === 0) {
       sep -= 3;
+      if (!euclid && sep < 44) {
+        euclid = true;
+        sep = 44;
+      }
       continue;
     }
     chosen.push(c.rng.pick(scored.slice(0, Math.min(5, scored.length))).k);
@@ -262,53 +285,11 @@ function kindsFor(count: number): SettlementKind[] {
   return kinds;
 }
 
-interface Layout {
-  radius: number;
-  houses: number;
-  extra: BuildingKind[];
-  farms: number;
-  population: number;
-}
-
-const LAYOUTS: Record<SettlementKind, Layout> = {
-  village: { radius: 13, houses: 7, extra: ['inn', 'smithy', 'alchemy', 'market', 'shrine', 'dojo', 'herbHut'], farms: 2, population: 220 },
-  hamlet: { radius: 8, houses: 4, extra: ['farmhouse', 'herbHut', 'shrine'], farms: 1, population: 90 },
-  town: { radius: 14, houses: 12, extra: ['inn', 'inn', 'smithy', 'alchemy', 'market', 'market', 'teahouse', 'shrine', 'warehouse', 'dojo', 'herbHut'], farms: 2, population: 600 },
-  fort: { radius: 14, houses: 3, extra: ['barracks', 'barracks', 'barracks', 'smithy', 'market', 'inn', 'alchemy', 'dojo', 'shrine'], farms: 0, population: 320 },
-  sectHall: { radius: 13, houses: 5, extra: ['pagoda', 'hall', 'hall', 'dojo', 'dojo', 'alchemy', 'shrine', 'teahouse'], farms: 0, population: 260 },
-  ruin: { radius: 13, houses: 0, extra: [], farms: 0, population: 0 },
-};
-
-const FOOTPRINT: Record<BuildingKind, [number, number]> = {
-  house: [3, 3],
-  inn: [4, 4],
-  smithy: [3, 3],
-  alchemy: [3, 3],
-  market: [4, 3],
-  shrine: [2, 2],
-  pagoda: [5, 5],
-  hall: [4, 5],
-  dojo: [4, 4],
-  farmhouse: [3, 3],
-  herbHut: [2, 2],
-  mineEntrance: [2, 2],
-  tower: [2, 2],
-  gate: [3, 2],
-  barracks: [4, 3],
-  ruinedHouse: [3, 3],
-  warehouse: [4, 3],
-  teahouse: [3, 3],
-  hermitage: [3, 3],
-};
-
-/** Kinds every settlement of a layout must end up with: placement is retried on wider ground if they did not fit. */
-const MUST_PLACE: readonly BuildingKind[] = ['dojo', 'shrine'];
-
 /** Settlement kinds with a hermitage for their legends, a few tiles beyond the ring. */
 const HERMITAGE_KINDS: ReadonlySet<SettlementKind> = new Set(['town', 'sectHall', 'fort']);
 
 /** Buildings people look for: their entrances stay free of trees and rocks. */
-const KEY_KINDS: ReadonlySet<BuildingKind> = new Set(['inn', 'market', 'smithy', 'alchemy', 'shrine', 'dojo', 'hall', 'pagoda', 'hermitage', 'teahouse', 'gate']);
+const KEY_KINDS: ReadonlySet<BuildingKind> = new Set(['inn', 'market', 'smithy', 'alchemy', 'shrine', 'dojo', 'hall', 'pagoda', 'hermitage', 'teahouse', 'barracks', 'gate']);
 
 function setLand(c: Ctx, x: number, y: number, t: number): void {
   if (!inB(c, x, y)) return;
@@ -347,9 +328,14 @@ function localGrid(c: Ctx): PathGrid {
   };
 }
 
-function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, name: string): SettlementDef {
-  const L = LAYOUTS[kind];
-  const R = L.radius;
+/** Where the trade road leaves a site: the axis towards the nearest other site. */
+interface SiteHint {
+  mainAxis: 'x' | 'y';
+}
+
+function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, name: string, hint: SiteHint): SettlementDef {
+  const spec = SPECS[kind];
+  const R = spec.radius;
   const cx = site.x;
   const cy = site.y;
   const rng = c.rng.fork(1000 + id);
@@ -364,7 +350,7 @@ function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, n
     spawn: { x: cx, y: cy + 3 },
     buildingIds: [],
     sites: [],
-    population: L.population,
+    population: spec.population,
   };
 
   // Clear the ground.
@@ -372,7 +358,12 @@ function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, n
     for (let dx = -R - 2; dx <= R + 2; dx++) {
       const x = cx + dx;
       const y = cy + dy;
-      if (!inB(c, x, y) || dx * dx + dy * dy > (R + 2) * (R + 2)) continue;
+      // living settlements clear a square (their enclosure is square), a ruin a disc
+      if (!inB(c, x, y) || (kind === 'ruin' && dx * dx + dy * dy > (R + 2) * (R + 2))) continue;
+      // never wipe the ground of a settlement that is already there (a ruin may sit close to its frontier town)
+      if (inSettlement(c, x, y, 2)) continue;
+      // ... nor a hermitage or anything else already standing
+      if (c.objects[ix(c, x, y)] === O.Building) continue;
       const i = ix(c, x, y);
       if (!TERRAIN_INFO[c.terrain[i]].passable && c.terrain[i] !== T.Water) {
         if (c.terrain[i] === T.Rock || isWaterT(c.terrain[i])) continue;
@@ -383,120 +374,10 @@ function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, n
     }
   }
 
-  // Fort walls.
-  if (kind === 'fort') {
-    const wr = R - 1;
-    for (let d = -wr; d <= wr; d++) {
-      for (const [x, y] of [
-        [cx + d, cy - wr],
-        [cx + d, cy + wr],
-        [cx - wr, cy + d],
-        [cx + wr, cy + d],
-      ] as const) {
-        if (!inB(c, x, y)) continue;
-        const gate = Math.abs(x - cx) <= 1 && (y === cy - wr || y === cy + wr);
-        const gate2 = Math.abs(y - cy) <= 1 && (x === cx - wr || x === cx + wr);
-        if (gate || gate2) {
-          c.terrain[ix(c, x, y)] = T.Road;
-          c.objects[ix(c, x, y)] = O.None;
-        } else {
-          c.objects[ix(c, x, y)] = O.Wall;
-          if (c.terrain[ix(c, x, y)] === T.Water) c.terrain[ix(c, x, y)] = T.Grass;
-        }
-      }
-    }
-  }
-
-  // Cross roads and plaza.
-  const road = kind === 'ruin' ? T.Dirt : T.Road;
-  for (let d = -R - 1; d <= R + 1; d++) {
-    for (const [x, y] of [
-      [cx + d, cy],
-      [cx, cy + d],
-    ] as const) {
-      if (!inB(c, x, y)) continue;
-      const t = c.terrain[ix(c, x, y)];
-      if (t === T.Water || t === T.DeepWater || t === T.Rock) continue;
-      c.terrain[ix(c, x, y)] = road;
-      if (c.objects[ix(c, x, y)] !== O.Wall) c.objects[ix(c, x, y)] = O.None;
-    }
-  }
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (kind !== 'ruin') setLand(c, cx + dx, cy + dy, T.Plaza);
-  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) c.objects[ix(c, cx + dx, cy + dy)] = O.None;
-
-  // Buildings.
-  const placed: BuildingDef[] = [];
-  const queue: BuildingKind[] = [];
-  if (kind === 'ruin') for (let k = 0; k < 13; k++) queue.push('ruinedHouse');
-  else {
-    for (const e of L.extra) queue.push(e);
-    for (let k = 0; k < L.houses; k++) queue.push('house');
-  }
-  queue.sort((a, b) => FOOTPRINT[b][0] * FOOTPRINT[b][1] - FOOTPRINT[a][0] * FOOTPRINT[a][1]);
-  const inner = kind === 'fort' ? R - 3 : R - 1;
-  const tryPlace = (bk: BuildingKind, reach: number, attempts: number): boolean => {
-    const [bw, bd] = FOOTPRINT[bk];
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      const ang = rng.next() * Math.PI * 2;
-      const rad = 4 + rng.next() * (reach - 3);
-      const bx = Math.round(cx + Math.cos(ang) * rad - bw / 2);
-      const by = Math.round(cy + Math.sin(ang) * rad - bd / 2);
-      // Keep the cross roads and plaza clear.
-      if (Math.abs(bx + bw / 2 - cx) < bw / 2 + 1.6 || Math.abs(by + bd / 2 - cy) < bd / 2 + 1.6) continue;
-      if (Math.max(Math.abs(bx - cx), Math.abs(by - cy), Math.abs(bx + bw - cx), Math.abs(by + bd - cy)) > reach) continue;
-      if (!rectFree(c, placed, bx, by, bw, bd, 1)) continue;
-      const door = { x: bx + (bw >> 1), y: by + bd };
-      if (!inB(c, door.x, door.y) || !TERRAIN_INFO[c.terrain[ix(c, door.x, door.y)]].passable) continue;
-      const b: BuildingDef = { id: c.buildings.length, kind: bk, x: bx, y: by, w: bw, d: bd, settlementId: id, door };
-      c.buildings.push(b);
-      placed.push(b);
-      def.buildingIds.push(b.id);
-      for (let yy = by; yy < by + bd; yy++) for (let xx = bx; xx < bx + bw; xx++) c.objects[ix(c, xx, yy)] = O.Building;
-      return true;
-    }
-    return false;
-  };
-  for (const bk of queue) tryPlace(bk, inner, 400);
-  // Training halls and shrines are what people look for: if one did not fit, retry on slightly wider ground.
-  if (kind !== 'ruin') {
-    for (const bk of L.extra) {
-      if (!MUST_PLACE.includes(bk) || placed.some((b) => b.kind === bk)) continue;
-      for (let reach = inner + 1; reach <= inner + 3 && !placed.some((b) => b.kind === bk); reach++) tryPlace(bk, reach, 300);
-    }
-  }
-
-  // Towers on fort corners.
-  if (kind === 'fort') {
-    for (const [sx, sy] of [
-      [-1, -1],
-      [1, -1],
-      [-1, 1],
-      [1, 1],
-    ] as const) {
-      const bx = cx + sx * (R - 1) - (sx > 0 ? 1 : 0);
-      const by = cy + sy * (R - 1) - (sy > 0 ? 1 : 0);
-      const b: BuildingDef = { id: c.buildings.length, kind: 'tower', x: bx, y: by, w: 2, d: 2, settlementId: id, door: { x: bx + 1, y: by + 2 } };
-      c.buildings.push(b);
-      def.buildingIds.push(b.id);
-      for (let yy = by; yy < by + 2; yy++) for (let xx = bx; xx < bx + 2; xx++) if (inB(c, xx, yy)) c.objects[ix(c, xx, yy)] = O.Building;
-    }
-  }
-
-  // Footpaths from every door to the town centre.
-  const grid = localGrid(c);
-  for (const b of placed) {
-    const p = findPath(grid, b.door.x, b.door.y, cx, cy + 1, 4000);
-    if (!p) continue;
-    for (const s of [{ x: b.door.x, y: b.door.y }, ...p]) {
-      const i = ix(c, s.x, s.y);
-      const t = c.terrain[i];
-      if (t === T.Road || t === T.Plaza) break;
-      if (t === T.Grass || t === T.Plains || t === T.Forest || t === T.Sand || t === T.Snow || t === T.Ruin) c.terrain[i] = T.Dirt;
-    }
-  }
+  const placed = kind === 'ruin' ? layoutRuin(c, def, rng) : layoutTown(c, def, rng, hint);
 
   // Farm patches on the outskirts.
-  for (let f = 0; f < L.farms; f++) {
+  for (let f = 0; f < spec.farms; f++) {
     for (let attempt = 0; attempt < 80; attempt++) {
       const ang = rng.next() * Math.PI * 2;
       const rad = R + 3 + rng.next() * 3;
@@ -507,7 +388,11 @@ function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, n
         for (let xx = fx; xx < fx + 5; xx++) {
           if (!inB(c, xx, yy)) { good = false; break; }
           const t = c.terrain[ix(c, xx, yy)];
+          const o = c.objects[ix(c, xx, yy)];
+          // fields go on open ground: not over a building, a wall, a fence, a well or a street
           if (t !== T.Grass && t !== T.Plains && t !== T.Forest) { good = false; break; }
+          if (o >= O.Building || o === O.Well || o === O.Lantern) { good = false; break; }
+          if (kind !== 'ruin' && c.reserved.some((r) => (xx - r.x) ** 2 + (yy - r.y) ** 2 <= r.r * r.r)) { good = false; break; }
         }
       }
       if (!good) continue;
@@ -526,10 +411,136 @@ function buildSettlement(c: Ctx, id: number, site: Cand, kind: SettlementKind, n
     def.sites.push({ id: `${id}:${sk}:${n++}`, kind: sk, x: b.door.x, y: b.door.y, settlementId: id });
   }
 
-  if (HERMITAGE_KINDS.has(kind)) placeHermitage(c, def, placed, c.rng.fork(3000 + id));
-
   def.spawn = { x: cx, y: cy + 3 };
   return def;
+}
+
+/** Cut a dirt footpath from a door to the nearest road or plaza (towards the centre). */
+function cutFootpath(c: Ctx, grid: PathGrid, door: { x: number; y: number }, cx: number, cy: number): void {
+  const p = findPath(grid, door.x, door.y, cx, cy + 1, 4000);
+  if (!p) return;
+  for (const s of [{ x: door.x, y: door.y }, ...p]) {
+    const i = ix(c, s.x, s.y);
+    const t = c.terrain[i];
+    if (t === T.Road || t === T.Plaza) break;
+    if (t === T.Grass || t === T.Plains || t === T.Forest || t === T.Sand || t === T.Snow || t === T.Ruin) c.terrain[i] = T.Dirt;
+  }
+}
+
+/** Is (x, y) within `margin` tiles of the square a built settlement occupies? */
+function inSettlement(c: Ctx, x: number, y: number, margin: number): boolean {
+  return c.settlements.some((o) => Math.abs(x - o.x) <= o.radius + margin && Math.abs(y - o.y) <= o.radius + margin);
+}
+
+/** A fallen capital: dirt cross roads and a few ruined houses at random places. */
+function layoutRuin(c: Ctx, def: SettlementDef, rng: Rng): BuildingDef[] {
+  const { x: cx, y: cy, id } = def;
+  const R = def.radius;
+  for (let d = -R - 1; d <= R + 1; d++) {
+    for (const [x, y] of [
+      [cx + d, cy],
+      [cx, cy + d],
+    ] as const) {
+      if (!inB(c, x, y)) continue;
+      const t = c.terrain[ix(c, x, y)];
+      if (t === T.Water || t === T.DeepWater || t === T.Rock) continue;
+      if (inSettlement(c, x, y, 3)) continue;
+      c.terrain[ix(c, x, y)] = T.Dirt;
+      c.objects[ix(c, x, y)] = O.None;
+    }
+  }
+  const placed: BuildingDef[] = [];
+  const [bw, bd] = FOOTPRINT.ruinedHouse;
+  for (let k = 0; k < 13; k++) {
+    for (let attempt = 0; attempt < 400; attempt++) {
+      const ang = rng.next() * Math.PI * 2;
+      const rad = 4 + rng.next() * (R - 4);
+      const bx = Math.round(cx + Math.cos(ang) * rad - bw / 2);
+      const by = Math.round(cy + Math.sin(ang) * rad - bd / 2);
+      if (Math.abs(bx + bw / 2 - cx) < bw / 2 + 1.6 || Math.abs(by + bd / 2 - cy) < bd / 2 + 1.6) continue;
+      if (Math.max(Math.abs(bx - cx), Math.abs(by - cy), Math.abs(bx + bw - cx), Math.abs(by + bd - cy)) > R - 1) continue;
+      if (!rectFree(c, placed, bx, by, bw, bd, 1)) continue;
+      if (inSettlement(c, bx, by, 4) || inSettlement(c, bx + bw, by + bd, 4)) continue;
+      const door = { x: bx + (bw >> 1), y: by + bd };
+      if (!inB(c, door.x, door.y) || !TERRAIN_INFO[c.terrain[ix(c, door.x, door.y)]].passable) continue;
+      const b: BuildingDef = { id: c.buildings.length, kind: 'ruinedHouse', x: bx, y: by, w: bw, d: bd, settlementId: id, door };
+      c.buildings.push(b);
+      placed.push(b);
+      def.buildingIds.push(b.id);
+      for (let yy = by; yy < by + bd; yy++) for (let xx = bx; xx < bx + bw; xx++) c.objects[ix(c, xx, yy)] = O.Building;
+      break;
+    }
+  }
+  const grid = localGrid(c);
+  for (const b of placed) cutFootpath(c, grid, b.door, cx, cy);
+  return placed;
+}
+
+const WALKABLE_GROUND: ReadonlySet<number> = new Set([T.Grass, T.Plains, T.Forest, T.Sand, T.Snow, T.Hill, T.Dirt]);
+
+/** A living settlement: plan the streets and lots (`townlayout.ts`) and paint them onto the world. */
+function layoutTown(c: Ctx, def: SettlementDef, rng: Rng, hint: SiteHint): BuildingDef[] {
+  const { x: cx, y: cy, id, kind } = def;
+  const R = def.radius;
+  const field = (dx: number, dy: number): boolean => {
+    const x = cx + dx;
+    const y = cy + dy;
+    if (!inB(c, x, y) || Math.abs(dx) > R + 2 || Math.abs(dy) > R + 2) return false;
+    if (c.reserved.some((r) => (x - r.x) ** 2 + (y - r.y) ** 2 <= r.r * r.r)) return false;
+    return WALKABLE_GROUND.has(c.terrain[ix(c, x, y)]);
+  };
+  const spec = SPECS[kind];
+  // The seeded pick comes first; if the ground (water, rock) leaves too much of the programme unplaced, try the other
+  // layouts the kind allows and keep the one that places the most.
+  const first = pickArchetype(kind, rng.fork(11));
+  const order = [first, ...spec.archetypes.map(([a]) => a).filter((a) => a !== first)];
+  let archetype = first;
+  let plan = planTown({ kind, spec, archetype: first, rng: rng.fork(12), mainAxis: hint.mainAxis, field });
+  for (const a of order.slice(1)) {
+    if (plan.missing.length <= spec.program.length * 0.1) break;
+    const alt = planTown({ kind, spec, archetype: a, rng: rng.fork(12), mainAxis: hint.mainAxis, field });
+    if (alt.missing.length < plan.missing.length) {
+      plan = alt;
+      archetype = a;
+    }
+  }
+  def.layout = archetype;
+  const set = (t: { x: number; y: number }, terrain: number | null, obj: number | null): void => {
+    const x = cx + t.x;
+    const y = cy + t.y;
+    if (!inB(c, x, y)) return;
+    const i = ix(c, x, y);
+    if (terrain !== null) c.terrain[i] = terrain;
+    if (obj !== null) c.objects[i] = obj;
+  };
+  for (const t of plan.water) set(t, T.Water, O.None);
+  for (const t of plan.roads) set(t, T.Road, O.None);
+  for (const t of plan.dirt) set(t, T.Dirt, O.None);
+  for (const t of plan.plaza) set(t, T.Plaza, O.None);
+  for (const t of plan.bridges) set(t, T.Bridge, O.None);
+  const wall = plan.enclosure === 'wall' ? O.Wall : plan.enclosure === 'palisade' ? O.Palisade : O.Fence;
+  for (const t of plan.enclosureTiles) set(t, null, wall);
+  for (const t of plan.wells) set(t, null, O.Well);
+  for (const t of plan.lanterns) set(t, null, O.Lantern);
+  for (const t of plan.gardens) set(t, null, rng.chance(0.5) ? O.Flowers : O.Bush);
+  for (const t of plan.trees) set(t, null, rng.chance(0.45) ? O.Bush : def.climate === 0 ? O.Pine : O.Oak);
+
+  const placed: BuildingDef[] = [];
+  for (const l of plan.lots) {
+    const bx = cx + l.x;
+    const by = cy + l.y;
+    const door = { x: cx + l.door.x, y: cy + l.door.y };
+    const b: BuildingDef = { id: c.buildings.length, kind: l.kind, x: bx, y: by, w: l.w, d: l.d, settlementId: id, door };
+    c.buildings.push(b);
+    placed.push(b);
+    def.buildingIds.push(b.id);
+    for (let yy = by; yy < by + l.d; yy++) for (let xx = bx; xx < bx + l.w; xx++) c.objects[ix(c, xx, yy)] = O.Building;
+  }
+  const grid = localGrid(c);
+  plan.lots.forEach((l, i) => {
+    if (l.needsPath) cutFootpath(c, grid, placed[i].door, cx, cy);
+  });
+  return placed;
 }
 
 const CLEARABLE_OBJECTS: ReadonlySet<number> = new Set([O.Pine, O.Oak, O.Bamboo, O.Boulder, O.DeadTree]);
@@ -573,7 +584,7 @@ function placeHermitage(c: Ctx, def: SettlementDef, placed: BuildingDef[], rng: 
   for (let attempt = 0; attempt < 600; attempt++) {
     const ang = rng.next() * Math.PI * 2;
     // After a fair number of misses the search widens to a few more tiles out.
-    const rad = R + 4 + rng.next() * (attempt < 300 ? 6 : 10);
+    const rad = R + 4 + rng.next() * (attempt < 300 ? 8 : 14);
     const bx = Math.round(def.x + Math.cos(ang) * rad - bw / 2);
     const by = Math.round(def.y + Math.sin(ang) * rad - bd / 2);
     const door = { x: bx + (bw >> 1), y: by + bd };
@@ -584,12 +595,15 @@ function placeHermitage(c: Ctx, def: SettlementDef, placed: BuildingDef[], rng: 
         const i = ix(c, xx, yy);
         const o = c.objects[i];
         const t = c.terrain[i];
-        if (o === O.Building || o === O.Wall || !HERMITAGE_GROUND.has(t)) ok = false;
+        if (o === O.Building || o === O.Wall || o === O.Palisade || o === O.Fence || !HERMITAGE_GROUND.has(t)) ok = false;
+        // outside the enclosure (a square), and off ground set aside for the fallen capital
+        if (Math.max(Math.abs(xx - def.x), Math.abs(yy - def.y)) < R + 3) ok = false;
+        if (c.reserved.some((r) => (xx - r.x) ** 2 + (yy - r.y) ** 2 <= r.r * r.r)) ok = false;
       }
     }
     if (!ok) continue;
     // Leave the other settlements, the road ends and the fields alone.
-    if (c.settlements.some((o) => dist(bx + bw / 2, by + bd / 2, o.x, o.y) < o.radius + 8)) continue;
+    if (c.settlements.some((o) => o !== def && Math.max(Math.abs(bx + 1 - o.x), Math.abs(by + 1 - o.y)) < o.radius + 5)) continue;
     if (placed.some((b) => bx - 2 < b.x + b.w && bx + bw + 2 > b.x && by - 2 < b.y + b.d && by + bd + 2 > b.y)) continue;
     const path = findPath(grid, door.x, door.y, def.x, def.y + 1, 9000);
     if (!path) continue;
@@ -777,7 +791,7 @@ function carveLine(c: Ctx, x0: number, y0: number, x1: number, y1: number): void
       if (t === T.Water || t === T.DeepWater) c.terrain[i] = T.Bridge;
       else if (t === T.Rock) c.terrain[i] = T.Hill;
       else if (t !== T.Road && t !== T.Plaza && t !== T.Bridge) c.terrain[i] = T.Dirt;
-      c.objects[i] = O.None;
+      if (c.objects[i] < O.Building && c.objects[i] !== O.Well) c.objects[i] = O.None;
     }
     if (x === x1 && y === y1) break;
     const e2 = 2 * err;
@@ -788,6 +802,18 @@ function carveLine(c: Ctx, x0: number, y0: number, x1: number, y1: number): void
 
 function ensureConnected(c: Ctx, world: WorldData): void {
   const start = c.settlements[0];
+  /** The end of the settlement's axis avenue that lies nearest a point (where roads leave). */
+  const avenueEnd = (s: SettlementDef, tx: number, ty: number): { x: number; y: number } => {
+    const R = s.radius + 1;
+    const ends = [
+      { x: s.x + R, y: s.y },
+      { x: s.x - R, y: s.y },
+      { x: s.x, y: s.y + R },
+      { x: s.x, y: s.y - R },
+    ].filter((p) => inB(c, p.x, p.y));
+    ends.sort((a, b) => dist(a.x, a.y, tx, ty) - dist(b.x, b.y, tx, ty));
+    return ends[0];
+  };
   for (let pass = 0; pass < 12; pass++) {
     const reach = reachableFrom(world, start.spawn.x, start.spawn.y);
     const isReached = (s: SettlementDef) => isPassable(world, s.spawn.x, s.spawn.y) && reach[ix(c, s.spawn.x, s.spawn.y)] === 1;
@@ -799,7 +825,10 @@ function ensureConnected(c: Ctx, world: WorldData): void {
     // The spawn tile itself may be blocked on odd seeds.
     c.terrain[ix(c, lost.spawn.x, lost.spawn.y)] = T.Road;
     c.objects[ix(c, lost.spawn.x, lost.spawn.y)] = O.None;
-    carveLine(c, lost.spawn.x, lost.spawn.y, to.spawn.x, to.spawn.y);
+    // Causeway from one avenue end to the other, so it never cuts through the streets and buildings of a settlement.
+    const a = avenueEnd(lost, to.x, to.y);
+    const b = avenueEnd(to, lost.x, lost.y);
+    carveLine(c, a.x, a.y, b.x, b.y);
   }
 }
 
@@ -897,7 +926,7 @@ function placeSpawnsAndNodes(c: Ctx, world: WorldData): { spawns: SpawnPointDef[
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
       if (!inB(c, x + dx, y + dy)) continue;
       const o = c.objects[ix(c, x + dx, y + dy)];
-      if (o === O.Wall || o === O.Building) return true;
+      if (o === O.Wall || o === O.Building || o === O.Palisade || o === O.Fence || o === O.Well) return true;
     }
     return false;
   };
@@ -950,6 +979,7 @@ export function generateWorld(seed: number, w = WORLD_W, h = WORLD_H): WorldData
     settlements: [],
     nodes: [],
     nextNodeId: 1,
+    reserved: [],
   };
   makeHeight(c);
   makeTerrain(c);
@@ -987,32 +1017,78 @@ export function generateWorld(seed: number, w = WORLD_W, h = WORLD_H): WorldData
     const living = ordered.filter((o) => o !== isolated);
     const frontier = living.reduce((best, s) => (dist(s.x, s.y, isolated.x, isolated.y) < dist(best.x, best.y, isolated.x, isolated.y) ? s : best), living[0]);
     let ruinSite: Cand = isolated;
+    let ruinCands = findCandidates(c, false, true);
+    if (ruinCands.length < 12) ruinCands = findCandidates(c, true, true);
     const tryRanges: [number, number, number][] = [
       [26, 34, 50],
       [24, 40, 42],
+      [22, 46, 38],
+      [20, 54, 32],
     ];
     for (const [lo, hi, minOther] of tryRanges) {
-      const options = cands.filter((k) => {
-        const dF = dist(k.x, k.y, frontier.x, frontier.y);
-        if (dF < lo || dF > hi) return false;
-        if (dist(k.x, k.y, sx, sy) < 80) return false;
-        return living.every((o) => o === frontier || dist(k.x, k.y, o.x, o.y) >= minOther);
-      });
-      if (options.length) {
-        ruinSite = options.reduce((best, k) => (dist(k.x, k.y, sx, sy) > dist(best.x, best.y, sx, sy) ? k : best), options[0]);
+      // any living town but the start may be the frontier the Blight presses against
+      let best: { k: Cand; fit: number } | null = null;
+      for (const f of living) {
+        if (f.x === sx && f.y === sy) continue;
+        for (const k of ruinCands) {
+          const dF = dist(k.x, k.y, f.x, f.y);
+          if (dF < lo || dF > hi) continue;
+          if (dist(k.x, k.y, sx, sy) < 80) continue;
+          if (!living.every((o) => o === f || dist(k.x, k.y, o.x, o.y) >= minOther)) continue;
+          // close to the ideal 30 tiles from the frontier town, on dry land, and far from the start if that leaves a choice
+          const fit = -Math.abs(dF - 30) * 2 + dist(k.x, k.y, sx, sy) * 0.1 + k.score * 0.4;
+          if (!best || fit > best.fit) best = { k, fit };
+        }
+      }
+      if (best) {
+        ruinSite = best.k;
         break;
       }
     }
     ordered.length = 0;
     ordered.push(...living, ruinSite);
   }
+  // the ruin is built last, but the living settlements must leave its ground alone
+  const ruinAt = ordered[ordered.length - 1];
+  if (ruinAt) c.reserved.push({ x: ruinAt.x, y: ruinAt.y, r: SPECS.ruin.radius + 3 });
   const kinds = kindsFor(ordered.length);
+  // The big kinds go to the roomiest sites: of the middle sites (everything but the start and the ruin) the one with the
+  // most buildable ground gets the first of the town / sect hall / fort slots, the cramped ones get the hamlet and villages.
+  if (ordered.length === KINDS_FULL.length) {
+    const room = (site: Cand, kindR: number): number => {
+      let n = 0;
+      for (let dy = -kindR; dy <= kindR; dy++) {
+        for (let dx = -kindR; dx <= kindR; dx++) {
+          const x = site.x + dx;
+          const y = site.y + dy;
+          if (!inB(c, x, y)) continue;
+          const t = c.terrain[ix(c, x, y)];
+          if (TERRAIN_INFO[t].passable && t !== T.Hill) n++;
+        }
+      }
+      return n;
+    };
+    const middle = ordered.slice(1, ordered.length - 1).map((site, i) => ({ site, i: i + 1, room: room(site, 20) }));
+    const slots = middle.map((m) => m.i);
+    const want: SettlementKind[] = ['town', 'town', 'sectHall', 'fort', 'village', 'hamlet'];
+    const byRoom = [...middle].sort((a, b) => b.room - a.room || a.i - b.i);
+    byRoom.forEach((m, rank) => {
+      kinds[m.i] = want[rank];
+    });
+    void slots;
+  }
   const used = new Set<string>();
   const nameRng = c.rng.fork(777);
   ordered.forEach((site, id) => {
     const kind = kinds[id];
-    c.settlements.push(buildSettlement(c, id, site, kind, settlementName(nameRng, kind, used)));
+    // the axis towards the nearest other site is where the trade road will leave
+    let near = ordered.find((o) => o !== site) ?? site;
+    for (const o of ordered) if (o !== site && dist(o.x, o.y, site.x, site.y) < dist(near.x, near.y, site.x, site.y)) near = o;
+    const mainAxis = Math.abs(near.x - site.x) >= Math.abs(near.y - site.y) ? 'x' : 'y';
+    c.settlements.push(buildSettlement(c, id, site, kind, settlementName(nameRng, kind, used), { mainAxis }));
   });
+  // Hermitages go in last, once every neighbour's buildings stand, so a hut never lands under another town's lot.
+  for (const def of c.settlements) if (HERMITAGE_KINDS.has(def.kind)) placeHermitage(c, def, c.buildings, c.rng.fork(3000 + def.id));
   addMines(c);
   const roads = buildRoads(c);
 

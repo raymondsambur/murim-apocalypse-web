@@ -68,6 +68,29 @@ describe('places and assignment', () => {
     h.close();
   });
 
+  it('houses the guards of a town in its barracks, and no dwelling is over capacity', () => {
+    const h = makeLifeHarness({ real: true });
+    const occupancy = new Map<string, { kind: string; sid: number; n: number; guards: number }>();
+    for (const st of h.life.states.values()) {
+      const e = occupancy.get(st.home!.id) ?? { kind: st.home!.kind, sid: st.sid, n: 0, guards: 0 };
+      e.n++;
+      if (st.role === 'guard') e.guards++;
+      occupancy.set(st.home!.id, e);
+    }
+    for (const [id, e] of occupancy) {
+      if (e.kind === 'barracks') expect(e.n, `barracks ${id}`).toBeLessThanOrEqual(NPCLIFE_TUNING.barracksCapacity);
+      if (e.kind === 'house' || e.kind === 'farmhouse') expect(e.n, `dwelling ${id}`).toBeLessThanOrEqual(NPCLIFE_TUNING.houseCapacity);
+    }
+    for (const s of h.ctx.world.settlements) {
+      if (s.kind !== 'town' && s.kind !== 'fort') continue;
+      const guards = [...h.life.states.values()].filter((st) => st.sid === s.id && st.role === 'guard');
+      const inBarracks = guards.filter((st) => st.home!.kind === 'barracks').length;
+      // a town's barracks take most of its garrison; a few may be housed elsewhere when the beds run out
+      expect(inBarracks, `${s.name} guards in barracks`).toBeGreaterThanOrEqual(Math.ceil(guards.length * 0.6));
+    }
+    h.close();
+  });
+
   it('puts roles at their workplaces', () => {
     const h = makeLifeHarness({ real: true });
     const want: Partial<Record<NpcRole, string[]>> = { smith: ['smithy', 'market', 'plaza'], alchemist: ['alchemy', 'herb', 'market', 'plaza'], merchant: ['market', 'warehouse', 'plaza'], innkeeper: ['inn', 'teahouse', 'plaza'] };
